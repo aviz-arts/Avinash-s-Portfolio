@@ -1,0 +1,171 @@
+import React from 'react';
+import {
+  ShieldCheck,
+  Plus,
+  Edit3,
+  Download,
+  Upload,
+  Eye,
+  LogOut,
+  RotateCcw,
+  FileText,
+  Type,
+  Layers,
+} from 'lucide-react';
+
+interface OwnerBarProps {
+  onAddNewProject: () => void;
+  onEditProfile: () => void;
+  onOpenResumeUploader: () => void;
+  onOpenAllLinesEditor: () => void;
+  onOpenSectionManager: () => void;
+  onAddNewSection: () => void;
+  onExportBackup: () => void;
+  onImportBackup: () => void;
+  onResetDefaults: () => void;
+  isPreviewMode: boolean;
+  onTogglePreview: () => void;
+  onLogout: () => void;
+  hasCustomResumePdf?: boolean;
+}
+
+export const OwnerBar: React.FC<OwnerBarProps> = ({
+  onAddNewProject,
+  onEditProfile,
+  onOpenResumeUploader,
+  onOpenAllLinesEditor,
+  onOpenSectionManager,
+  onAddNewSection,
+  onExportBackup,
+  onImportBackup,
+  onResetDefaults,
+  isPreviewMode,
+  onTogglePreview,
+  onLogout,
+  hasCustomResumePdf = false,
+}) => {
+  return (
+    <div className="bg-zinc-950/95 border-b border-red-950/80 text-zinc-200 px-4 py-2 text-xs font-mono sticky top-0 z-50 backdrop-blur-md">
+      <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+        {/* Left: Owner identity */}
+        <div className="flex items-center gap-2">
+          <ShieldCheck className="w-4 h-4 text-red-500" />
+          <span className="font-semibold text-white">Owner Mode Active:</span>
+          <span className="text-zinc-400">aviz.arts@gmail.com</span>
+          {isPreviewMode && (
+            <span className="px-2 py-0.5 rounded bg-zinc-800 text-white border border-zinc-700 text-[10px]">
+              Visitor Preview Active
+            </span>
+          )}
+        </div>
+
+        {/* Right: Quick actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            onClick={onAddNewProject}
+            className="flex items-center gap-1.5 px-3 py-1 bg-red-600 hover:bg-red-500 text-white font-sans font-medium rounded-lg transition-colors text-xs shadow-sm shadow-red-600/30"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Project</span>
+          </button>
+
+          <button
+            onClick={onAddNewSection}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900/90 hover:bg-zinc-800 text-red-400 border border-red-900/50 rounded-lg transition-colors text-xs"
+            title="Create a new custom showcase section in any tab"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>+ Add Section</span>
+          </button>
+
+          <button
+            onClick={onOpenSectionManager}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 rounded-lg transition-colors"
+            title="Manage and reorder custom sections across all tabs"
+          >
+            <Layers className="w-3.5 h-3.5 text-red-400" />
+            <span>Manage Sections</span>
+          </button>
+
+          <button
+            onClick={onOpenResumeUploader}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors ${
+              hasCustomResumePdf
+                ? 'bg-zinc-900 border-zinc-700 text-zinc-200 hover:bg-zinc-800'
+                : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 border-zinc-800'
+            }`}
+            title="Upload or replace your Resume PDF file"
+          >
+            <FileText className="w-3.5 h-3.5 text-red-400" />
+            <span>{hasCustomResumePdf ? 'Resume PDF (Uploaded)' : 'Upload Resume PDF'}</span>
+          </button>
+
+          <button
+            onClick={onOpenAllLinesEditor}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 rounded-lg transition-colors"
+            title="Open master control to edit every line of text across all sections"
+          >
+            <Type className="w-3.5 h-3.5 text-red-400" />
+            <span>Edit All Lines</span>
+          </button>
+
+          <button
+            onClick={onEditProfile}
+            className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 rounded-lg transition-colors"
+          >
+            <Edit3 className="w-3.5 h-3.5 text-red-400" />
+            <span>Profile & Bio</span>
+          </button>
+
+          <button
+            onClick={onTogglePreview}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors ${
+              isPreviewMode
+                ? 'bg-white text-zinc-950 border-white font-medium'
+                : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border-zinc-800'
+            }`}
+            title="Toggle between owner edit mode and visitor preview"
+          >
+            <Eye className="w-3.5 h-3.5" />
+            <span>{isPreviewMode ? 'Exit Preview' : 'Visitor View'}</span>
+          </button>
+
+          <button
+            onClick={onExportBackup}
+            className="flex items-center gap-1 px-2 py-1 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 rounded-lg transition-colors"
+            title="Export complete portfolio as JSON"
+          >
+            <Download className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Export</span>
+          </button>
+
+          <button
+            onClick={onImportBackup}
+            className="flex items-center gap-1 px-2 py-1 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 rounded-lg transition-colors"
+            title="Import portfolio JSON backup"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Import</span>
+          </button>
+
+          <button
+            onClick={onResetDefaults}
+            className="flex items-center gap-1 px-2 py-1 bg-zinc-900/80 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800 rounded-lg transition-colors"
+            title="Reset to factory defaults"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+
+          <button
+            onClick={onLogout}
+            className="flex items-center gap-1 px-2.5 py-1 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/60 rounded-lg transition-colors"
+            title="Log out of owner mode"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Logout</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
