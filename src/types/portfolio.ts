@@ -59,4 +59,6 @@ export interface ProjectItem {
   passes: LightingPass[];
   tags: string[];
   dummySceneStyle: 'cyberpunk' | 'crypt' | 'scifi' | 'derelict' | 'ruins' | 'turret';
+  customImageUrl?: string;
+  customVideoUrl?: string;
 }

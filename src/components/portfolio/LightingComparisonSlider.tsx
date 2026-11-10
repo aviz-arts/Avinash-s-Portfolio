@@ -8,6 +8,8 @@ interface LightingComparisonSliderProps {
   leftLabel?: string;
   rightLabel?: string;
   className?: string;
+  leftImageUrl?: string;
+  rightImageUrl?: string;
 }
 
 export const LightingComparisonSlider: React.FC<LightingComparisonSliderProps> = ({
@@ -17,6 +19,8 @@ export const LightingComparisonSlider: React.FC<LightingComparisonSliderProps> =
   leftLabel = 'Lighting Only (Clay)',
   rightLabel = 'Final Lit (Lumen GI)',
   className = '',
+  leftImageUrl,
+  rightImageUrl,
 }) => {
   const [sliderPos, setSliderPos] = useState(50); // percentage 0-100
   const containerRef = useRef<HTMLDivElement>(null);
@@ -24,20 +28,22 @@ export const LightingComparisonSlider: React.FC<LightingComparisonSliderProps> =
   const rightCanvasRef = useRef<HTMLCanvasElement>(null);
   const isDraggingRef = useRef(false);
 
-  // Render both canvas passes
+  // Render both canvas passes when custom images are not provided
   useEffect(() => {
+    if (leftImageUrl && rightImageUrl) return;
+
     const render = () => {
       const w = 960;
       const h = 540;
 
-      if (leftCanvasRef.current) {
+      if (!leftImageUrl && leftCanvasRef.current) {
         leftCanvasRef.current.width = w;
         leftCanvasRef.current.height = h;
         const ctxL = leftCanvasRef.current.getContext('2d');
         if (ctxL) drawProceduralScene(ctxL, w, h, style, leftPass, 0.5);
       }
 
-      if (rightCanvasRef.current) {
+      if (!rightImageUrl && rightCanvasRef.current) {
         rightCanvasRef.current.width = w;
         rightCanvasRef.current.height = h;
         const ctxR = rightCanvasRef.current.getContext('2d');
@@ -46,7 +52,7 @@ export const LightingComparisonSlider: React.FC<LightingComparisonSliderProps> =
     };
 
     render();
-  }, [style, leftPass, rightPass]);
+  }, [style, leftPass, rightPass, leftImageUrl, rightImageUrl]);
 
   const updatePosition = useCallback((clientX: number) => {
     if (!containerRef.current) return;
@@ -84,13 +90,21 @@ export const LightingComparisonSlider: React.FC<LightingComparisonSliderProps> =
       onPointerUp={handlePointerUp}
       className={`relative w-full aspect-video select-none overflow-hidden rounded-xl bg-zinc-950 border border-zinc-800 cursor-ew-resize ${className}`}
     >
-      {/* Right Canvas (Base background) */}
-      <canvas
-        ref={rightCanvasRef}
-        className="absolute inset-0 w-full h-full object-cover"
-      />
+      {/* Right Media (Base background) */}
+      {rightImageUrl ? (
+        <img
+          src={rightImageUrl}
+          alt={rightLabel}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      ) : (
+        <canvas
+          ref={rightCanvasRef}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      )}
 
-      {/* Left Canvas (Clipped by slider position) */}
+      {/* Left Media (Clipped by slider position) */}
       <div
         className="absolute inset-y-0 left-0 overflow-hidden"
         style={{ width: `${sliderPos}%` }}
@@ -99,10 +113,18 @@ export const LightingComparisonSlider: React.FC<LightingComparisonSliderProps> =
           className="relative h-full"
           style={{ width: containerRef.current ? `${containerRef.current.clientWidth}px` : '100%' }}
         >
-          <canvas
-            ref={leftCanvasRef}
-            className="absolute inset-0 w-full h-full object-cover"
-          />
+          {leftImageUrl ? (
+            <img
+              src={leftImageUrl}
+              alt={leftLabel}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          ) : (
+            <canvas
+              ref={leftCanvasRef}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          )}
         </div>
       </div>
 

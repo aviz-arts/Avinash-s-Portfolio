@@ -72,10 +72,28 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
         onClick={() => onSelect(project)}
         className="relative w-full aspect-video bg-zinc-950 overflow-hidden cursor-pointer"
       >
-        <canvas
-          ref={canvasRef}
-          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
-        />
+        {project.customVideoUrl ? (
+          <video
+            src={project.customVideoUrl}
+            poster={project.customImageUrl}
+            muted
+            playsInline
+            loop
+            autoPlay={isHovered}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+          />
+        ) : project.customImageUrl ? (
+          <img
+            src={project.customImageUrl}
+            alt={project.title}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+          />
+        ) : (
+          <canvas
+            ref={canvasRef}
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+          />
+        )}
 
         {/* Media / Discipline Badge Overlay */}
         <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-zinc-950/85 backdrop-blur-md px-2.5 py-1 rounded-md text-[11px] font-mono text-zinc-300 border border-zinc-800">

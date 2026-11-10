@@ -82,9 +82,12 @@ export interface SiteContent {
   reelPlayerTitle: string;
   reelPlayerEngine: string;
   reelPlayerCaption: string;
+  customReelVideoUrl?: string;
   abSliderTitle: string;
   abSliderHint: string;
   abSliderCaption: string;
+  customAbSliderLeftUrl?: string;
+  customAbSliderRightUrl?: string;
 
   // Level Design
   levelKicker: string;

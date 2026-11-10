@@ -142,6 +142,20 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <Sliders className="w-3 h-3" />
                   <span>A/B Split Slider</span>
                 </button>
+
+                {project.customImageUrl && (
+                  <button
+                    onClick={() => setViewMode('image' as any)}
+                    className={`px-3 py-1 text-xs font-mono rounded-md transition-colors flex items-center gap-1.5 ${
+                      viewMode === ('image' as any)
+                        ? 'bg-red-600 text-white font-semibold shadow-sm shadow-red-600/30'
+                        : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    <Compass className="w-3 h-3" />
+                    <span>Uploaded Artwork</span>
+                  </button>
+                )}
               </div>
 
               <span className="text-xs font-mono text-zinc-500 hidden sm:inline">
@@ -150,12 +164,22 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
             </div>
 
             {/* Selected Media Player */}
-            {viewMode === 'video' ? (
+            {viewMode === ('image' as any) && project.customImageUrl ? (
+              <div className="relative w-full aspect-video rounded-xl overflow-hidden bg-black border border-zinc-800">
+                <img
+                  src={project.customImageUrl}
+                  alt={project.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ) : viewMode === 'video' ? (
               <CinematicVideoPlayer
                 style={project.dummySceneStyle}
                 title={project.title}
                 duration={project.videoDuration || '0:42'}
                 autoPlay={true}
+                videoUrl={project.customVideoUrl}
+                posterUrl={project.customImageUrl}
               />
             ) : (
               <LightingComparisonSlider
