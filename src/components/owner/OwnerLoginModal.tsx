@@ -13,7 +13,7 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const [email, setEmail] = useState(OWNER_EMAIL);
+  const [email, setEmail] = useState('avinashr5904@gmail.com');
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [showDefaultHint, setShowDefaultHint] = useState(false);
@@ -35,7 +35,7 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
   };
 
   const handleUseDefault = () => {
-    setEmail(OWNER_EMAIL);
+    setEmail('avinashr5904@gmail.com');
     setPin(DEFAULT_OWNER_PIN);
     setError('');
   };

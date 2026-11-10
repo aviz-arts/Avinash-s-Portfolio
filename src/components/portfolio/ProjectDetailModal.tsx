@@ -188,6 +188,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                 rightPass="final"
                 leftLabel="Lighting Only (Clay)"
                 rightLabel="Final Composition (Lumen)"
+                leftImageUrl={project.comparisonLeftUrl}
+                rightImageUrl={project.comparisonRightUrl}
               />
             )}
           </div>

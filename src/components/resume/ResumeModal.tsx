@@ -39,7 +39,7 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
   const handleCopyText = () => {
     const resumeText = `
 AVINASH
-Game Designer (Profession) · Real-Time Lighting Artist (Passion)
+Game Designer | Lighting Artist
 Email: ${profile?.email || 'aviz.arts@gmail.com'}
 Specialization: Gameplay Systems, Core Mechanics Loops, Level Architecture, UE5 Lumen / Unity HDRP
 
@@ -136,7 +136,7 @@ CORE TECHNICAL SKILLS:
                 {profile?.name || 'Avinash'}
               </h1>
               <div className="text-red-500 print:text-red-700 font-mono text-sm sm:text-base font-semibold mt-1">
-                {profile?.title || 'Game Designer & Real-Time Lighting Artist'}
+                {profile?.title || 'Game Designer | Lighting Artist'}
               </div>
               <div className="text-xs font-mono text-zinc-400 print:text-zinc-600 mt-2 flex flex-wrap items-center gap-3">
                 <span>Specialization: Unreal Engine 5 (Lumen/Nanite) & Unity HDRP</span>
@@ -165,7 +165,7 @@ CORE TECHNICAL SKILLS:
             </h2>
             <p className="text-xs sm:text-sm text-zinc-300 print:text-zinc-800 leading-relaxed">
               {profile?.leadCopy ||
-                'Senior Level Designer and Real-Time Lighting Artist architecting spatial readability, combat pacing, and cinematic illumination. Bridging the gap between player psychology and physical light transport while guarding strict 60.0 FPS Lumen console performance budgets.'}
+                'Senior Game Designer and Lighting Artist architecting spatial readability, combat pacing, and cinematic illumination. Bridging the gap between player psychology and physical light transport while guarding strict 60.0 FPS Lumen console performance budgets.'}
             </p>
           </section>
 
@@ -226,7 +226,7 @@ CORE TECHNICAL SKILLS:
                 <ul className="list-disc list-inside text-xs text-zinc-400 print:text-zinc-700 space-y-1 pt-1">
                   <li>Architected responsive 5-verb parkour traversal system and combat encounter pacing curves across 14+ game environments.</li>
                   <li>Designed multiplayer blockout geometry with 45° sightline bevels and verticality layers, reducing player disorientation.</li>
-                  <li>Harnessed real-time lighting passion to author diegetic wayfinding cues, eliminating mini-map dependency while maintaining 60 FPS console target.</li>
+                  <li>Harnessed lighting design passion to author diegetic wayfinding cues, eliminating mini-map dependency while maintaining 60 FPS console target.</li>
                 </ul>
               </div>
 

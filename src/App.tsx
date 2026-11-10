@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { ProjectItem } from './types/portfolio';
 import { filterProjects } from './utils/lightingLogic';
 import { Header } from './components/navigation/Header';
@@ -18,6 +19,7 @@ import { SiteContentEditorModal } from './components/owner/SiteContentEditorModa
 import { SectionManagerModal } from './components/owner/SectionManagerModal';
 import { CustomSectionRenderer } from './components/portfolio/CustomSectionRenderer';
 import { EditableText } from './components/common/EditableText';
+import { CustomCursor } from './components/common/CustomCursor';
 import {
   getStoredProjects,
   saveStoredProjects,
@@ -60,14 +62,20 @@ import {
   CheckCircle2,
   Download,
   FileText,
+  Upload,
+  Image as ImageIcon,
+  Film,
+  RotateCcw,
 } from 'lucide-react';
 
 export default function App() {
+  const [activeTab, setActiveTab] = useState<'home' | 'work' | 'about'>('home');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeProject, setActiveProject] = useState<ProjectItem | null>(null);
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [studioScene, setStudioScene] = useState<'cyberpunk' | 'crypt' | 'turret'>('cyberpunk');
+  const [siteContentEditorTab, setSiteContentEditorTab] = useState<'hero' | 'studio' | 'works' | 'reels' | 'level' | 'about' | 'footer'>('hero');
 
   // Persistent State
   const [projects, setProjects] = useState<ProjectItem[]>(() => getStoredProjects());
@@ -91,6 +99,16 @@ export default function App() {
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Check URL query on mount (?owner or ?admin)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('owner') || params.has('admin')) {
+        setIsOwnerLoginOpen(true);
+      }
+    }
+  }, []);
 
   // Shortcut Ctrl+Shift+E
   useEffect(() => {
@@ -120,10 +138,13 @@ export default function App() {
 
   const handleOpenInStudio = (scene: 'cyberpunk' | 'crypt' | 'turret') => {
     setStudioScene(scene);
-    const studioEl = document.getElementById('studio');
-    if (studioEl) {
-      studioEl.scrollIntoView({ behavior: 'smooth' });
-    }
+    setActiveTab('work');
+    setTimeout(() => {
+      const studioEl = document.getElementById('studio');
+      if (studioEl) {
+        studioEl.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 150);
   };
 
   // Direct Resume PDF Download Trigger
@@ -192,6 +213,9 @@ export default function App() {
   const handleSaveProfile = (newProfile: OwnerProfile) => {
     saveStoredProfile(newProfile);
     setProfile(newProfile);
+    if (newProfile.avatarUrl && newProfile.avatarUrl !== siteContent.avatarUrl) {
+      handleUpdateSiteLine('avatarUrl', newProfile.avatarUrl);
+    }
     showBanner('Site profile and experience updated.');
   };
 
@@ -303,6 +327,9 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-100 flex flex-col selection:bg-red-500/30 selection:text-white">
+      {/* Unique Smooth Interactive Cursor */}
+      <CustomCursor />
+
       {/* Hidden file input for backup imports */}
       <input
         type="file"
@@ -344,23 +371,91 @@ export default function App() {
 
       {/* 1. Header (Home, Work, About, Resume, Contact) */}
       <Header
+        activeTab={activeTab}
+        onSelectTab={(tab) => {
+          setActiveTab(tab);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
         onOpenContact={() => setIsContactOpen(true)}
         onOpenResume={handleDownloadResume}
-        activeSection={selectedCategory}
         avatarUrl={siteContent.avatarUrl || DEFAULT_AVATAR_URL}
       />
 
       <main className="flex-1">
-        {/* 2. Hero Section (Home) */}
-        <section id="home" className="relative pt-20 pb-16 md:pt-28 md:pb-24 border-b border-zinc-800/80 overflow-hidden bg-gradient-to-b from-[#080808] to-[#050505]">
+        <AnimatePresence mode="wait">
+          {activeTab === 'home' && (
+            <motion.div
+              key="tab-home"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.3, ease: 'easeOut' }}
+            >
+              {/* 2. Hero Section (Home) */}
+              <section id="home" className="relative pt-20 pb-16 md:pt-28 md:pb-24 border-b border-zinc-800/80 overflow-hidden bg-gradient-to-b from-[#080808] to-[#050505]">
+          {/* Atmospheric Background Video (Very Low Opacity) */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+            {siteContent.heroBackgroundVideoUrl ? (
+              <video
+                autoPlay
+                loop
+                muted
+                playsInline
+                src={siteContent.heroBackgroundVideoUrl}
+                className="w-full h-full object-cover opacity-15 filter contrast-125 saturate-50"
+              />
+            ) : (
+              <video
+                autoPlay
+                loop
+                muted
+                playsInline
+                src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
+                className="w-full h-full object-cover opacity-12 filter contrast-125 grayscale"
+                onError={(e) => {
+                  (e.target as HTMLElement).style.display = 'none';
+                }}
+              />
+            )}
+            {/* Monochrome Gradients & Atmospheric Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-b from-[#080808]/90 via-[#050505]/85 to-[#000000]" />
+            <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-800/10 via-black/40 to-black/80" />
+          </div>
+
           {/* Subtle atmospheric ambient glow */}
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-red-600/10 blur-[130px] rounded-full pointer-events-none" />
-          <div className="absolute top-1/3 left-1/4 w-[400px] h-[250px] bg-zinc-700/10 blur-[100px] rounded-full pointer-events-none" />
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-red-600/10 blur-[130px] rounded-full pointer-events-none z-0" />
+          <div className="absolute top-1/3 left-1/4 w-[400px] h-[250px] bg-zinc-700/10 blur-[100px] rounded-full pointer-events-none z-0" />
 
           <div className="max-w-7xl mx-auto px-6 relative z-10">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
               {/* Left Column: Headlines & Actions (lg:col-span-7) */}
               <div className="lg:col-span-7">
+                {/* Owner Background Video Trigger */}
+                {ownerCanEdit && (
+                  <div className="mb-3 flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setSiteContentEditorTab('hero');
+                        setIsSiteContentEditorOpen(true);
+                      }}
+                      className="px-2.5 py-1 text-[11px] font-mono text-zinc-300 bg-zinc-900/90 border border-zinc-800 rounded-lg hover:border-red-500/60 transition-colors flex items-center gap-1.5 shadow-sm cursor-pointer"
+                      title="Upload or change hero background video"
+                    >
+                      <Film className="w-3.5 h-3.5 text-red-500" />
+                      <span>{siteContent.heroBackgroundVideoUrl ? '✓ Custom BG Video Active' : 'Upload Hero Background Video'}</span>
+                    </button>
+                    {siteContent.heroBackgroundVideoUrl && (
+                      <button
+                        onClick={() => handleUpdateSiteLine('heroBackgroundVideoUrl', '')}
+                        className="text-[10px] font-mono text-zinc-500 hover:text-red-400 cursor-pointer"
+                        title="Reset to default ambient background"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+                )}
+
                 {/* Unboxed Kicker (§1.A Zero-Pill Rule) */}
                 <div className="flex items-center gap-2 text-xs font-mono text-zinc-400 mb-4 tracking-wide uppercase flex-wrap">
                   <span className="text-red-500 font-bold">
@@ -407,9 +502,17 @@ export default function App() {
 
                 {/* Primary Call to Actions */}
                 <div className="flex flex-wrap items-center gap-3.5 mt-8">
-                  <a
-                    href="#studio"
-                    className="px-5 py-3 bg-red-600 hover:bg-red-500 text-white font-medium rounded-xl text-sm transition-all flex items-center gap-2 shadow-lg shadow-red-600/30 font-sans"
+                  <button
+                    onClick={() => {
+                      setActiveTab('work');
+                      setTimeout(() => {
+                        const studioEl = document.getElementById('studio');
+                        if (studioEl) {
+                          studioEl.scrollIntoView({ behavior: 'smooth' });
+                        }
+                      }, 120);
+                    }}
+                    className="px-5 py-3 bg-red-600 hover:bg-red-500 text-white font-medium rounded-xl text-sm transition-all flex items-center gap-2 shadow-lg shadow-red-600/30 font-sans cursor-pointer"
                   >
                     <Box className="w-4 h-4 text-white" />
                     <EditableText
@@ -419,11 +522,14 @@ export default function App() {
                       label="Studio CTA Label"
                       as="span"
                     />
-                  </a>
+                  </button>
 
-                  <a
-                    href="#work"
-                    className="px-5 py-3 bg-zinc-900/90 hover:bg-zinc-800 text-white border border-zinc-700/80 rounded-xl text-sm transition-all flex items-center gap-2 font-sans"
+                  <button
+                    onClick={() => {
+                      setActiveTab('work');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className="px-5 py-3 bg-zinc-900/90 hover:bg-zinc-800 text-white border border-zinc-700/80 rounded-xl text-sm transition-all flex items-center gap-2 font-sans cursor-pointer"
                   >
                     <EditableText
                       value={siteContent.heroCaseStudiesCtaText}
@@ -433,11 +539,11 @@ export default function App() {
                       as="span"
                     />
                     <ArrowRight className="w-4 h-4 text-red-400" />
-                  </a>
+                  </button>
 
                   <button
                     onClick={handleDownloadResume}
-                    className="px-4 py-3 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 hover:text-white border border-zinc-700/80 rounded-xl text-sm transition-all flex items-center gap-2 font-mono"
+                    className="px-4 py-3 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 hover:text-white border border-zinc-700/80 rounded-xl text-sm transition-all flex items-center gap-2 font-mono cursor-pointer"
                     title="Download Resume PDF"
                   >
                     <Download className="w-4 h-4 text-red-500" />
@@ -447,7 +553,7 @@ export default function App() {
                   {ownerCanEdit && (
                     <button
                       onClick={handleAddNewProject}
-                      className="px-3.5 py-3 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/60 rounded-xl text-sm transition-all flex items-center gap-1.5 font-sans"
+                      className="px-3.5 py-3 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/60 rounded-xl text-sm transition-all flex items-center gap-1.5 font-sans cursor-pointer"
                     >
                       <span>+ Add Project</span>
                     </button>
@@ -468,7 +574,18 @@ export default function App() {
                         <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
                         <span className="text-zinc-200 font-medium">Available for Lead Roles</span>
                       </div>
-                      <span className="text-red-400 text-[11px] font-semibold">Unreal Engine 5.4</span>
+                      {ownerCanEdit ? (
+                        <button
+                          onClick={() => setIsProfileEditorOpen(true)}
+                          className="text-red-400 hover:text-red-300 text-[11px] font-semibold flex items-center gap-1 bg-red-950/60 px-2 py-0.5 rounded border border-red-800/60 transition-colors"
+                          title="Upload or update artist portrait"
+                        >
+                          <Upload className="w-3 h-3" />
+                          <span>Edit Photo</span>
+                        </button>
+                      ) : (
+                        <span className="text-red-400 text-[11px] font-semibold">Unreal Engine 5.4</span>
+                      )}
                     </div>
 
                     {/* Portrait Image with subtle lighting contrast */}
@@ -616,7 +733,17 @@ export default function App() {
             />
           </div>
         </section>
+      </motion.div>
+    )}
 
+    {activeTab === 'work' && (
+      <motion.div
+        key="tab-work"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -12 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
+      >
         {/* 3. Interactive 3D Scene Lighting Studio */}
         <section id="studio" className="py-20 bg-zinc-950/60 border-b border-zinc-800/80">
           <div className="max-w-7xl mx-auto px-6">
@@ -828,11 +955,44 @@ export default function App() {
                     />
                   </span>
                 </div>
+
+                {/* Owner Reel Controls (Only visible when logged in) */}
+                {ownerCanEdit && (
+                  <div className="flex items-center justify-between text-[11px] font-mono px-3 py-1.5 bg-zinc-900/90 border border-zinc-800 rounded-xl">
+                    <span className="text-zinc-400 flex items-center gap-1.5">
+                      <Film className="w-3.5 h-3.5 text-red-400" />
+                      <span>{siteContent.customReelVideoUrl ? 'Custom Video Loaded' : 'Procedural Canvas Loop'}</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setSiteContentEditorTab('reels');
+                          setIsSiteContentEditorOpen(true);
+                        }}
+                        className="px-2 py-0.5 bg-red-950/60 hover:bg-red-900/60 text-red-300 border border-red-800/60 rounded text-[10px] flex items-center gap-1 cursor-pointer"
+                      >
+                        <Upload className="w-3 h-3" />
+                        <span>{siteContent.customReelVideoUrl ? 'Change Video' : 'Upload Video'}</span>
+                      </button>
+                      {siteContent.customReelVideoUrl && (
+                        <button
+                          onClick={() => handleUpdateSiteLine('customReelVideoUrl', '')}
+                          className="text-zinc-500 hover:text-red-400 text-[10px]"
+                          title="Reset to procedural"
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <CinematicVideoPlayer
                   style="cyberpunk"
                   title={siteContent.reelPlayerTitle}
                   duration="0:42"
                   autoPlay={false}
+                  videoUrl={siteContent.customReelVideoUrl}
                 />
                 <p className="text-xs text-zinc-500 leading-relaxed">
                   <EditableText
@@ -865,12 +1025,49 @@ export default function App() {
                     />
                   </span>
                 </div>
+
+                {/* Owner Slider Controls (Only visible when logged in) */}
+                {ownerCanEdit && (
+                  <div className="flex items-center justify-between text-[11px] font-mono px-3 py-1.5 bg-zinc-900/90 border border-zinc-800 rounded-xl">
+                    <span className="text-zinc-400 flex items-center gap-1.5">
+                      <ImageIcon className="w-3.5 h-3.5 text-red-400" />
+                      <span>{siteContent.customAbSliderLeftUrl || siteContent.customAbSliderRightUrl ? 'Custom Passes Loaded' : 'Procedural Canvas Passes'}</span>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setSiteContentEditorTab('reels');
+                          setIsSiteContentEditorOpen(true);
+                        }}
+                        className="px-2 py-0.5 bg-red-950/60 hover:bg-red-900/60 text-red-300 border border-red-800/60 rounded text-[10px] flex items-center gap-1 cursor-pointer"
+                      >
+                        <Upload className="w-3 h-3" />
+                        <span>Upload Passes</span>
+                      </button>
+                      {(siteContent.customAbSliderLeftUrl || siteContent.customAbSliderRightUrl) && (
+                        <button
+                          onClick={() => {
+                            handleUpdateSiteLine('customAbSliderLeftUrl', '');
+                            handleUpdateSiteLine('customAbSliderRightUrl', '');
+                          }}
+                          className="text-zinc-500 hover:text-red-400 text-[10px]"
+                          title="Reset to procedural passes"
+                        >
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 <LightingComparisonSlider
                   style="crypt"
                   leftPass="clay"
                   rightPass="final"
                   leftLabel="Lighting Only (Clay)"
                   rightLabel="Final Composition"
+                  leftImageUrl={siteContent.customAbSliderLeftUrl}
+                  rightImageUrl={siteContent.customAbSliderRightUrl}
                 />
                 <p className="text-xs text-zinc-500 leading-relaxed">
                   <EditableText
@@ -1022,7 +1219,17 @@ export default function App() {
             </div>
           </div>
         </section>
+      </motion.div>
+    )}
 
+    {activeTab === 'about' && (
+      <motion.div
+        key="tab-about"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -12 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
+      >
         {/* 7. About & Toolset Section */}
         <AboutSection
           onOpenContact={() => setIsContactOpen(true)}
@@ -1044,7 +1251,10 @@ export default function App() {
             onEditSectionClick={handleOpenEditSection}
           />
         </div>
-      </main>
+      </motion.div>
+    )}
+  </AnimatePresence>
+</main>
 
       {/* 8. Quiet Footer */}
       <footer className="py-12 border-t border-zinc-800/80 bg-[#000000] text-zinc-500 text-xs font-mono">
@@ -1077,23 +1287,38 @@ export default function App() {
               {siteContent.contactEmail}
             </a>
             <button
-              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-              className="hover:text-red-400 transition-colors"
+              onClick={() => {
+                setActiveTab('home');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`transition-colors cursor-pointer ${
+                activeTab === 'home' ? 'text-red-400 font-semibold' : 'hover:text-red-400'
+              }`}
             >
               Home
             </button>
-            <a
-              href="#work"
-              className="hover:text-white transition-colors"
+            <button
+              onClick={() => {
+                setActiveTab('work');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`transition-colors cursor-pointer ${
+                activeTab === 'work' ? 'text-red-400 font-semibold' : 'hover:text-white'
+              }`}
             >
               Work
-            </a>
-            <a
-              href="#about"
-              className="hover:text-white transition-colors"
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('about');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`transition-colors cursor-pointer ${
+                activeTab === 'about' ? 'text-red-400 font-semibold' : 'hover:text-white'
+              }`}
             >
               About
-            </a>
+            </button>
             <button
               onClick={handleDownloadResume}
               className="hover:text-red-400 transition-colors flex items-center gap-1"
@@ -1108,24 +1333,28 @@ export default function App() {
             >
               Contact
             </button>
-            {/* Owner Access Trigger in Footer */}
-            <button
-              onClick={() => {
-                if (isOwner) {
-                  setIsSiteContentEditorOpen(true);
-                } else {
-                  setIsOwnerLoginOpen(true);
-                }
-              }}
-              className="hover:text-red-400 transition-colors flex items-center gap-1.5 text-zinc-400 hover:text-red-400"
-              title={isOwner ? 'Owner Mode Active: Click to edit all text' : 'Owner access portal'}
-            >
-              <Lock className="w-3 h-3 text-zinc-600 hover:text-red-400" />
-              <span>{isOwner ? 'Edit All Lines' : 'Owner Access'}</span>
-            </button>
+
+            {/* Owner Access Trigger in Footer (Strictly only visible when owner is authenticated) */}
+            {isOwner && (
+              <button
+                onClick={() => setIsSiteContentEditorOpen(true)}
+                className="hover:text-red-400 transition-colors flex items-center gap-1.5 text-red-400 font-mono text-[11px] px-2 py-0.5 rounded bg-red-950/40 border border-red-900/60"
+                title="Owner Mode Active: Click to edit all text lines"
+              >
+                <Lock className="w-3 h-3 text-red-500" />
+                <span>Owner Mode Active</span>
+              </button>
+            )}
           </div>
 
-          <div>
+          {/* Copyright with discrete double-click owner portal trigger */}
+          <div
+            onDoubleClick={() => {
+              if (!isOwner) setIsOwnerLoginOpen(true);
+            }}
+            title={isOwner ? undefined : "Avinash · Game Designer & Lighting Artist"}
+            className="cursor-default select-none"
+          >
             © {new Date().getFullYear()} <EditableText
               value={siteContent.footerCopyright}
               onChange={(v) => handleUpdateSiteLine('footerCopyright', v)}
@@ -1167,6 +1396,7 @@ export default function App() {
       <SiteContentEditorModal
         isOpen={isSiteContentEditorOpen}
         content={siteContent}
+        initialTab={siteContentEditorTab}
         onClose={() => setIsSiteContentEditorOpen(false)}
         onSave={(updated) => {
           saveStoredSiteContent(updated);

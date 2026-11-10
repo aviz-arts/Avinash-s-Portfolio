@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { OwnerProfile } from '../../utils/portfolioStorage';
-import { X, Save, Plus, Trash2, User, Award, Wrench } from 'lucide-react';
+import { X, Save, Plus, Trash2, User, Award, Wrench, Image as ImageIcon } from 'lucide-react';
+import { MediaUploadField } from '../common/MediaUploadField';
 
 interface ProfileEditorModalProps {
   isOpen: boolean;
@@ -79,8 +80,21 @@ export const ProfileEditorModal: React.FC<ProfileEditorModalProps> = ({
           <div className="space-y-4">
             <h4 className="text-xs font-mono font-semibold text-red-500 uppercase tracking-wider pb-1 border-b border-zinc-800 flex items-center gap-1.5">
               <User className="w-3.5 h-3.5" />
-              <span>01. Hero Headline & Lead Narrative</span>
+              <span>01. Hero Headline, Portrait Photo & Narrative</span>
             </h4>
+
+            {/* Profile Avatar / Photo Upload */}
+            <div className="p-3 bg-zinc-900/40 border border-zinc-800 rounded-xl">
+              <MediaUploadField
+                label="Artist Portrait Photo / Avatar"
+                value={formData.avatarUrl}
+                onChange={(url) => setFormData({ ...formData, avatarUrl: url })}
+                mediaType="image"
+                aspectRatio="avatar"
+                hint="Upload your personal photo to display on the hero card and top navigation wordmark."
+                placeholder="https://.../my_photo.jpg or upload file"
+              />
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>

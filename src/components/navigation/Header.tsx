@@ -1,97 +1,109 @@
 import React, { useState } from 'react';
-import { Menu, X, FileText, Mail, Home, Briefcase, User, Sparkles } from 'lucide-react';
+import { Menu, X, FileText, Mail, Home, Briefcase, User } from 'lucide-react';
 
 interface HeaderProps {
+  activeTab: 'home' | 'work' | 'about';
+  onSelectTab: (tab: 'home' | 'work' | 'about') => void;
   onOpenContact: () => void;
   onOpenResume: () => void;
-  activeSection?: string;
   avatarUrl?: string;
 }
 
 export const Header: React.FC<HeaderProps> = ({
+  activeTab,
+  onSelectTab,
   onOpenContact,
   onOpenResume,
-  activeSection = 'home',
   avatarUrl = '/assets/aistudio/pic_fe23a188.jpg',
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const handleNavClick = (sectionId: string) => {
+  const handleNavClick = (tabOrAction: 'home' | 'work' | 'about' | 'resume' | 'contact') => {
     setIsMobileMenuOpen(false);
-    if (sectionId === 'home') {
+    if (tabOrAction === 'home' || tabOrAction === 'work' || tabOrAction === 'about') {
+      onSelectTab(tabOrAction);
       window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (sectionId === 'resume') {
+    } else if (tabOrAction === 'resume') {
       onOpenResume();
-    } else if (sectionId === 'contact') {
+    } else if (tabOrAction === 'contact') {
       onOpenContact();
-    } else {
-      const el = document.getElementById(sectionId);
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
-      }
     }
   };
 
   return (
     <header className="sticky top-0 z-40 bg-[#050505]/95 backdrop-blur-md border-b border-zinc-800/80">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-6 px-6 py-4">
-        {/* Zone 1: Portrait avatar + single text wordmark linking to top/home */}
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-6 px-6 py-3.5">
+        {/* Zone 1: Portrait avatar + AVINASH heading + faded subtitle: Game Designer | Lighting Artist */}
         <button
           onClick={() => handleNavClick('home')}
-          className="flex items-center gap-3 text-left group cursor-pointer shrink-0"
+          className="flex items-center gap-3.5 text-left group cursor-pointer shrink-0"
         >
-          <div className="relative w-8 h-8 rounded-full overflow-hidden border-2 border-red-500/80 group-hover:border-red-400 transition-colors shadow-sm shadow-red-500/20 shrink-0">
+          <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-red-500/80 group-hover:border-red-400 transition-all duration-300 shadow-sm shadow-red-500/20 shrink-0">
             <img
               src={avatarUrl}
               alt="Avinash"
               className="w-full h-full object-cover object-top"
               onError={(e) => {
-                // Fallback to stylized initial if image not found
                 (e.target as HTMLElement).style.display = 'none';
               }}
             />
           </div>
-          <div className="text-base sm:text-lg font-display font-bold tracking-tight text-white group-hover:text-red-400 transition-colors whitespace-nowrap">
-            Avinash <span className="hidden lg:inline text-zinc-400 font-normal text-sm font-mono">— Game Designer & Lighting Artist</span>
+          <div className="flex flex-col">
+            <span className="text-lg sm:text-xl font-display font-black tracking-tight text-white group-hover:text-red-400 transition-colors uppercase leading-tight">
+              AVINASH
+            </span>
+            <span className="text-[11px] font-mono text-zinc-500 group-hover:text-zinc-400 transition-colors tracking-wider mt-0.5">
+              Game Designer | Lighting Artist
+            </span>
           </div>
         </button>
 
-        {/* Zone 2: 5 clean navigation tabs: Home, Work, About, Resume, Contact */}
-        <nav className="hidden md:flex items-center gap-7 text-xs font-medium tracking-wide uppercase text-zinc-400 font-mono">
-          {/* 1. Home */}
+        {/* Zone 2: Navigation tabs with animated active indicator */}
+        <nav className="hidden md:flex items-center gap-8 text-xs font-mono tracking-wider uppercase text-zinc-400 font-medium">
+          {/* 1. Home Tab */}
           <button
             onClick={() => handleNavClick('home')}
-            className={`transition-colors whitespace-nowrap shrink-0 hover:text-white cursor-pointer ${
-              activeSection === 'home' ? 'text-red-400 font-bold' : ''
+            className={`relative py-1 transition-all duration-200 cursor-pointer ${
+              activeTab === 'home' ? 'text-white font-bold' : 'hover:text-zinc-200'
             }`}
           >
-            Home
+            <span>Home</span>
+            {activeTab === 'home' && (
+              <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+            )}
           </button>
 
-          {/* 2. Work */}
+          {/* 2. Work Tab */}
           <button
             onClick={() => handleNavClick('work')}
-            className={`transition-colors whitespace-nowrap shrink-0 hover:text-white cursor-pointer ${
-              activeSection === 'work' || activeSection === 'featured' ? 'text-red-400 font-bold' : ''
+            className={`relative py-1 transition-all duration-200 cursor-pointer ${
+              activeTab === 'work' ? 'text-white font-bold' : 'hover:text-zinc-200'
             }`}
           >
-            Work
+            <span>Work</span>
+            {activeTab === 'work' && (
+              <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+            )}
           </button>
 
-          {/* 3. About */}
+          {/* 3. About Tab */}
           <button
             onClick={() => handleNavClick('about')}
-            className={`transition-colors whitespace-nowrap shrink-0 hover:text-white cursor-pointer ${
-              activeSection === 'about' ? 'text-red-400 font-bold' : ''
+            className={`relative py-1 transition-all duration-200 cursor-pointer ${
+              activeTab === 'about' ? 'text-white font-bold' : 'hover:text-zinc-200'
             }`}
           >
-            About
+            <span>About</span>
+            {activeTab === 'about' && (
+              <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+            )}
           </button>
 
           {/* 4. Resume */}
           <button
             onClick={() => handleNavClick('resume')}
-            className="transition-colors whitespace-nowrap shrink-0 hover:text-red-400 cursor-pointer flex items-center gap-1.5"
+            className="py-1 transition-all duration-200 hover:text-red-400 cursor-pointer flex items-center gap-1.5"
+            title="Download Official Resume PDF"
           >
             <span>Resume</span>
           </button>
@@ -99,9 +111,9 @@ export const Header: React.FC<HeaderProps> = ({
           {/* 5. Contact */}
           <button
             onClick={() => handleNavClick('contact')}
-            className="transition-colors whitespace-nowrap shrink-0 hover:text-red-400 cursor-pointer"
+            className="py-1 transition-all duration-200 hover:text-red-400 cursor-pointer"
           >
-            Contact
+            <span>Contact</span>
           </button>
         </nav>
 
@@ -109,7 +121,7 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex items-center gap-3 shrink-0">
           <button
             onClick={onOpenContact}
-            className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-white bg-red-600 hover:bg-red-500 rounded-lg transition-colors whitespace-nowrap shrink-0 font-sans shadow-md shadow-red-600/25"
+            className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-500 rounded-xl transition-all duration-200 whitespace-nowrap shrink-0 font-sans shadow-md shadow-red-600/30 hover:shadow-red-600/50"
           >
             <span>Get In Touch</span>
           </button>
@@ -125,12 +137,14 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Mobile Drawer Menu (Home, Work, About, Resume, Contact) */}
+      {/* Mobile Drawer Menu */}
       {isMobileMenuOpen && (
         <div className="md:hidden border-t border-zinc-800 bg-[#050505]/98 px-6 py-4 space-y-3 font-mono text-sm text-zinc-300 animate-in slide-in-from-top duration-200">
           <button
             onClick={() => handleNavClick('home')}
-            className="w-full text-left py-2 hover:text-red-400 flex items-center gap-2.5 transition-colors"
+            className={`w-full text-left py-2 flex items-center gap-2.5 transition-colors ${
+              activeTab === 'home' ? 'text-red-400 font-bold' : 'hover:text-red-400'
+            }`}
           >
             <Home className="w-4 h-4 text-zinc-500" />
             <span>Home</span>
@@ -138,7 +152,9 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => handleNavClick('work')}
-            className="w-full text-left py-2 hover:text-red-400 flex items-center gap-2.5 transition-colors"
+            className={`w-full text-left py-2 flex items-center gap-2.5 transition-colors ${
+              activeTab === 'work' ? 'text-red-400 font-bold' : 'hover:text-red-400'
+            }`}
           >
             <Briefcase className="w-4 h-4 text-zinc-500" />
             <span>Work</span>
@@ -146,7 +162,9 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => handleNavClick('about')}
-            className="w-full text-left py-2 hover:text-red-400 flex items-center gap-2.5 transition-colors"
+            className={`w-full text-left py-2 flex items-center gap-2.5 transition-colors ${
+              activeTab === 'about' ? 'text-red-400 font-bold' : 'hover:text-red-400'
+            }`}
           >
             <User className="w-4 h-4 text-zinc-500" />
             <span>About</span>

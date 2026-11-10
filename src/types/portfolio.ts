@@ -61,4 +61,7 @@ export interface ProjectItem {
   dummySceneStyle: 'cyberpunk' | 'crypt' | 'scifi' | 'derelict' | 'ruins' | 'turret';
   customImageUrl?: string;
   customVideoUrl?: string;
+  comparisonLeftUrl?: string;
+  comparisonRightUrl?: string;
 }
+

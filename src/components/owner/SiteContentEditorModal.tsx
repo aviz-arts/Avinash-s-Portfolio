@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Search, Type, Layers, Box, Compass, Sparkles, Sliders } from 'lucide-react';
+import { X, Save, Search, Type, Layers, Box, Compass, Sparkles, Sliders, Image as ImageIcon, Film } from 'lucide-react';
 import { SiteContent, DEFAULT_SITE_CONTENT } from '../../utils/portfolioStorage';
+import { MediaUploadField } from '../common/MediaUploadField';
 
 interface SiteContentEditorModalProps {
   isOpen: boolean;
   content: SiteContent;
   onClose: () => void;
   onSave: (updated: SiteContent) => void;
+  initialTab?: 'hero' | 'studio' | 'works' | 'reels' | 'level' | 'about' | 'footer';
 }
 
 export const SiteContentEditorModal: React.FC<SiteContentEditorModalProps> = ({
@@ -14,14 +16,18 @@ export const SiteContentEditorModal: React.FC<SiteContentEditorModalProps> = ({
   content,
   onClose,
   onSave,
+  initialTab = 'hero',
 }) => {
   const [formData, setFormData] = useState<SiteContent>(content);
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'hero' | 'studio' | 'works' | 'reels' | 'level' | 'about' | 'footer'>('hero');
+  const [activeTab, setActiveTab] = useState<'hero' | 'studio' | 'works' | 'reels' | 'level' | 'about' | 'footer'>(initialTab);
 
   useEffect(() => {
     setFormData(content);
-  }, [content, isOpen]);
+    if (isOpen) {
+      setActiveTab(initialTab);
+    }
+  }, [content, isOpen, initialTab]);
 
   if (!isOpen) return null;
 
@@ -92,8 +98,35 @@ export const SiteContentEditorModal: React.FC<SiteContentEditorModalProps> = ({
           {activeTab === 'hero' && (
             <div className="space-y-4">
               <h4 className="text-xs font-mono font-semibold text-red-500 uppercase tracking-wider pb-1 border-b border-zinc-800">
-                Hero Section Copy & KPIs
+                Hero Section Copy, Portrait Photo & KPIs
               </h4>
+
+              {/* Avatar Photo Upload */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-3 bg-zinc-900/40 border border-zinc-800 rounded-xl">
+                  <MediaUploadField
+                    label="Artist Portrait Photo / Avatar"
+                    value={formData.avatarUrl}
+                    onChange={(url) => updateField('avatarUrl', url)}
+                    mediaType="image"
+                    aspectRatio="avatar"
+                    hint="Upload your personal photo to display on the hero card and top navigation wordmark."
+                    placeholder="https://.../photo.jpg or upload file"
+                  />
+                </div>
+
+                <div className="p-3 bg-zinc-900/40 border border-zinc-800 rounded-xl">
+                  <MediaUploadField
+                    label="Hero Atmospheric Background Video"
+                    value={formData.heroBackgroundVideoUrl}
+                    onChange={(url) => updateField('heroBackgroundVideoUrl', url)}
+                    mediaType="video"
+                    aspectRatio="video"
+                    hint="Runs at very low opacity in the background of your home hero section. Upload MP4/WebM or paste direct link."
+                    placeholder="https://.../background.mp4 or upload file"
+                  />
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
@@ -344,8 +377,20 @@ export const SiteContentEditorModal: React.FC<SiteContentEditorModalProps> = ({
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-2">
-                  <div className="text-xs font-mono text-red-500 font-semibold">Video Reel Player</div>
+                <div className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-3">
+                  <div className="text-xs font-mono text-red-500 font-semibold flex items-center gap-1.5">
+                    <Film className="w-3.5 h-3.5" />
+                    <span>Video Reel Player & Footage</span>
+                  </div>
+                  <MediaUploadField
+                    label="Reel Video File or URL"
+                    value={formData.customReelVideoUrl}
+                    onChange={(url) => updateField('customReelVideoUrl', url)}
+                    mediaType="video"
+                    aspectRatio="video"
+                    hint="Upload an MP4/WebM video or paste direct link to replace the default procedural canvas reel."
+                    placeholder="https://.../my_reel.mp4 or upload file"
+                  />
                   <input
                     type="text"
                     value={formData.reelPlayerTitle}
@@ -369,8 +414,29 @@ export const SiteContentEditorModal: React.FC<SiteContentEditorModalProps> = ({
                   />
                 </div>
 
-                <div className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-2">
-                  <div className="text-xs font-mono text-red-500 font-semibold">A/B Inspection Slider</div>
+                <div className="p-3 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-3">
+                  <div className="text-xs font-mono text-red-500 font-semibold flex items-center gap-1.5">
+                    <Sliders className="w-3.5 h-3.5" />
+                    <span>A/B Inspection Slider Passes</span>
+                  </div>
+                  <MediaUploadField
+                    label="Clay / Raw Pass Photo (Left)"
+                    value={formData.customAbSliderLeftUrl}
+                    onChange={(url) => updateField('customAbSliderLeftUrl', url)}
+                    mediaType="image"
+                    aspectRatio="video"
+                    hint="Clay/unlit image for the left side of the split slider."
+                    placeholder="https://.../clay.jpg or upload file"
+                  />
+                  <MediaUploadField
+                    label="Final Lit / Lumen Photo (Right)"
+                    value={formData.customAbSliderRightUrl}
+                    onChange={(url) => updateField('customAbSliderRightUrl', url)}
+                    mediaType="image"
+                    aspectRatio="video"
+                    hint="Final lit composition image for the right side of the split slider."
+                    placeholder="https://.../lit.jpg or upload file"
+                  />
                   <input
                     type="text"
                     value={formData.abSliderTitle}

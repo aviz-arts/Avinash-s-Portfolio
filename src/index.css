@@ -34,3 +34,8 @@ canvas {
   touch-action: none;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
+

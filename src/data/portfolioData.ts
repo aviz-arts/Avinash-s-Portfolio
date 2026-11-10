@@ -7,7 +7,7 @@ export const PORTFOLIO_PROJECTS: ProjectItem[] = [
     subtitle: 'Cyberpunk Parkour & Combat Sandbox',
     category: 'both',
     engine: 'Unreal Engine 5.4 · Lumen & Nanite',
-    role: 'Lead Game Designer & Real-Time Lighting Artist',
+    role: 'Lead Game Designer | Lighting Artist',
     year: '2024',
     duration: '6 Months',
     featured: true,

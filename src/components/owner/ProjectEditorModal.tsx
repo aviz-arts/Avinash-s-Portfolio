@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ProjectItem, ProjectCategory } from '../../types/portfolio';
-import { X, Save, Plus, Trash2, Sliders, Compass, Zap, Film } from 'lucide-react';
+import { X, Save, Plus, Trash2, Sliders, Compass, Zap, Film, Image as ImageIcon } from 'lucide-react';
+import { MediaUploadField } from '../common/MediaUploadField';
 
 interface ProjectEditorModalProps {
   isOpen: boolean;
@@ -156,6 +157,10 @@ export const ProjectEditorModal: React.FC<ProjectEditorModalProps> = ({
       ],
       tags: parsedTags,
       dummySceneStyle: formData.dummySceneStyle || 'cyberpunk',
+      customImageUrl: formData.customImageUrl,
+      customVideoUrl: formData.customVideoUrl,
+      comparisonLeftUrl: formData.comparisonLeftUrl,
+      comparisonRightUrl: formData.comparisonRightUrl,
     };
 
     onSave(fullProject);
@@ -342,10 +347,76 @@ export const ProjectEditorModal: React.FC<ProjectEditorModalProps> = ({
             </div>
           </div>
 
-          {/* Section 2: Copy & Case Study Content */}
+          {/* Section 2: Visual Media Uploads (Photos & Videos) */}
+          <div className="space-y-4 p-4 rounded-xl bg-zinc-900/40 border border-zinc-800/80">
+            <div className="flex items-center justify-between pb-1 border-b border-zinc-800">
+              <h4 className="text-xs font-mono font-semibold text-red-500 uppercase tracking-wider flex items-center gap-1.5">
+                <ImageIcon className="w-3.5 h-3.5" />
+                <span>02. Visual Media Uploads (Replace Dummy Assets)</span>
+              </h4>
+              <span className="text-[10px] font-mono text-zinc-500">
+                Upload your real screenshots, video clips, or comparison passes
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Media 1: Project Artwork / Screenshot */}
+              <MediaUploadField
+                label="Project Artwork / Thumbnail Photo"
+                value={formData.customImageUrl}
+                onChange={(url) => setFormData({ ...formData, customImageUrl: url })}
+                mediaType="image"
+                aspectRatio="video"
+                hint="Your hero rendered visual, concept art, or engine screenshot. Replaces dummy canvas procedural."
+                placeholder="https://.../screenshot.jpg or upload file"
+              />
+
+              {/* Media 2: Cinematic Reel Video */}
+              <MediaUploadField
+                label="Gameplay / Lighting Reel Video"
+                value={formData.customVideoUrl}
+                onChange={(url) => setFormData({ ...formData, customVideoUrl: url })}
+                mediaType="video"
+                aspectRatio="video"
+                hint="Upload an MP4/WebM clip or paste a direct video URL to showcase real-time movement."
+                placeholder="https://.../video.mp4 or upload file"
+              />
+            </div>
+
+            {/* Optional A/B Comparison Passes */}
+            <div className="pt-2 border-t border-zinc-800/60">
+              <div className="text-[11px] font-mono text-zinc-400 mb-2 flex items-center gap-1.5">
+                <Sliders className="w-3 h-3 text-red-400" />
+                <span>Custom A/B Split Inspection Passes (Optional)</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <MediaUploadField
+                  label="Clay / Raw Pass Photo (Left)"
+                  value={formData.comparisonLeftUrl}
+                  onChange={(url) => setFormData({ ...formData, comparisonLeftUrl: url })}
+                  mediaType="image"
+                  aspectRatio="video"
+                  hint="Unlit / clay / blockout screenshot for the left side of the comparison slider."
+                  placeholder="https://.../clay.jpg or upload file"
+                />
+
+                <MediaUploadField
+                  label="Final Lit / Lumen Pass Photo (Right)"
+                  value={formData.comparisonRightUrl}
+                  onChange={(url) => setFormData({ ...formData, comparisonRightUrl: url })}
+                  mediaType="image"
+                  aspectRatio="video"
+                  hint="Final lit composition with volumetric GI for the right side of the comparison slider."
+                  placeholder="https://.../lit.jpg or upload file"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Copy & Case Study Content */}
           <div className="space-y-4">
             <h4 className="text-xs font-mono font-semibold text-red-500 uppercase tracking-wider pb-1 border-b border-zinc-800">
-              02. Design Intent & Case Study Prose
+              03. Design Intent & Case Study Prose
             </h4>
 
             <div>
@@ -395,11 +466,11 @@ export const ProjectEditorModal: React.FC<ProjectEditorModalProps> = ({
             </div>
           </div>
 
-          {/* Section 3: Cinematic Lighting Rig Specs */}
+          {/* Section 4: Cinematic Lighting Rig Specs */}
           <div className="space-y-4">
             <h4 className="text-xs font-mono font-semibold text-red-500 uppercase tracking-wider pb-1 border-b border-zinc-800 flex items-center gap-1.5">
               <Zap className="w-3.5 h-3.5" />
-              <span>03. Real-Time Lighting Rig Specifications</span>
+              <span>04. Real-Time Lighting Rig Specifications</span>
             </h4>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
@@ -464,11 +535,11 @@ export const ProjectEditorModal: React.FC<ProjectEditorModalProps> = ({
             </div>
           </div>
 
-          {/* Section 4: Production Metrics */}
+          {/* Section 5: Production Metrics */}
           <div className="space-y-4">
             <div className="flex items-center justify-between pb-1 border-b border-zinc-800">
               <h4 className="text-xs font-mono font-semibold text-red-500 uppercase tracking-wider">
-                04. Key Production Metrics
+                05. Key Production Metrics
               </h4>
               <button
                 type="button"
@@ -516,10 +587,10 @@ export const ProjectEditorModal: React.FC<ProjectEditorModalProps> = ({
             </div>
           </div>
 
-          {/* Section 5: Tags */}
+          {/* Section 6: Tags */}
           <div>
             <label className="block text-xs font-mono text-zinc-400 mb-1">
-              Search Tags (Comma separated)
+              06. Search Tags (Comma separated)
             </label>
             <input
               type="text"

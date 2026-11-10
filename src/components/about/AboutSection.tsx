@@ -116,7 +116,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
                   Avinash
                 </div>
                 <div className="text-red-400 text-[11px]">
-                  Game Designer & Real-Time Lighting Artist
+                  Game Designer | Lighting Artist
                 </div>
               </div>
             </div>
@@ -133,7 +133,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
                 </div>
               </div>
               <p className="text-xs text-zinc-400 leading-relaxed">
-                Specialized in core gameplay loops, player psychology, and level architecture, elevated by real-time lighting to intuitively guide player navigation.
+                Specialized in core gameplay loops, player psychology, and level architecture, elevated by lighting design to intuitively guide player navigation.
               </p>
             </div>
           </div>
