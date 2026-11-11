@@ -20,6 +20,7 @@ interface OwnerBarProps {
   onOpenAllLinesEditor: () => void;
   onOpenSectionManager: () => void;
   onAddNewSection: () => void;
+  onAddNewMilestone?: () => void;
   onExportBackup: () => void;
   onImportBackup: () => void;
   onResetDefaults: () => void;
@@ -36,6 +37,7 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
   onOpenAllLinesEditor,
   onOpenSectionManager,
   onAddNewSection,
+  onAddNewMilestone,
   onExportBackup,
   onImportBackup,
   onResetDefaults,
@@ -68,6 +70,17 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
             <Plus className="w-3.5 h-3.5" />
             <span>Add Project</span>
           </button>
+
+          {onAddNewMilestone && (
+            <button
+              onClick={onAddNewMilestone}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 rounded-lg transition-colors text-xs"
+              title="Add a new career milestone with photo to Resume timeline"
+            >
+              <Plus className="w-3.5 h-3.5 text-red-400" />
+              <span>+ Milestone</span>
+            </button>
+          )}
 
           <button
             onClick={onAddNewSection}

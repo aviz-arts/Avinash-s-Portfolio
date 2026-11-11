@@ -5,11 +5,11 @@ import { Plus, Trash2, Edit3, MoveUp, MoveDown, ExternalLink, Sparkles, Layers, 
 
 interface CustomSectionRendererProps {
   sections: CustomSection[];
-  tab: 'home' | 'work' | 'about';
+  tab: 'home' | 'work' | 'about' | 'resume' | 'contact';
   isOwner: boolean;
-  onUpdateSection: (id: string, updated: Partial<CustomSection>) => void;
-  onDeleteSection: (id: string) => void;
-  onAddSectionClick?: (tab: 'home' | 'work' | 'about') => void;
+  onUpdateSection?: (id: string, updated: Partial<CustomSection>) => void;
+  onDeleteSection?: (id: string) => void;
+  onAddSectionClick?: (tab: 'home' | 'work' | 'about' | 'resume' | 'contact') => void;
   onEditSectionClick?: (section: CustomSection) => void;
 }
 
@@ -45,7 +45,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
       }
       return item;
     });
-    onUpdateSection(sectionId, { items: updatedItems });
+    onUpdateSection?.(sectionId, { items: updatedItems });
   };
 
   const handleAddItem = (sectionId: string) => {
@@ -58,7 +58,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
       description: 'Detail the workflow, technical metric, level geometry constraint, or lighting pass here.',
       tag: 'New Entry',
     };
-    onUpdateSection(sectionId, { items: [...sec.items, newItem] });
+    onUpdateSection?.(sectionId, { items: [...sec.items, newItem] });
   };
 
   const handleDeleteItem = (sectionId: string, itemId: string) => {
@@ -66,7 +66,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
     if (!sec) return;
     if (confirm('Delete this card from the section?')) {
       const updatedItems = sec.items.filter((item) => item.id !== itemId);
-      onUpdateSection(sectionId, { items: updatedItems });
+      onUpdateSection?.(sectionId, { items: updatedItems });
     }
   };
 
@@ -118,7 +118,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                 <button
                   onClick={() => {
                     if (confirm(`Delete custom section "${sec.title}"?`)) {
-                      onDeleteSection(sec.id);
+                      onDeleteSection?.(sec.id);
                     }
                   }}
                   className="px-2.5 py-1 bg-red-950/40 hover:bg-red-900/60 text-red-300 rounded-lg flex items-center gap-1 transition-colors"
@@ -137,7 +137,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
               <Sparkles className="w-3.5 h-3.5 text-red-500" />
               <EditableText
                 value={sec.kicker}
-                onChange={(val) => onUpdateSection(sec.id, { kicker: val })}
+                onChange={(val) => onUpdateSection?.(sec.id, { kicker: val })}
                 isOwner={isOwner}
                 label="Section Kicker"
               />
@@ -145,7 +145,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
             <h3 className="text-2xl sm:text-3xl font-display font-bold text-zinc-100 tracking-tight">
               <EditableText
                 value={sec.title}
-                onChange={(val) => onUpdateSection(sec.id, { title: val })}
+                onChange={(val) => onUpdateSection?.(sec.id, { title: val })}
                 isOwner={isOwner}
                 label="Section Title"
                 as="span"
@@ -155,7 +155,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
               <p className="text-sm text-zinc-400 leading-relaxed mt-2.5">
                 <EditableText
                   value={sec.description}
-                  onChange={(val) => onUpdateSection(sec.id, { description: val })}
+                  onChange={(val) => onUpdateSection?.(sec.id, { description: val })}
                   isOwner={isOwner}
                   label="Section Description"
                   multiline={true}
@@ -385,6 +385,88 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Stats KPI Strip Layout (matches image_80bd2080.png) */}
+          {sec.layout === 'stats' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                {sec.items.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className="group relative p-5 bg-zinc-950/80 border border-zinc-800 rounded-2xl space-y-1 transition-all hover:border-zinc-700"
+                  >
+                    {isOwner && (
+                      <button
+                        onClick={() => handleDeleteItem(sec.id, item.id)}
+                        className="absolute top-2.5 right-2.5 p-1 text-zinc-500 hover:text-red-400 bg-zinc-900 rounded border border-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Delete stat metric"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    )}
+                    <div
+                      className={`text-2xl font-display font-extrabold ${
+                        idx === 1 || item.tag?.toLowerCase().includes('red')
+                          ? 'text-red-500'
+                          : 'text-white'
+                      }`}
+                    >
+                      <EditableText
+                        value={item.title}
+                        onChange={(v) => handleUpdateItem(sec.id, item.id, 'title', v)}
+                        isOwner={isOwner}
+                        label="Stat Metric"
+                        as="span"
+                      />
+                    </div>
+                    <div className="text-xs font-mono text-zinc-500 leading-snug">
+                      <EditableText
+                        value={item.subtitle || item.description}
+                        onChange={(v) => handleUpdateItem(sec.id, item.id, 'subtitle', v)}
+                        isOwner={isOwner}
+                        label="Stat Label"
+                        as="span"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => handleAddItem(sec.id)}
+                  className="text-[11px] font-mono text-red-400 hover:underline flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3 h-3" />
+                  <span>+ Add Stat Card</span>
+                </button>
+              )}
+            </div>
+          )}
+
+          {/* Callout / Executive Profile Banner Layout (matches image_792dc1d3.png) */}
+          {sec.layout === 'callout' && (
+            <div className="p-8 bg-zinc-950/80 border border-zinc-800 rounded-3xl space-y-3">
+              <div className="text-xs font-mono uppercase tracking-widest text-red-500 font-semibold">
+                <EditableText
+                  value={sec.kicker || 'EXECUTIVE PROFILE'}
+                  onChange={(val) => onUpdateSection?.(sec.id, { kicker: val })}
+                  isOwner={isOwner}
+                  label="Callout Kicker"
+                />
+              </div>
+              <p className="text-sm sm:text-base text-zinc-300 font-light leading-relaxed">
+                <EditableText
+                  value={sec.description || sec.title}
+                  onChange={(val) => onUpdateSection?.(sec.id, { description: val })}
+                  isOwner={isOwner}
+                  label="Executive Narrative Copy"
+                  multiline={true}
+                  as="span"
+                />
+              </p>
             </div>
           )}
         </div>

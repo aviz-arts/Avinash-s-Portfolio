@@ -9,6 +9,8 @@ import { ProjectDetailModal } from './components/portfolio/ProjectDetailModal';
 import { CinematicVideoPlayer } from './components/portfolio/CinematicVideoPlayer';
 import { LightingComparisonSlider } from './components/portfolio/LightingComparisonSlider';
 import { AboutSection } from './components/about/AboutSection';
+import { ContactSection } from './components/contact/ContactSection';
+import { ResumeSection } from './components/resume/ResumeSection';
 import { ContactModal } from './components/contact/ContactModal';
 import { OwnerBar } from './components/owner/OwnerBar';
 import { OwnerLoginModal } from './components/owner/OwnerLoginModal';
@@ -36,6 +38,11 @@ import {
   updateCustomSection,
   deleteCustomSection,
   createCustomSection,
+  getStoredResumeMilestones,
+  saveStoredResumeMilestones,
+  createResumeMilestone,
+  updateResumeMilestone,
+  deleteResumeMilestone,
   isOwnerSessionActive,
   setOwnerSession,
   createProject,
@@ -48,6 +55,7 @@ import {
   SiteContent,
   StoredResumePdf,
   CustomSection,
+  ResumeMilestone,
   DEFAULT_AVATAR_URL,
 } from './utils/portfolioStorage';
 import {
@@ -69,13 +77,13 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'home' | 'work' | 'about'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'work' | 'about' | 'resume' | 'contact'>('home');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeProject, setActiveProject] = useState<ProjectItem | null>(null);
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [studioScene, setStudioScene] = useState<'cyberpunk' | 'crypt' | 'turret'>('cyberpunk');
-  const [siteContentEditorTab, setSiteContentEditorTab] = useState<'hero' | 'studio' | 'works' | 'reels' | 'level' | 'about' | 'footer'>('hero');
+  const [siteContentEditorTab, setSiteContentEditorTab] = useState<'hero' | 'studio' | 'works' | 'reels' | 'level' | 'about' | 'contact' | 'footer'>('hero');
 
   // Persistent State
   const [projects, setProjects] = useState<ProjectItem[]>(() => getStoredProjects());
@@ -83,6 +91,7 @@ export default function App() {
   const [siteContent, setSiteContent] = useState<SiteContent>(() => getStoredSiteContent());
   const [resumePdf, setResumePdf] = useState<StoredResumePdf | null>(() => getStoredResumePdf());
   const [customSections, setCustomSections] = useState<CustomSection[]>(() => getStoredCustomSections());
+  const [resumeMilestones, setResumeMilestones] = useState<ResumeMilestone[]>(() => getStoredResumeMilestones());
 
   // Owner Mode State
   const [isOwner, setIsOwner] = useState<boolean>(() => isOwnerSessionActive());
@@ -93,7 +102,7 @@ export default function App() {
   const [isResumeUploaderOpen, setIsResumeUploaderOpen] = useState(false);
   const [isSiteContentEditorOpen, setIsSiteContentEditorOpen] = useState(false);
   const [isSectionManagerOpen, setIsSectionManagerOpen] = useState(false);
-  const [sectionManagerTargetTab, setSectionManagerTargetTab] = useState<'home' | 'work' | 'about'>('work');
+  const [sectionManagerTargetTab, setSectionManagerTargetTab] = useState<'home' | 'work' | 'about' | 'resume' | 'contact'>('work');
   const [editingCustomSection, setEditingCustomSection] = useState<CustomSection | null>(null);
   const [editingProject, setEditingProject] = useState<ProjectItem | null>(null);
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
@@ -238,7 +247,7 @@ export default function App() {
     showBanner('Tab sections saved successfully!');
   };
 
-  const handleOpenAddSection = (tab: 'home' | 'work' | 'about') => {
+  const handleOpenAddSection = (tab: 'home' | 'work' | 'about' | 'resume' | 'contact' = 'work') => {
     setEditingCustomSection(null);
     setSectionManagerTargetTab(tab);
     setIsSectionManagerOpen(true);
@@ -250,8 +259,27 @@ export default function App() {
     setIsSectionManagerOpen(true);
   };
 
+  // Resume Milestones Handlers (Interactive timeline & photo upload)
+  const handleUpdateResumeMilestone = (id: string, updated: Partial<ResumeMilestone>) => {
+    const res = updateResumeMilestone(id, updated, resumeMilestones);
+    setResumeMilestones(res);
+    showBanner('Career milestone updated.');
+  };
+
+  const handleCreateResumeMilestone = (milestone: ResumeMilestone) => {
+    const res = createResumeMilestone(milestone, resumeMilestones);
+    setResumeMilestones(res);
+    showBanner('New career milestone published!');
+  };
+
+  const handleDeleteResumeMilestone = (id: string) => {
+    const res = deleteResumeMilestone(id, resumeMilestones);
+    setResumeMilestones(res);
+    showBanner('Milestone deleted.');
+  };
+
   const handleExportBackup = () => {
-    const jsonStr = exportPortfolioBackup(projects, profile, siteContent, customSections);
+    const jsonStr = exportPortfolioBackup(projects, profile, siteContent, customSections, resumeMilestones);
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -284,6 +312,9 @@ export default function App() {
           if (result.customSections) {
             setCustomSections(result.customSections);
           }
+          if (result.resumeMilestones) {
+            setResumeMilestones(result.resumeMilestones);
+          }
           if (result.resumePdf) {
             setResumePdf(result.resumePdf);
           }
@@ -304,6 +335,7 @@ export default function App() {
       setProfile(res.profile);
       setSiteContent(res.siteContent);
       setCustomSections(res.customSections);
+      setResumeMilestones(res.resumeMilestones);
       setResumePdf(null);
       showBanner('Portfolio reset to default showcase data.');
     }
@@ -344,6 +376,26 @@ export default function App() {
         <OwnerBar
           onAddNewProject={handleAddNewProject}
           onAddNewSection={() => handleOpenAddSection('work')}
+          onAddNewMilestone={() => {
+            setActiveTab('resume');
+            const newId = `milestone-${Date.now()}`;
+            handleCreateResumeMilestone({
+              id: newId,
+              year: `${new Date().getFullYear()} — Present`,
+              role: 'Senior Game Designer & Technical Lighting Lead',
+              studio: 'Studio Name · Project Title',
+              location: 'Remote',
+              description: 'Describe core gameplay loops, mechanics architecture, and level pacing systems.',
+              achievements: [
+                'Engineered responsive combat traversal mechanics and encounter pacing.',
+                'Applied diegetic lighting to reinforce subconscious player wayfinding at 60 FPS.',
+              ],
+              techStack: ['Unreal Engine 5.4', 'Game Design', 'Blueprints', 'Lumen GI'],
+              photoUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
+              photoCaption: 'Mechanics blockout & sightline analysis pass',
+            });
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
           onOpenSectionManager={() => {
             setEditingCustomSection(null);
             setIsSectionManagerOpen(true);
@@ -376,8 +428,14 @@ export default function App() {
           setActiveTab(tab);
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
-        onOpenContact={() => setIsContactOpen(true)}
-        onOpenResume={handleDownloadResume}
+        onOpenContact={() => {
+          setActiveTab('contact');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onOpenResume={() => {
+          setActiveTab('resume');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
         avatarUrl={siteContent.avatarUrl || DEFAULT_AVATAR_URL}
       />
 
@@ -622,8 +680,11 @@ export default function App() {
                         <span>Game Systems & Atmosphere</span>
                       </div>
                       <button
-                        onClick={() => setIsContactOpen(true)}
-                        className="text-red-400 hover:text-red-300 transition-colors flex items-center gap-1 font-medium"
+                        onClick={() => {
+                          setActiveTab('contact');
+                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                        }}
+                        className="text-red-400 hover:text-red-300 transition-colors flex items-center gap-1 font-medium cursor-pointer"
                       >
                         <span>Direct Inquiry</span>
                         <ArrowRight className="w-3.5 h-3.5" />
@@ -1232,7 +1293,10 @@ export default function App() {
       >
         {/* 7. About & Toolset Section */}
         <AboutSection
-          onOpenContact={() => setIsContactOpen(true)}
+          onOpenContact={() => {
+            setActiveTab('contact');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
           profile={profile}
           siteContent={siteContent}
           isOwner={ownerCanEdit}
@@ -1251,6 +1315,58 @@ export default function App() {
             onEditSectionClick={handleOpenEditSection}
           />
         </div>
+      </motion.div>
+    )}
+
+    {activeTab === 'resume' && (
+      <motion.div
+        key="tab-resume"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -12 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
+      >
+        {/* Dedicated Resume Page with Interactive Timeline & Photo Upload */}
+        <ResumeSection
+          profile={profile}
+          milestones={resumeMilestones}
+          resumePdf={resumePdf}
+          onDownloadResume={handleDownloadResume}
+          onOpenResumeUploader={() => setIsResumeUploaderOpen(true)}
+          isOwner={ownerCanEdit}
+          onUpdateMilestone={handleUpdateResumeMilestone}
+          onCreateMilestone={handleCreateResumeMilestone}
+          onDeleteMilestone={handleDeleteResumeMilestone}
+          siteContent={siteContent}
+          onUpdateSiteContent={handleUpdateSiteLine}
+          customSections={customSections}
+          onUpdateCustomSection={handleUpdateCustomSection}
+          onDeleteCustomSection={handleDeleteCustomSection}
+          onAddSectionClick={handleOpenAddSection}
+          onEditSectionClick={handleOpenEditSection}
+        />
+      </motion.div>
+    )}
+
+    {activeTab === 'contact' && (
+      <motion.div
+        key="tab-contact"
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -12 }}
+        transition={{ duration: 0.3, ease: 'easeOut' }}
+      >
+        {/* Dedicated Contact Page based on Reference Image */}
+        <ContactSection
+          siteContent={siteContent}
+          isOwner={ownerCanEdit}
+          onUpdateSiteContent={handleUpdateSiteLine}
+          customSections={customSections}
+          onUpdateCustomSection={handleUpdateCustomSection}
+          onDeleteCustomSection={handleDeleteCustomSection}
+          onAddSectionClick={handleOpenAddSection}
+          onEditSectionClick={handleOpenEditSection}
+        />
       </motion.div>
     )}
   </AnimatePresence>
@@ -1279,7 +1395,7 @@ export default function App() {
             </span>
           </div>
 
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center gap-6">
             <a
               href={`mailto:${siteContent.contactEmail}`}
               className="hover:text-red-400 transition-colors"
@@ -1320,25 +1436,41 @@ export default function App() {
               About
             </button>
             <button
+              onClick={() => {
+                setActiveTab('resume');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`transition-colors cursor-pointer ${
+                activeTab === 'resume' ? 'text-red-400 font-semibold' : 'hover:text-white'
+              }`}
+            >
+              Resume
+            </button>
+            <button
+              onClick={() => {
+                setActiveTab('contact');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className={`transition-colors cursor-pointer ${
+                activeTab === 'contact' ? 'text-red-400 font-semibold' : 'hover:text-white'
+              }`}
+            >
+              Contact
+            </button>
+            <button
               onClick={handleDownloadResume}
-              className="hover:text-red-400 transition-colors flex items-center gap-1"
+              className="hover:text-red-400 transition-colors flex items-center gap-1 cursor-pointer"
               title="Download Resume PDF"
             >
               <Download className="w-3 h-3 text-red-500" />
-              <span>Resume PDF</span>
-            </button>
-            <button
-              onClick={() => setIsContactOpen(true)}
-              className="hover:text-red-400 transition-colors"
-            >
-              Contact
+              <span>PDF</span>
             </button>
 
             {/* Owner Access Trigger in Footer (Strictly only visible when owner is authenticated) */}
             {isOwner && (
               <button
                 onClick={() => setIsSiteContentEditorOpen(true)}
-                className="hover:text-red-400 transition-colors flex items-center gap-1.5 text-red-400 font-mono text-[11px] px-2 py-0.5 rounded bg-red-950/40 border border-red-900/60"
+                className="hover:text-red-400 transition-colors flex items-center gap-1.5 text-red-400 font-mono text-[11px] px-2 py-0.5 rounded bg-red-950/40 border border-red-900/60 cursor-pointer"
                 title="Owner Mode Active: Click to edit all text lines"
               >
                 <Lock className="w-3 h-3 text-red-500" />
@@ -1347,10 +1479,15 @@ export default function App() {
             )}
           </div>
 
-          {/* Copyright with discrete double-click owner portal trigger */}
+          {/* Copyright with discrete double-click / triple-tap owner portal trigger (completely hidden from visitors) */}
           <div
             onDoubleClick={() => {
               if (!isOwner) setIsOwnerLoginOpen(true);
+            }}
+            onClick={(e) => {
+              if (e.detail === 3 && !isOwner) {
+                setIsOwnerLoginOpen(true);
+              }
             }}
             title={isOwner ? undefined : "Avinash · Game Designer & Lighting Artist"}
             className="cursor-default select-none"

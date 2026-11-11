@@ -37,11 +37,11 @@ export interface CustomSectionItem {
 
 export interface CustomSection {
   id: string;
-  tab: 'home' | 'work' | 'about';
+  tab: 'home' | 'work' | 'about' | 'resume' | 'contact';
   kicker: string;
   title: string;
   description: string;
-  layout: 'cards' | 'feature' | 'split';
+  layout: 'cards' | 'feature' | 'split' | 'stats' | 'callout';
   items: CustomSectionItem[];
   visible: boolean;
   order: number;
@@ -112,11 +112,121 @@ export interface SiteContent {
   philosophyCardText: string;
   contactEmail: string;
 
+  // Contact (Dedicated Page based on reference)
+  contactKicker: string;
+  contactHeadline: string;
+  contactSubtitle: string;
+  contactEmailNote: string;
+  contactPhone: string;
+  contactPhoneNote: string;
+  contactLocationText: string;
+  socialYoutubeUrl: string;
+  socialLinkedinUrl: string;
+  socialArtstationUrl: string;
+  socialInstagramUrl: string;
+  socialEducationUrl: string;
+  socialGithubUrl: string;
+
+  // Section Visibility & Built-in Modules (Allow adding or removing sections)
+  heroShowStats?: boolean;
+  resumeShowBenchmarks?: boolean;
+  resumeShowExecutiveProfile?: boolean;
+  resumeBenchmark1Value?: string;
+  resumeBenchmark1Label?: string;
+  resumeBenchmark2Value?: string;
+  resumeBenchmark2Label?: string;
+  resumeBenchmark3Value?: string;
+  resumeBenchmark3Label?: string;
+  resumeBenchmark4Value?: string;
+  resumeBenchmark4Label?: string;
+  resumeExecutiveKicker?: string;
+  resumeExecutiveText?: string;
+
   // Footer
   footerName: string;
   footerRole: string;
   footerCopyright: string;
 }
+
+export interface ResumeMilestone {
+  id: string;
+  year: string;
+  role: string;
+  studio: string;
+  location?: string;
+  description: string;
+  achievements: string[];
+  techStack: string[];
+  photoUrl?: string;
+  photoCaption?: string;
+}
+
+export const DEFAULT_RESUME_MILESTONES: ResumeMilestone[] = [
+  {
+    id: 'milestone-1',
+    year: '2024 — Present',
+    role: 'Lead Game Designer & Technical Lighting Lead',
+    studio: 'Vertex Interactive · AAA Sci-Fi Action Title',
+    location: 'Remote / Global Team',
+    description: 'Leading the core gameplay experience, player mechanics, and cinematic lighting vision for an unannounced Unreal Engine 5 title.',
+    achievements: [
+      'Architected responsive 5-verb parkour traversal system (Sprint, Slide, Wall-Run, Vault, Grapple) with variable coyote-time buffering, reducing missed-jump frustration by 88%.',
+      'Engineered combat pacing curves and boss encounter state machines balancing stamina economy and risk/reward parry timings.',
+      'Designed diegetic lighting wayfinding architecture where contrast and warmth subconsciously guide player orientation, eliminating HUD clutter while guarding 60 FPS console frametimes.',
+    ],
+    techStack: ['Unreal Engine 5.4', 'Gameplay Systems', 'Combat Pacing', 'Lumen GI', 'Blueprints', 'Perforce'],
+    photoUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
+    photoCaption: 'Level geometry blockout & player traversal sightlines validation pass',
+  },
+  {
+    id: 'milestone-2',
+    year: '2022 — 2024',
+    role: 'Senior Game & Level Designer',
+    studio: 'Foundry 42 Studios · Tactical Competitive Shooter',
+    location: 'Hybrid',
+    description: 'Specialized in 3D arena spatial topology, cover height metrics, and multiplayer competitive balance.',
+    achievements: [
+      'Engineered 3-lane tournament competitive arenas with strict 12-second cross-map rotation times and 45° sightline wedges for 50.4% win-rate symmetry.',
+      'Standardized universal cover heights (1.1m crouch / 2.0m standing) and mantling physics across 8 release maps.',
+      'Conducted look-dev lighting experiments and ACES filmic color grading to maximize player target readability across HDR displays.',
+    ],
+    techStack: ['Level Architecture', '3-Lane Topology', 'Cover Balancing', 'Unreal Engine 5', 'ACES Filmic', 'VSM'],
+    photoUrl: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=1200&q=80',
+    photoCaption: 'Tactical arena greybox blockout with 45° sightline wedge calculations',
+  },
+  {
+    id: 'milestone-3',
+    year: '2020 — 2022',
+    role: 'Gameplay Systems Designer & Lighting Specialist',
+    studio: 'Emberworks Games · Action RPG',
+    location: 'Bangalore, India',
+    description: 'Designed encounter spaces, player progression economies, and procedural dungeon lighting pipelines.',
+    achievements: [
+      'Structured 3D dungeon layouts and encounter zones using architectural landmarks, achieving 94% unassisted player wayfinding in playtests.',
+      'Prototyped player combat verbs, AI attack spacing state machines, and consumable resource economies in Blueprints and C#.',
+      'Crafted volumetric atmospheric scattering and real-time bounce rigs that elevated visual mood while remaining within GPU budgets.',
+    ],
+    techStack: ['Unity HDRP', 'C# Prototyping', 'Encounter Pacing', 'Volumetric Fog', 'Combat AI', 'Level Design'],
+    photoUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1200&q=80',
+    photoCaption: 'Atmospheric subterranean dungeon lighting and encounter pacing layout',
+  },
+  {
+    id: 'milestone-4',
+    year: '2018 — 2020',
+    role: 'Junior Game Designer & Technical Prototyper',
+    studio: 'PixelForge Interactive · Indie Action Title',
+    location: 'India',
+    description: 'Prototyped core game mechanics, camera feel, and physical blockouts.',
+    achievements: [
+      'Iterated on character jump curves, camera shake impulse responses, and tactile impact frames.',
+      'Built 15+ rapid gameplay blockouts and greybox test corridors to stress-test collision and player momentum.',
+      'Authored lighting documentation and bake pipelines for optimized mobile and PC performance.',
+    ],
+    techStack: ['Unreal Engine 4', 'Maya Greyboxing', 'Rapid Prototyping', 'Game Feel', 'Substance Painter'],
+    photoUrl: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?auto=format&fit=crop&w=1200&q=80',
+    photoCaption: 'Early mechanic prototype blockout testing momentum and vaulting buffers',
+  },
+];
 
 export const DEFAULT_CUSTOM_SECTIONS: CustomSection[] = [
   {
@@ -256,7 +366,41 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
   philosophyCardTitle: "The Game Designer's Edge",
   philosophyCardText:
     'When a Game Designer understands light transport, they do not need arbitrary floating objective arrows or artificial mini-map clutter. Contrast draws the crosshair, warmth signals safe recharge zones, silhouette breaks frame enemy weakpoints, and console frametimes remain protected because gameplay geometry and lighting budgets are planned together.',
-  contactEmail: 'aviz.arts@gmail.com',
+  contactEmail: 'avinashr5904@gmail.com',
+
+  // Contact (Dedicated Page based on reference)
+  contactKicker: 'GET IN TOUCH',
+  contactHeadline: "Let's Work Together",
+  contactSubtitle:
+    "Have a project in mind? I'd love to hear about it. Reach out for collaborations, freelance work, or just to say hello.",
+  contactEmailNote:
+    'Best for project inquiries and collaborations. I typically respond within 24-48 hours.',
+  contactPhone: '+91 9361287193',
+  contactPhoneNote:
+    'For urgent matters or quick calls. Available during IST business hours.',
+  contactLocationText: 'Based in India · Available Worldwide',
+  socialYoutubeUrl: 'https://youtube.com',
+  socialLinkedinUrl: 'https://linkedin.com/in/avinash',
+  socialArtstationUrl: 'https://artstation.com/avinash',
+  socialInstagramUrl: 'https://instagram.com/avinash',
+  socialEducationUrl: '#',
+  socialGithubUrl: 'https://github.com/avinash',
+
+  // Section Visibility & Built-in Modules (Allow adding or removing sections)
+  heroShowStats: true,
+  resumeShowBenchmarks: true,
+  resumeShowExecutiveProfile: true,
+  resumeBenchmark1Value: '4 Titles',
+  resumeBenchmark1Label: 'Shipped Releases (PC/Console)',
+  resumeBenchmark2Value: '100% Core',
+  resumeBenchmark2Label: 'Game Design & Mechanics Focus',
+  resumeBenchmark3Value: '7+ Years',
+  resumeBenchmark3Label: 'Game Industry Experience',
+  resumeBenchmark4Value: '60.0 FPS',
+  resumeBenchmark4Label: 'Lumen Console Frametime (Passion)',
+  resumeExecutiveKicker: 'EXECUTIVE DESIGN PROFILE',
+  resumeExecutiveText:
+    'Professional Game Designer specializing in core gameplay loops, mechanics, player pacing, and level architecture — powered by a lifelong hobby and passion as a Lighting Artist.',
 
   // Footer
   footerName: 'Avinash',
@@ -295,6 +439,7 @@ const PROFILE_STORAGE_KEY = 'avinash_portfolio_profile_v2';
 const SITE_CONTENT_STORAGE_KEY = 'avinash_portfolio_site_content_v2';
 const CUSTOM_SECTIONS_STORAGE_KEY = 'avinash_portfolio_custom_sections_v2';
 const RESUME_PDF_STORAGE_KEY = 'avinash_portfolio_resume_pdf_v2';
+const RESUME_MILESTONES_STORAGE_KEY = 'avinash_portfolio_resume_milestones_v2';
 const OWNER_AUTH_KEY = 'avinash_portfolio_owner_session_v1';
 const OWNER_PIN_KEY = 'avinash_portfolio_owner_pin_v1';
 
@@ -388,11 +533,19 @@ export function saveStoredSiteContent(content: SiteContent): void {
 
 export function updateSiteContentKey<K extends keyof SiteContent>(
   key: K,
-  value: SiteContent[K],
+  value: any,
   currentContent?: SiteContent
 ): SiteContent {
   const base = currentContent || getStoredSiteContent();
-  const updated: SiteContent = { ...base, [key]: value };
+  let parsedValue = value;
+  if (key === 'resumeShowBenchmarks' || key === 'resumeShowExecutiveProfile') {
+    if (typeof value === 'string') {
+      parsedValue = value === 'true';
+    } else {
+      parsedValue = Boolean(value);
+    }
+  }
+  const updated: SiteContent = { ...base, [key]: parsedValue };
   saveStoredSiteContent(updated);
   return updated;
 }
@@ -490,6 +643,61 @@ export function saveStoredResumePdf(dataUrl: string, filename: string, sizeBytes
 
 export function deleteStoredResumePdf(): void {
   removeStorageItem(RESUME_PDF_STORAGE_KEY);
+}
+
+/**
+ * Resume Interactive Milestones CRUD
+ */
+export function getStoredResumeMilestones(): ResumeMilestone[] {
+  try {
+    const raw = getStorageItem(RESUME_MILESTONES_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed as ResumeMilestone[];
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to parse stored resume milestones, using defaults', err);
+  }
+  return DEFAULT_RESUME_MILESTONES;
+}
+
+export function saveStoredResumeMilestones(milestones: ResumeMilestone[]): void {
+  setStorageItem(RESUME_MILESTONES_STORAGE_KEY, JSON.stringify(milestones));
+}
+
+export function createResumeMilestone(
+  milestone: ResumeMilestone,
+  current: ResumeMilestone[]
+): ResumeMilestone[] {
+  const updated = [milestone, ...current];
+  saveStoredResumeMilestones(updated);
+  return updated;
+}
+
+export function updateResumeMilestone(
+  id: string,
+  updatedData: Partial<ResumeMilestone>,
+  current: ResumeMilestone[]
+): ResumeMilestone[] {
+  const updated = current.map((m) => {
+    if (m.id === id) {
+      return { ...m, ...updatedData };
+    }
+    return m;
+  });
+  saveStoredResumeMilestones(updated);
+  return updated;
+}
+
+export function deleteResumeMilestone(
+  id: string,
+  current: ResumeMilestone[]
+): ResumeMilestone[] {
+  const updated = current.filter((m) => m.id !== id);
+  saveStoredResumeMilestones(updated);
+  return updated;
 }
 
 /**
@@ -623,17 +831,20 @@ export function resetPortfolioToDefaults(): {
   profile: OwnerProfile;
   siteContent: SiteContent;
   customSections: CustomSection[];
+  resumeMilestones: ResumeMilestone[];
 } {
   saveStoredProjects(PORTFOLIO_PROJECTS);
   saveStoredProfile(DEFAULT_PROFILE);
   saveStoredSiteContent(DEFAULT_SITE_CONTENT);
   saveStoredCustomSections(DEFAULT_CUSTOM_SECTIONS);
+  saveStoredResumeMilestones(DEFAULT_RESUME_MILESTONES);
   deleteStoredResumePdf();
   return {
     projects: PORTFOLIO_PROJECTS,
     profile: DEFAULT_PROFILE,
     siteContent: DEFAULT_SITE_CONTENT,
     customSections: DEFAULT_CUSTOM_SECTIONS,
+    resumeMilestones: DEFAULT_RESUME_MILESTONES,
   };
 }
 
@@ -641,7 +852,8 @@ export function exportPortfolioBackup(
   projects: ProjectItem[],
   profile: OwnerProfile,
   siteContent?: SiteContent,
-  customSections?: CustomSection[]
+  customSections?: CustomSection[],
+  resumeMilestones?: ResumeMilestone[]
 ): string {
   const resume = getStoredResumePdf();
   return JSON.stringify(
@@ -651,6 +863,7 @@ export function exportPortfolioBackup(
       profile,
       siteContent: siteContent || getStoredSiteContent(),
       customSections: customSections || getStoredCustomSections(),
+      resumeMilestones: resumeMilestones || getStoredResumeMilestones(),
       projects,
       resumePdf: resume,
     },
@@ -667,6 +880,7 @@ export function importPortfolioBackup(
   profile?: OwnerProfile;
   siteContent?: SiteContent;
   customSections?: CustomSection[];
+  resumeMilestones?: ResumeMilestone[];
   resumePdf?: StoredResumePdf;
   error?: string;
 } {
@@ -686,11 +900,15 @@ export function importPortfolioBackup(
     const customSections: CustomSection[] = Array.isArray(data.customSections)
       ? data.customSections
       : DEFAULT_CUSTOM_SECTIONS;
+    const resumeMilestones: ResumeMilestone[] = Array.isArray(data.resumeMilestones)
+      ? data.resumeMilestones
+      : DEFAULT_RESUME_MILESTONES;
 
     saveStoredProjects(projects);
     saveStoredProfile(profile);
     saveStoredSiteContent(siteContent);
     saveStoredCustomSections(customSections);
+    saveStoredResumeMilestones(resumeMilestones);
 
     if (data.resumePdf && data.resumePdf.dataUrl) {
       saveStoredResumePdf(data.resumePdf.dataUrl, data.resumePdf.filename, data.resumePdf.sizeBytes);
@@ -702,6 +920,7 @@ export function importPortfolioBackup(
       profile,
       siteContent,
       customSections,
+      resumeMilestones,
       resumePdf: data.resumePdf,
     };
   } catch (err) {

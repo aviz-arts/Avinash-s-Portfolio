@@ -8,7 +8,7 @@ interface SiteContentEditorModalProps {
   content: SiteContent;
   onClose: () => void;
   onSave: (updated: SiteContent) => void;
-  initialTab?: 'hero' | 'studio' | 'works' | 'reels' | 'level' | 'about' | 'footer';
+  initialTab?: 'hero' | 'studio' | 'works' | 'reels' | 'level' | 'about' | 'contact' | 'footer';
 }
 
 export const SiteContentEditorModal: React.FC<SiteContentEditorModalProps> = ({
@@ -20,7 +20,7 @@ export const SiteContentEditorModal: React.FC<SiteContentEditorModalProps> = ({
 }) => {
   const [formData, setFormData] = useState<SiteContent>(content);
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'hero' | 'studio' | 'works' | 'reels' | 'level' | 'about' | 'footer'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'hero' | 'studio' | 'works' | 'reels' | 'level' | 'about' | 'contact' | 'footer'>(initialTab);
 
   useEffect(() => {
     setFormData(content);
@@ -74,7 +74,8 @@ export const SiteContentEditorModal: React.FC<SiteContentEditorModalProps> = ({
               { id: 'reels', label: '04. Reels & A/B' },
               { id: 'level', label: '05. Level Design' },
               { id: 'about', label: '06. About & Bio' },
-              { id: 'footer', label: '07. Footer' },
+              { id: 'contact', label: '07. Contact Page' },
+              { id: 'footer', label: '08. Footer' },
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -643,7 +644,145 @@ export const SiteContentEditorModal: React.FC<SiteContentEditorModalProps> = ({
             </div>
           )}
 
-          {/* TAB 7: FOOTER */}
+          {/* TAB 7: CONTACT PAGE */}
+          {activeTab === 'contact' && (
+            <div className="space-y-4">
+              <h4 className="text-xs font-mono font-semibold text-red-500 uppercase tracking-wider pb-1 border-b border-zinc-800">
+                Contact Page & Reference Details
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-mono text-zinc-400 mb-1">Contact Kicker</label>
+                  <input
+                    type="text"
+                    value={formData.contactKicker || 'GET IN TOUCH'}
+                    onChange={(e) => updateField('contactKicker', e.target.value)}
+                    className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-100 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-mono text-zinc-400 mb-1">Contact Headline</label>
+                  <input
+                    type="text"
+                    value={formData.contactHeadline || "Let's Work Together"}
+                    onChange={(e) => updateField('contactHeadline', e.target.value)}
+                    className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-100 font-display font-bold"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono text-zinc-400 mb-1">Contact Subtitle Copy</label>
+                <textarea
+                  rows={2}
+                  value={formData.contactSubtitle || ''}
+                  onChange={(e) => updateField('contactSubtitle', e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-100 resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-mono text-zinc-400 mb-1">Email Address</label>
+                  <input
+                    type="email"
+                    value={formData.contactEmail}
+                    onChange={(e) => updateField('contactEmail', e.target.value)}
+                    className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-100 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-mono text-zinc-400 mb-1">Email Card Note</label>
+                  <input
+                    type="text"
+                    value={formData.contactEmailNote || ''}
+                    onChange={(e) => updateField('contactEmailNote', e.target.value)}
+                    className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-100"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-mono text-zinc-400 mb-1">Phone / WhatsApp Number</label>
+                  <input
+                    type="text"
+                    value={formData.contactPhone || '+91 9361287193'}
+                    onChange={(e) => updateField('contactPhone', e.target.value)}
+                    className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-100 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-mono text-zinc-400 mb-1">Phone Card Note</label>
+                  <input
+                    type="text"
+                    value={formData.contactPhoneNote || ''}
+                    onChange={(e) => updateField('contactPhoneNote', e.target.value)}
+                    className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-100"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-mono text-zinc-400 mb-1">Location Badge Text</label>
+                <input
+                  type="text"
+                  value={formData.contactLocationText || 'Based in India · Available Worldwide'}
+                  onChange={(e) => updateField('contactLocationText', e.target.value)}
+                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-100 font-mono"
+                />
+              </div>
+
+              <div className="pt-2 border-t border-zinc-900">
+                <div className="text-xs font-mono text-zinc-400 mb-3 font-semibold">Social Profile Links</div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+                  <div>
+                    <label className="block text-zinc-500 mb-1">YouTube URL</label>
+                    <input
+                      type="url"
+                      value={formData.socialYoutubeUrl || ''}
+                      onChange={(e) => updateField('socialYoutubeUrl', e.target.value)}
+                      placeholder="https://youtube.com/..."
+                      className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-500 mb-1">LinkedIn URL</label>
+                    <input
+                      type="url"
+                      value={formData.socialLinkedinUrl || ''}
+                      onChange={(e) => updateField('socialLinkedinUrl', e.target.value)}
+                      placeholder="https://linkedin.com/in/..."
+                      className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-500 mb-1">ArtStation URL</label>
+                    <input
+                      type="url"
+                      value={formData.socialArtstationUrl || ''}
+                      onChange={(e) => updateField('socialArtstationUrl', e.target.value)}
+                      placeholder="https://artstation.com/..."
+                      className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-200"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-zinc-500 mb-1">Instagram URL</label>
+                    <input
+                      type="url"
+                      value={formData.socialInstagramUrl || ''}
+                      onChange={(e) => updateField('socialInstagramUrl', e.target.value)}
+                      placeholder="https://instagram.com/..."
+                      className="w-full px-3 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-zinc-200"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 8: FOOTER */}
           {activeTab === 'footer' && (
             <div className="space-y-4">
               <h4 className="text-xs font-mono font-semibold text-red-500 uppercase tracking-wider pb-1 border-b border-zinc-800">

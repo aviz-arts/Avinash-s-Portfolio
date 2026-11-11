@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { Menu, X, FileText, Mail, Home, Briefcase, User } from 'lucide-react';
 
 interface HeaderProps {
-  activeTab: 'home' | 'work' | 'about';
-  onSelectTab: (tab: 'home' | 'work' | 'about') => void;
+  activeTab: 'home' | 'work' | 'about' | 'resume' | 'contact';
+  onSelectTab: (tab: 'home' | 'work' | 'about' | 'resume' | 'contact') => void;
   onOpenContact: () => void;
   onOpenResume: () => void;
   avatarUrl?: string;
@@ -18,16 +18,10 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  const handleNavClick = (tabOrAction: 'home' | 'work' | 'about' | 'resume' | 'contact') => {
+  const handleNavClick = (tab: 'home' | 'work' | 'about' | 'resume' | 'contact') => {
     setIsMobileMenuOpen(false);
-    if (tabOrAction === 'home' || tabOrAction === 'work' || tabOrAction === 'about') {
-      onSelectTab(tabOrAction);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (tabOrAction === 'resume') {
-      onOpenResume();
-    } else if (tabOrAction === 'contact') {
-      onOpenContact();
-    }
+    onSelectTab(tab);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -102,26 +96,37 @@ export const Header: React.FC<HeaderProps> = ({
           {/* 4. Resume */}
           <button
             onClick={() => handleNavClick('resume')}
-            className="py-1 transition-all duration-200 hover:text-red-400 cursor-pointer flex items-center gap-1.5"
-            title="Download Official Resume PDF"
+            className={`relative py-1 transition-all duration-200 cursor-pointer ${
+              activeTab === 'resume' ? 'text-white font-bold' : 'hover:text-zinc-200'
+            }`}
+            title="Official Resume & Career Timeline"
           >
             <span>Resume</span>
+            {activeTab === 'resume' && (
+              <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+            )}
           </button>
 
           {/* 5. Contact */}
           <button
             onClick={() => handleNavClick('contact')}
-            className="py-1 transition-all duration-200 hover:text-red-400 cursor-pointer"
+            className={`relative py-1 transition-all duration-200 cursor-pointer ${
+              activeTab === 'contact' ? 'text-white font-bold' : 'hover:text-zinc-200'
+            }`}
+            title="Let's Work Together · Contact"
           >
             <span>Contact</span>
+            {activeTab === 'contact' && (
+              <span className="absolute -bottom-1 left-0 right-0 h-0.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+            )}
           </button>
         </nav>
 
         {/* Zone 3: CTA action button + Mobile Menu Toggle */}
         <div className="flex items-center gap-3 shrink-0">
           <button
-            onClick={onOpenContact}
-            className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-500 rounded-xl transition-all duration-200 whitespace-nowrap shrink-0 font-sans shadow-md shadow-red-600/30 hover:shadow-red-600/50"
+            onClick={() => handleNavClick('contact')}
+            className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-500 rounded-xl transition-all duration-200 whitespace-nowrap shrink-0 font-sans shadow-md shadow-red-600/30 hover:shadow-red-600/50 cursor-pointer"
           >
             <span>Get In Touch</span>
           </button>
@@ -129,7 +134,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Mobile hamburger button */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="md:hidden p-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors"
+            className="md:hidden p-2 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
             aria-label="Toggle navigation menu"
           >
             {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -172,7 +177,9 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => handleNavClick('resume')}
-            className="w-full text-left py-2 hover:text-red-400 flex items-center gap-2.5 transition-colors text-red-400"
+            className={`w-full text-left py-2 flex items-center gap-2.5 transition-colors ${
+              activeTab === 'resume' ? 'text-red-400 font-bold' : 'hover:text-red-400'
+            }`}
           >
             <FileText className="w-4 h-4 text-red-400" />
             <span>Resume</span>
@@ -180,7 +187,9 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button
             onClick={() => handleNavClick('contact')}
-            className="w-full text-left py-2 hover:text-red-400 flex items-center gap-2.5 transition-colors"
+            className={`w-full text-left py-2 flex items-center gap-2.5 transition-colors ${
+              activeTab === 'contact' ? 'text-red-400 font-bold' : 'hover:text-red-400'
+            }`}
           >
             <Mail className="w-4 h-4 text-zinc-500" />
             <span>Contact</span>

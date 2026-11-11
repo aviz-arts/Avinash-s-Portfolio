@@ -7,7 +7,7 @@ interface SectionManagerModalProps {
   onClose: () => void;
   sections: CustomSection[];
   onSaveSections: (sections: CustomSection[]) => void;
-  initialTab?: 'home' | 'work' | 'about';
+  initialTab?: 'home' | 'work' | 'about' | 'resume' | 'contact';
   initialSectionToEdit?: CustomSection | null;
 }
 
@@ -19,7 +19,7 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
   initialTab = 'work',
   initialSectionToEdit = null,
 }) => {
-  const [activeTabFilter, setActiveTabFilter] = useState<'all' | 'home' | 'work' | 'about'>('all');
+  const [activeTabFilter, setActiveTabFilter] = useState<'all' | 'home' | 'work' | 'about' | 'resume' | 'contact'>('all');
   const [editingSection, setEditingSection] = useState<CustomSection | null>(initialSectionToEdit);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
 
@@ -36,16 +36,80 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleStartNewSection = (tab: 'home' | 'work' | 'about' = initialTab) => {
+  const handleStartNewSection = (
+    tab: 'home' | 'work' | 'about' | 'resume' | 'contact' = initialTab,
+    layout: 'cards' | 'feature' | 'split' | 'stats' | 'callout' = 'cards'
+  ) => {
     setIsCreatingNew(true);
     setEditingSection(null);
+
+    if (layout === 'stats') {
+      setFormData({
+        id: `section-${Date.now()}`,
+        tab,
+        kicker: 'PRODUCTION BENCHMARKS',
+        title: 'Shipped Releases & Performance Benchmarks',
+        description: 'Key quantifiable metrics, core design contributions, and frametime budgets.',
+        layout: 'stats',
+        visible: true,
+        order: sections.length + 1,
+        items: [
+          {
+            id: `item-${Date.now()}-1`,
+            title: '4 Titles',
+            subtitle: 'Shipped Releases (PC/Console)',
+            description: 'Commercial releases shipped across steam and next-gen consoles.',
+            tag: '',
+          },
+          {
+            id: `item-${Date.now()}-2`,
+            title: '100% Core',
+            subtitle: 'Game Design & Mechanics Focus',
+            description: 'Gameplay loops, combat systems, and pacing architecture.',
+            tag: 'red',
+          },
+          {
+            id: `item-${Date.now()}-3`,
+            title: '7+ Years',
+            subtitle: 'Game Industry Experience',
+            description: 'Senior design and technical lighting production experience.',
+            tag: '',
+          },
+          {
+            id: `item-${Date.now()}-4`,
+            title: '60.0 FPS',
+            subtitle: 'Lumen Console Frametime (Passion)',
+            description: 'Unreal Engine 5 real-time global illumination optimization.',
+            tag: '',
+          },
+        ],
+      });
+      return;
+    }
+
+    if (layout === 'callout') {
+      setFormData({
+        id: `section-${Date.now()}`,
+        tab,
+        kicker: 'EXECUTIVE DESIGN PROFILE',
+        title: 'Core Philosophy & Direction',
+        description:
+          'Professional Game Designer specializing in core gameplay loops, mechanics, player pacing, and level architecture — powered by a lifelong hobby and passion as a Lighting Artist.',
+        layout: 'callout',
+        visible: true,
+        order: sections.length + 1,
+        items: [],
+      });
+      return;
+    }
+
     setFormData({
       id: `section-${Date.now()}`,
       tab,
       kicker: 'Custom Showcase · Spotlight',
       title: 'New Section Title',
       description: 'Describe this section and what makes this workflow, level geometry, or lighting approach unique.',
-      layout: 'cards',
+      layout,
       visible: true,
       order: sections.length + 1,
       items: [
@@ -209,8 +273,8 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
             <div className="space-y-6">
               <div className="flex flex-wrap items-center justify-between gap-4">
                 {/* Tab Filter Chips */}
-                <div className="flex items-center gap-2 p-1 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-mono">
-                  {(['all', 'home', 'work', 'about'] as const).map((t) => (
+                <div className="flex flex-wrap items-center gap-1.5 p-1 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-mono">
+                  {(['all', 'home', 'work', 'about', 'resume', 'contact'] as const).map((t) => (
                     <button
                       key={t}
                       onClick={() => setActiveTabFilter(t)}
@@ -225,27 +289,29 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
                   ))}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
-                    onClick={() => handleStartNewSection('work')}
-                    className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-medium rounded-xl text-xs font-mono flex items-center gap-1.5 transition-colors shadow-lg shadow-red-600/30"
+                    onClick={() => handleStartNewSection(activeTabFilter !== 'all' ? activeTabFilter : 'resume', 'stats')}
+                    className="px-3.5 py-2 bg-red-600 hover:bg-red-500 text-white font-medium rounded-xl text-xs font-mono flex items-center gap-1.5 transition-colors shadow-lg shadow-red-600/30"
+                    title="Add KPI Benchmarks Strip like 4 Titles, 100% Core..."
                   >
                     <Plus className="w-4 h-4" />
-                    <span>+ Add Section to Work Tab</span>
+                    <span>+ Add Benchmarks Strip</span>
                   </button>
                   <button
-                    onClick={() => handleStartNewSection('about')}
-                    className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-xl text-xs font-mono flex items-center gap-1.5 transition-colors"
+                    onClick={() => handleStartNewSection(activeTabFilter !== 'all' ? activeTabFilter : 'resume', 'callout')}
+                    className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-xl text-xs font-mono flex items-center gap-1.5 transition-colors"
+                    title="Add Executive Design Profile Narrative Box"
                   >
                     <Plus className="w-4 h-4 text-red-400" />
-                    <span>+ Add to About Tab</span>
+                    <span>+ Add Callout Box</span>
                   </button>
                   <button
-                    onClick={() => handleStartNewSection('home')}
-                    className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-xl text-xs font-mono flex items-center gap-1.5 transition-colors"
+                    onClick={() => handleStartNewSection('work', 'cards')}
+                    className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-xl text-xs font-mono flex items-center gap-1.5 transition-colors"
                   >
                     <Plus className="w-4 h-4 text-red-400" />
-                    <span>+ Add to Home</span>
+                    <span>+ Add Cards Grid</span>
                   </button>
                 </div>
               </div>
@@ -372,13 +438,15 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
                   <select
                     value={formData.tab || 'work'}
                     onChange={(e) =>
-                      setFormData({ ...formData, tab: e.target.value as 'home' | 'work' | 'about' })
+                      setFormData({ ...formData, tab: e.target.value as 'home' | 'work' | 'about' | 'resume' | 'contact' })
                     }
                     className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-200 focus:outline-none focus:border-red-500"
                   >
                     <option value="home">Home Tab (Main Feed)</option>
                     <option value="work">Work Tab (Portfolio & Case Studies)</option>
                     <option value="about">About Tab (Experience & Philosophy)</option>
+                    <option value="resume">Resume Tab (Career Timeline & Benchmarks)</option>
+                    <option value="contact">Contact Tab (Inquiries & Connect)</option>
                   </select>
                 </div>
 
@@ -391,12 +459,14 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
                     onChange={(e) =>
                       setFormData({
                         ...formData,
-                        layout: e.target.value as 'cards' | 'feature' | 'split',
+                        layout: e.target.value as 'cards' | 'feature' | 'split' | 'stats' | 'callout',
                       })
                     }
                     className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-200 focus:outline-none focus:border-red-500"
                   >
-                    <option value="cards">Cards Grid (3-columns: Awards, Hardware, Case Studies)</option>
+                    <option value="stats">Stat Cards Strip (KPI Benchmarks: 4 Titles, 100% Core...)</option>
+                    <option value="callout">Executive Callout Box (Profile Narrative Banner)</option>
+                    <option value="cards">Cards Grid (3-columns: Awards, Systems, Case Studies)</option>
                     <option value="split">Split Columns (2-columns: Side-by-side Technical Topics)</option>
                     <option value="feature">Full-Width Feature Rows (Deep-dive breakdowns)</option>
                   </select>
