@@ -1492,27 +1492,16 @@ export default function App() {
               <span>PDF</span>
             </button>
 
-            {/* Owner Access Trigger in Footer (Hidden from normal visitors, only visible to Owner) */}
-            {showOwnerTrigger && (
-              isOwner ? (
-                <button
-                  onClick={() => setIsSiteContentEditorOpen(true)}
-                  className="hover:text-red-400 transition-colors flex items-center gap-1.5 text-red-400 font-mono text-[11px] px-2 py-0.5 rounded bg-red-950/40 border border-red-900/60 cursor-pointer"
-                  title="Owner Mode Active: Click to edit all text lines"
-                >
-                  <Lock className="w-3 h-3 text-red-500" />
-                  <span>Owner Mode Active</span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => setIsOwnerLoginOpen(true)}
-                  className="hover:text-red-400 transition-colors flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 font-mono text-[11px] cursor-pointer"
-                  title="Owner Portal Sign In"
-                >
-                  <Lock className="w-3 h-3 text-red-500" />
-                  <span>Owner Portal</span>
-                </button>
-              )
+            {/* Owner badge (Only visible when logged in) */}
+            {isOwner && (
+              <button
+                onClick={() => setIsSiteContentEditorOpen(true)}
+                className="hover:text-red-400 transition-colors flex items-center gap-1.5 text-red-400 font-mono text-[11px] px-2 py-0.5 rounded bg-red-950/40 border border-red-900/60 cursor-pointer"
+                title="Owner Mode Active: Click to edit all text lines"
+              >
+                <Lock className="w-3 h-3 text-red-500" />
+                <span>Owner Mode Active</span>
+              </button>
             )}
           </div>
 

@@ -27,7 +27,6 @@ import {
   generateRandomTotpSecret,
   getOtpAuthUri,
   OWNER_EMAIL,
-  DEFAULT_OWNER_PIN,
   MASTER_2FA_BACKUP_CODE,
 } from '../../utils/portfolioStorage';
 
@@ -50,7 +49,6 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
-  const [showDefaultHint, setShowDefaultHint] = useState(false);
   const [showQrDetails, setShowQrDetails] = useState(true);
 
   // Authenticator TOTP State
@@ -72,7 +70,6 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
       setError('');
       setSuccessMsg('');
       setIsVerifying(false);
-      setShowDefaultHint(false);
       setCopiedKey(false);
       setShowSyncedPreview(false);
       const secret = getStoredTotpSecret();
@@ -162,7 +159,7 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
         }, 750);
       } else {
         setError(
-          'Invalid code. Please enter the current 6-digit code shown in your Authenticator app, or use backup key 590426.'
+          'Invalid code. Please enter the current 6-digit code shown in your Authenticator app.'
         );
       }
     } catch (err) {
@@ -204,12 +201,6 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
 
   const handleAutofillBackup = () => {
     setTwoFactorInput(MASTER_2FA_BACKUP_CODE);
-    setError('');
-  };
-
-  const handleUseDefault = () => {
-    setEmail(OWNER_EMAIL);
-    setPin(DEFAULT_OWNER_PIN);
     setError('');
   };
 
@@ -308,41 +299,18 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-mono text-zinc-400">
-                  Passcode (5904)
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setShowDefaultHint(!showDefaultHint)}
-                  className="text-[10px] text-red-400 hover:underline font-mono cursor-pointer"
-                >
-                  {showDefaultHint ? 'Hide hint' : 'Passcode reminder?'}
-                </button>
-              </div>
+              <label className="block text-xs font-mono text-zinc-400 mb-1">
+                Passcode
+              </label>
               <input
                 type="password"
                 required
                 value={pin}
                 onChange={(e) => setPin(e.target.value)}
-                placeholder="Enter passcode (5904)..."
+                placeholder="Enter passcode..."
+                autoComplete="current-password"
                 className="w-full px-3.5 py-2.5 bg-zinc-900/90 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-red-500 transition-colors"
               />
-
-              {showDefaultHint && (
-                <div className="mt-2 p-2.5 bg-zinc-900/90 border border-zinc-800 rounded-xl text-[11px] font-mono text-zinc-400 flex items-center justify-between">
-                  <span>
-                    Owner Passcode: <strong className="text-red-400 font-bold">5904</strong>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleUseDefault}
-                    className="px-2 py-0.5 bg-red-950/60 text-red-300 hover:bg-red-900/60 border border-red-800/60 rounded text-[10px] cursor-pointer"
-                  >
-                    Autofill (aviz.arts@gmail.com / 5904)
-                  </button>
-                </div>
-              )}
             </div>
 
             <div className="pt-2 flex items-center justify-between">
@@ -541,9 +509,6 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
                     Autofill Backup Key
                   </button>
                 </div>
-                <p className="text-[10px] font-mono text-zinc-500">
-                  Note: Your owner passcode <code className="text-zinc-400">5904</code> also functions as an emergency key.
-                </p>
               </div>
             )}
 

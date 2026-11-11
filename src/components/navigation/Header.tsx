@@ -144,24 +144,8 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </nav>
 
-        {/* Zone 3: CTA action button + Owner Portal (Private to Owner) + Mobile Menu Toggle */}
+        {/* Zone 3: CTA action button + Mobile Menu Toggle */}
         <div className="flex items-center gap-3 shrink-0">
-          {/* Owner Portal Quick Access Trigger (Only rendered for the Owner) */}
-          {showOwnerTrigger && onOpenOwnerLogin && (
-            <button
-              onClick={onOpenOwnerLogin}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono rounded-xl border transition-all cursor-pointer ${
-                isOwner
-                  ? 'bg-red-950/40 text-red-400 border-red-800/60 hover:bg-red-900/60'
-                  : 'bg-zinc-900/80 text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700'
-              }`}
-              title={isOwner ? "Owner Mode Active (Click to Manage)" : "Owner Portal Sign In"}
-            >
-              <Lock className="w-3.5 h-3.5 text-red-500" />
-              <span className="hidden sm:inline">{isOwner ? 'Owner Active' : 'Owner'}</span>
-            </button>
-          )}
-
           <button
             onClick={() => handleNavClick('contact')}
             className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-500 rounded-xl transition-all duration-200 whitespace-nowrap shrink-0 font-sans shadow-md shadow-red-600/30 hover:shadow-red-600/50 cursor-pointer"
@@ -243,23 +227,6 @@ export const Header: React.FC<HeaderProps> = ({
             >
               Get In Touch
             </button>
-
-            {showOwnerTrigger && onOpenOwnerLogin && (
-              <button
-                onClick={() => {
-                  setIsMobileMenuOpen(false);
-                  onOpenOwnerLogin();
-                }}
-                className={`w-full py-2 px-3 rounded-lg text-xs font-mono flex items-center justify-center gap-2 border transition-colors cursor-pointer ${
-                  isOwner
-                    ? 'bg-red-950/40 text-red-400 border-red-800/60'
-                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
-                }`}
-              >
-                <Lock className="w-3.5 h-3.5 text-red-500" />
-                <span>{isOwner ? 'Owner Mode Active' : 'Owner Portal Sign In (2FA)'}</span>
-              </button>
-            )}
           </div>
         </div>
       )}
