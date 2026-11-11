@@ -6,6 +6,7 @@ import {
   Download,
   Upload,
   Eye,
+  EyeOff,
   LogOut,
   RotateCcw,
   FileText,
@@ -27,6 +28,7 @@ interface OwnerBarProps {
   isPreviewMode: boolean;
   onTogglePreview: () => void;
   onLogout: () => void;
+  onForgetDevice?: () => void;
   hasCustomResumePdf?: boolean;
 }
 
@@ -44,6 +46,7 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
   isPreviewMode,
   onTogglePreview,
   onLogout,
+  onForgetDevice,
   hasCustomResumePdf = false,
 }) => {
   return (
@@ -171,12 +174,31 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
 
           <button
             onClick={onLogout}
-            className="flex items-center gap-1 px-2.5 py-1 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/60 rounded-lg transition-colors"
-            title="Log out of owner mode"
+            className="flex items-center gap-1 px-2.5 py-1 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 rounded-lg transition-colors cursor-pointer"
+            title="Log out of owner mode (keeps quick owner button on this device)"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Logout</span>
           </button>
+
+          {onForgetDevice && (
+            <button
+              onClick={() => {
+                if (
+                  confirm(
+                    'Hide Owner Button on this device?\n\nThe button will disappear for 100% privacy. You can always re-open the portal anytime by visiting ?owner or pressing Ctrl+Shift+E.'
+                  )
+                ) {
+                  onForgetDevice();
+                }
+              }}
+              className="flex items-center gap-1 px-2.5 py-1 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/60 rounded-lg transition-colors cursor-pointer"
+              title="Completely hide the owner button on this device"
+            >
+              <EyeOff className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">Hide Button on Device</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

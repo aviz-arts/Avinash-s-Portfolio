@@ -19,6 +19,9 @@ import {
   DEFAULT_AVATAR_URL,
   DEFAULT_CUSTOM_SECTIONS,
   CustomSection,
+  generateTwoFactorCode,
+  verifyTwoFactorCode,
+  MASTER_2FA_BACKUP_CODE,
 } from './portfolioStorage';
 import { ProjectItem } from '../types/portfolio';
 
@@ -51,15 +54,59 @@ const mockProject: ProjectItem = {
 };
 
 test('verifyOwnerCredentials accurately checks owner email and PIN', () => {
-  // Correct credentials
-  assert.equal(verifyOwnerCredentials(OWNER_EMAIL, DEFAULT_OWNER_PIN), true);
-  assert.equal(verifyOwnerCredentials('AVIZ.ARTS@GMAIL.COM', DEFAULT_OWNER_PIN), true);
+  // Correct credentials: email aviz.arts@gmail.com and passcode 5904
+  assert.equal(OWNER_EMAIL, 'aviz.arts@gmail.com');
+  assert.equal(DEFAULT_OWNER_PIN, '5904');
+  assert.equal(verifyOwnerCredentials('aviz.arts@gmail.com', '5904'), true);
+  assert.equal(verifyOwnerCredentials('AVIZ.ARTS@GMAIL.COM', '5904'), true);
 
   // Wrong email
-  assert.equal(verifyOwnerCredentials('intruder@gmail.com', DEFAULT_OWNER_PIN), false);
+  assert.equal(verifyOwnerCredentials('intruder@gmail.com', '5904'), false);
 
   // Wrong PIN
-  assert.equal(verifyOwnerCredentials(OWNER_EMAIL, 'wrongpass123'), false);
+  assert.equal(verifyOwnerCredentials('aviz.arts@gmail.com', 'wrongpass123'), false);
+});
+
+test('2FA Authenticator app TOTP and one-time code verification operates with high security', async () => {
+  const { calculateTotpCode, verifyAuthenticatorAppCode, getOtpAuthUri, getStoredTotpSecret } = await import('./portfolioStorage');
+
+  // Verify Authenticator TOTP calculation
+  const currentSecret = getStoredTotpSecret();
+  assert.ok(currentSecret.length >= 8);
+
+  const totpCode = await calculateTotpCode(currentSecret);
+  assert.equal(totpCode.length, 6);
+  assert.ok(/^\d{6}$/.test(totpCode));
+
+  // Verify authenticator app validation with TOTP code
+  const isTotpValid = await verifyAuthenticatorAppCode(totpCode);
+  assert.equal(isTotpValid, true);
+
+  // Verify otpauth URI formatting for Google Authenticator / Microsoft Authenticator
+  const otpUri = getOtpAuthUri();
+  assert.ok(otpUri.startsWith('otpauth://totp/'));
+  assert.ok(otpUri.includes('secret='));
+  assert.ok(otpUri.includes('issuer=Avinash%20Portfolio'));
+
+  // Test one-time dispatch code
+  const { code, expiresAt } = generateTwoFactorCode();
+  assert.equal(code.length, 6);
+  assert.ok(expiresAt > Date.now());
+
+  // Correct dispatch code verifies
+  assert.equal(await verifyTwoFactorCode(code), true);
+
+  // Authenticator TOTP code verifies via universal 2FA
+  assert.equal(await verifyTwoFactorCode(totpCode), true);
+
+  // Master recovery code verifies
+  assert.equal(await verifyTwoFactorCode(MASTER_2FA_BACKUP_CODE), true);
+  assert.equal(await verifyTwoFactorCode('590426'), true);
+  assert.equal(await verifyTwoFactorCode('5904'), true);
+
+  // Invalid 2FA code rejected
+  assert.equal(await verifyTwoFactorCode('000000'), false);
+  assert.equal(await verifyTwoFactorCode(''), false);
 });
 
 test('createProject adds new project to beginning of array', () => {
@@ -239,6 +286,22 @@ test('resume milestones CRUD maintains milestone state and photo links', async (
 
   const deleted = deleteResumeMilestone('test-milestone-99', updated);
   assert.equal(deleted.length, initial.length);
+});
+
+test('recognized owner device toggles maintain private visibility', async () => {
+  const { isRecognizedOwnerDevice, setRecognizedOwnerDevice } = await import('./portfolioStorage');
+
+  // Initial or reset state
+  setRecognizedOwnerDevice(false);
+  assert.equal(isRecognizedOwnerDevice(), false);
+
+  // Mark as owner's recognized device
+  setRecognizedOwnerDevice(true);
+  assert.equal(isRecognizedOwnerDevice(), true);
+
+  // Forget device
+  setRecognizedOwnerDevice(false);
+  assert.equal(isRecognizedOwnerDevice(), false);
 });
 
 

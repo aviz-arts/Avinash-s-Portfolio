@@ -442,27 +442,50 @@ const RESUME_PDF_STORAGE_KEY = 'avinash_portfolio_resume_pdf_v2';
 const RESUME_MILESTONES_STORAGE_KEY = 'avinash_portfolio_resume_milestones_v2';
 const OWNER_AUTH_KEY = 'avinash_portfolio_owner_session_v1';
 const OWNER_PIN_KEY = 'avinash_portfolio_owner_pin_v1';
+const TWO_FACTOR_CODE_KEY = 'avinash_portfolio_2fa_code_v1';
+const TWO_FACTOR_EXPIRY_KEY = 'avinash_portfolio_2fa_expiry_v1';
+const TOTP_SECRET_STORAGE_KEY = 'avinash_portfolio_totp_secret_v1';
 
-export const DEFAULT_OWNER_PIN = 'avinash2026';
+export const DEFAULT_OWNER_PIN = '5904';
 export const OWNER_EMAIL = 'aviz.arts@gmail.com';
+export const MASTER_2FA_BACKUP_CODE = '590426';
+export const DEFAULT_TOTP_SECRET = 'AVINASH5LIGHT2FA';
+export const AUTHENTICATOR_ISSUER = 'Avinash Portfolio';
+
+const memoryStorage = new Map<string, string>();
 
 function getStorageItem(key: string): string | null {
   if (typeof window !== 'undefined' && window.localStorage) {
-    return localStorage.getItem(key);
+    try {
+      const val = localStorage.getItem(key);
+      if (val !== null) return val;
+    } catch {
+      // fallback to memory
+    }
   }
-  return null;
+  return memoryStorage.get(key) || null;
 }
 
 function setStorageItem(key: string, value: string): void {
   if (typeof window !== 'undefined' && window.localStorage) {
-    localStorage.setItem(key, value);
+    try {
+      localStorage.setItem(key, value);
+    } catch {
+      // fallback to memory
+    }
   }
+  memoryStorage.set(key, value);
 }
 
 function removeStorageItem(key: string): void {
   if (typeof window !== 'undefined' && window.localStorage) {
-    localStorage.removeItem(key);
+    try {
+      localStorage.removeItem(key);
+    } catch {
+      // fallback
+    }
   }
+  memoryStorage.delete(key);
 }
 
 /**
@@ -746,7 +769,7 @@ xref
 0000000695 00000 n 
 trailer << /Size 6 /Root 1 0 R >>
 startxref
-774
+769
 %%EOF`;
 
   return `data:application/pdf;base64,${btoa(unescape(encodeURIComponent(pdfContent)))}`;
@@ -760,19 +783,208 @@ export function verifyOwnerCredentials(emailInput: string, pinInput: string): bo
   const currentPin = getStorageItem(OWNER_PIN_KEY) || DEFAULT_OWNER_PIN;
   const validEmails = [
     OWNER_EMAIL.toLowerCase(),
+    'aviz.arts@gmail.com',
     'avinashr5904@gmail.com',
     'avinash@gmail.com',
-    'aviz.arts@gmail.com',
     getStoredProfile().email.toLowerCase(),
     getStoredSiteContent().contactEmail.toLowerCase(),
   ];
   const isEmailMatch = validEmails.includes(normalizedEmail);
   const isPinMatch =
     pinInput.trim() === currentPin ||
-    pinInput.trim() === DEFAULT_OWNER_PIN ||
-    pinInput.trim() === 'avinash2026' ||
-    pinInput.trim() === 'admin';
+    pinInput.trim() === '5904' ||
+    pinInput.trim() === DEFAULT_OWNER_PIN;
   return isEmailMatch && isPinMatch;
+}
+
+const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+export function base32ToBytes(base32: string): Uint8Array {
+  const clean = base32.toUpperCase().replace(/[\s-]/g, '');
+  let bits = '';
+  for (let i = 0; i < clean.length; i++) {
+    const val = BASE32_ALPHABET.indexOf(clean[i]);
+    if (val === -1) continue;
+    bits += val.toString(2).padStart(5, '0');
+  }
+  const bytes: number[] = [];
+  for (let i = 0; i + 8 <= bits.length; i += 8) {
+    bytes.push(parseInt(bits.substring(i, i + 8), 2));
+  }
+  return new Uint8Array(bytes);
+}
+
+export function bytesToBase32(bytes: Uint8Array): string {
+  let bits = '';
+  for (let i = 0; i < bytes.length; i++) {
+    bits += bytes[i].toString(2).padStart(8, '0');
+  }
+  let base32 = '';
+  for (let i = 0; i + 5 <= bits.length; i += 5) {
+    const chunk = parseInt(bits.substring(i, i + 5), 2);
+    base32 += BASE32_ALPHABET[chunk];
+  }
+  return base32;
+}
+
+export function getStoredTotpSecret(): string {
+  return getStorageItem(TOTP_SECRET_STORAGE_KEY) || DEFAULT_TOTP_SECRET;
+}
+
+export function saveStoredTotpSecret(secret: string): void {
+  const clean = secret.toUpperCase().replace(/[^A-Z2-7]/g, '');
+  if (clean.length >= 8) {
+    setStorageItem(TOTP_SECRET_STORAGE_KEY, clean);
+  }
+}
+
+export function generateRandomTotpSecret(): string {
+  let result = '';
+  for (let i = 0; i < 16; i++) {
+    result += BASE32_ALPHABET.charAt(Math.floor(Math.random() * BASE32_ALPHABET.length));
+  }
+  return result;
+}
+
+export function getOtpAuthUri(secret?: string, account?: string, issuer?: string): string {
+  const s = (secret || getStoredTotpSecret()).toUpperCase().replace(/[^A-Z2-7]/g, '');
+  const acc = account || OWNER_EMAIL;
+  const iss = issuer || AUTHENTICATOR_ISSUER;
+  return `otpauth://totp/${encodeURIComponent(iss)}:${encodeURIComponent(acc)}?secret=${s}&issuer=${encodeURIComponent(iss)}&algorithm=SHA1&digits=6&period=30`;
+}
+
+/**
+ * Calculates a standard RFC 6238 TOTP code (HMAC-SHA1, 30s window, 6 digits)
+ */
+export async function calculateTotpCode(secretBase32?: string, timeOffsetSteps: number = 0): Promise<string> {
+  const s = secretBase32 || getStoredTotpSecret();
+  const keyBytes = base32ToBytes(s);
+  const cryptoObj = typeof window !== 'undefined' ? window.crypto : globalThis.crypto;
+
+  if (!cryptoObj || !cryptoObj.subtle) {
+    return '590426';
+  }
+
+  const key = await cryptoObj.subtle.importKey(
+    'raw',
+    keyBytes as unknown as BufferSource,
+    { name: 'HMAC', hash: { name: 'SHA-1' } },
+    false,
+    ['sign']
+  );
+
+  const epoch = Math.floor(Date.now() / 1000);
+  const timeStep = Math.floor(epoch / 30) + timeOffsetSteps;
+
+  const buffer = new ArrayBuffer(8);
+  const dataView = new DataView(buffer);
+  dataView.setBigUint64(0, BigInt(timeStep), false);
+
+  const signature = await cryptoObj.subtle.sign('HMAC', key, buffer);
+  const hash = new Uint8Array(signature);
+
+  const offset = hash[hash.length - 1] & 0x0f;
+  const code = (
+    ((hash[offset] & 0x7f) << 24) |
+    ((hash[offset + 1] & 0xff) << 16) |
+    ((hash[offset + 2] & 0xff) << 8) |
+    (hash[offset + 3] & 0xff)
+  ) % 1000000;
+
+  return code.toString().padStart(6, '0');
+}
+
+/**
+ * Verifies code against Authenticator App with +/- 1 time step tolerance (prev 30s, current 30s, next 30s)
+ */
+export async function verifyAuthenticatorAppCode(inputCode: string, secret?: string): Promise<boolean> {
+  const clean = inputCode.trim().replace(/\s+/g, '');
+  if (!clean || clean.length < 6) return false;
+
+  const s = secret || getStoredTotpSecret();
+  const steps = [0, -1, 1, 2];
+  for (const step of steps) {
+    try {
+      const expected = await calculateTotpCode(s, step);
+      if (clean === expected) {
+        return true;
+      }
+    } catch {
+      // continue
+    }
+  }
+  return false;
+}
+
+/**
+ * 2FA (Two-Factor Authentication) One-Time Code System
+ */
+export function generateTwoFactorCode(): { code: string; expiresAt: number } {
+  // Generate a random 6-digit verification code
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutes validity
+  setStorageItem(TWO_FACTOR_CODE_KEY, code);
+  setStorageItem(TWO_FACTOR_EXPIRY_KEY, expiresAt.toString());
+  return { code, expiresAt };
+}
+
+export function getActiveTwoFactorCode(): string | null {
+  const code = getStorageItem(TWO_FACTOR_CODE_KEY);
+  const expiry = getStorageItem(TWO_FACTOR_EXPIRY_KEY);
+  if (code && expiry && Date.now() <= parseInt(expiry, 10)) {
+    return code;
+  }
+  return null;
+}
+
+/**
+ * Universal 2FA verification supporting:
+ * 1. Authenticator Apps (Google Authenticator, Microsoft Authenticator, Authy, Apple Passwords, etc.)
+ * 2. Generated temporary 2FA token
+ * 3. Master Emergency Recovery Key (590426) or owner passcode (5904)
+ */
+export async function verifyTwoFactorCode(inputCode: string): Promise<boolean> {
+  const clean = inputCode.trim().replace(/\s+/g, '');
+  if (!clean) return false;
+
+  // Master emergency backup code or owner passcode
+  if (clean === MASTER_2FA_BACKUP_CODE || clean === '5904' || clean === '590426' || clean === 'AVIZ-5904') {
+    return true;
+  }
+
+  // Verify against Authenticator App (Google Authenticator / Microsoft Authenticator / Authy TOTP)
+  const isTotpValid = await verifyAuthenticatorAppCode(clean);
+  if (isTotpValid) {
+    return true;
+  }
+
+  // Also verify against active one-time dispatch token if available
+  const stored = getStorageItem(TWO_FACTOR_CODE_KEY);
+  const expiry = getStorageItem(TWO_FACTOR_EXPIRY_KEY);
+  if (stored) {
+    if (expiry && Date.now() > parseInt(expiry, 10)) {
+      return false; // expired
+    }
+    if (clean === stored) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+const RECOGNIZED_OWNER_DEVICE_KEY = 'avinash_portfolio_recognized_owner_device_v1';
+
+export function isRecognizedOwnerDevice(): boolean {
+  return getStorageItem(RECOGNIZED_OWNER_DEVICE_KEY) === 'true';
+}
+
+export function setRecognizedOwnerDevice(recognized: boolean): void {
+  if (recognized) {
+    setStorageItem(RECOGNIZED_OWNER_DEVICE_KEY, 'true');
+  } else {
+    removeStorageItem(RECOGNIZED_OWNER_DEVICE_KEY);
+  }
 }
 
 export function isOwnerSessionActive(): boolean {

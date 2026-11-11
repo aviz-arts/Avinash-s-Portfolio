@@ -116,6 +116,7 @@ export function buildCyberpunkAlley(): THREE.Group {
     map: asphaltTex,
   });
   const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.name = 'StudioFloor';
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   group.add(floor);
@@ -252,6 +253,7 @@ export function buildGothicCrypt(): THREE.Group {
     bumpScale: 0.05,
   });
   const floor = new THREE.Mesh(floorGeo, floorMat);
+  floor.name = 'StudioFloor';
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   group.add(floor);
@@ -424,6 +426,7 @@ export function buildMechTurret(): THREE.Group {
     new THREE.CylinderGeometry(6, 6, 0.15, 48),
     new THREE.MeshStandardMaterial({ color: 0x11141c, roughness: 0.25, metalness: 0.5 })
   );
+  studioFloor.name = 'StudioFloor';
   studioFloor.position.y = -0.075;
   studioFloor.receiveShadow = true;
   group.add(studioFloor);

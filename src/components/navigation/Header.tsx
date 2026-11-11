@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, X, FileText, Mail, Home, Briefcase, User } from 'lucide-react';
+import { Menu, X, FileText, Mail, Home, Briefcase, User, Lock } from 'lucide-react';
 
 interface HeaderProps {
   activeTab: 'home' | 'work' | 'about' | 'resume' | 'contact';
@@ -7,6 +7,9 @@ interface HeaderProps {
   onOpenContact: () => void;
   onOpenResume: () => void;
   avatarUrl?: string;
+  onOpenOwnerLogin?: () => void;
+  isOwner?: boolean;
+  showOwnerTrigger?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -15,8 +18,12 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenContact,
   onOpenResume,
   avatarUrl = '/assets/aistudio/pic_fe23a188.jpg',
+  onOpenOwnerLogin,
+  isOwner = false,
+  showOwnerTrigger = false,
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [avatarClicks, setAvatarClicks] = useState<number[]>([]);
 
   const handleNavClick = (tab: 'home' | 'work' | 'about' | 'resume' | 'contact') => {
     setIsMobileMenuOpen(false);
@@ -24,13 +31,28 @@ export const Header: React.FC<HeaderProps> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const handleAvatarClick = (e: React.MouseEvent) => {
+    const now = Date.now();
+    const recent = [...avatarClicks.filter((t) => now - t < 1200), now];
+    setAvatarClicks(recent);
+    if (recent.length >= 3) {
+      e.preventDefault();
+      e.stopPropagation();
+      onOpenOwnerLogin?.();
+      setAvatarClicks([]);
+      return;
+    }
+    handleNavClick('home');
+  };
+
   return (
     <header className="sticky top-0 z-40 bg-[#050505]/95 backdrop-blur-md border-b border-zinc-800/80">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-6 px-6 py-3.5">
         {/* Zone 1: Portrait avatar + AVINASH heading + faded subtitle: Game Designer | Lighting Artist */}
         <button
-          onClick={() => handleNavClick('home')}
+          onClick={handleAvatarClick}
           className="flex items-center gap-3.5 text-left group cursor-pointer shrink-0"
+          title="Avinash · Game Designer | Lighting Artist"
         >
           <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-red-500/80 group-hover:border-red-400 transition-all duration-300 shadow-sm shadow-red-500/20 shrink-0">
             <img
@@ -122,8 +144,24 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
         </nav>
 
-        {/* Zone 3: CTA action button + Mobile Menu Toggle */}
+        {/* Zone 3: CTA action button + Owner Portal (Private to Owner) + Mobile Menu Toggle */}
         <div className="flex items-center gap-3 shrink-0">
+          {/* Owner Portal Quick Access Trigger (Only rendered for the Owner) */}
+          {showOwnerTrigger && onOpenOwnerLogin && (
+            <button
+              onClick={onOpenOwnerLogin}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono rounded-xl border transition-all cursor-pointer ${
+                isOwner
+                  ? 'bg-red-950/40 text-red-400 border-red-800/60 hover:bg-red-900/60'
+                  : 'bg-zinc-900/80 text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700'
+              }`}
+              title={isOwner ? "Owner Mode Active (Click to Manage)" : "Owner Portal Sign In"}
+            >
+              <Lock className="w-3.5 h-3.5 text-red-500" />
+              <span className="hidden sm:inline">{isOwner ? 'Owner Active' : 'Owner'}</span>
+            </button>
+          )}
+
           <button
             onClick={() => handleNavClick('contact')}
             className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-500 rounded-xl transition-all duration-200 whitespace-nowrap shrink-0 font-sans shadow-md shadow-red-600/30 hover:shadow-red-600/50 cursor-pointer"
@@ -195,16 +233,33 @@ export const Header: React.FC<HeaderProps> = ({
             <span>Contact</span>
           </button>
 
-          <div className="pt-2 border-t border-zinc-800">
+          <div className="pt-2 border-t border-zinc-800 space-y-2">
             <button
               onClick={() => {
                 setIsMobileMenuOpen(false);
                 onOpenContact();
               }}
-              className="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg text-xs font-sans text-center shadow-md shadow-red-600/25"
+              className="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg text-xs font-sans text-center shadow-md shadow-red-600/25 cursor-pointer"
             >
               Get In Touch
             </button>
+
+            {showOwnerTrigger && onOpenOwnerLogin && (
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  onOpenOwnerLogin();
+                }}
+                className={`w-full py-2 px-3 rounded-lg text-xs font-mono flex items-center justify-center gap-2 border transition-colors cursor-pointer ${
+                  isOwner
+                    ? 'bg-red-950/40 text-red-400 border-red-800/60'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-white'
+                }`}
+              >
+                <Lock className="w-3.5 h-3.5 text-red-500" />
+                <span>{isOwner ? 'Owner Mode Active' : 'Owner Portal Sign In (2FA)'}</span>
+              </button>
+            )}
           </div>
         </div>
       )}

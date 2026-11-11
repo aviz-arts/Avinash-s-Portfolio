@@ -45,6 +45,8 @@ import {
   deleteResumeMilestone,
   isOwnerSessionActive,
   setOwnerSession,
+  isRecognizedOwnerDevice,
+  setRecognizedOwnerDevice,
   createProject,
   updateProject,
   deleteProject,
@@ -93,8 +95,10 @@ export default function App() {
   const [customSections, setCustomSections] = useState<CustomSection[]>(() => getStoredCustomSections());
   const [resumeMilestones, setResumeMilestones] = useState<ResumeMilestone[]>(() => getStoredResumeMilestones());
 
-  // Owner Mode State
+  // Owner Mode State (Private: Only visible to Owner Avinash)
   const [isOwner, setIsOwner] = useState<boolean>(() => isOwnerSessionActive());
+  const [isOwnerDevice, setIsOwnerDevice] = useState<boolean>(() => isRecognizedOwnerDevice());
+  const [showSecretOwnerTrigger, setShowSecretOwnerTrigger] = useState<boolean>(false);
   const [isPreviewMode, setIsPreviewMode] = useState<boolean>(false);
   const [isOwnerLoginOpen, setIsOwnerLoginOpen] = useState(false);
   const [isProjectEditorOpen, setIsProjectEditorOpen] = useState(false);
@@ -109,21 +113,26 @@ export default function App() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Check URL query on mount (?owner or ?admin)
+  // Private owner trigger flag: ONLY true if already logged in as owner, recognized owner device, or explicitly invoked via ?owner/shortcut
+  const showOwnerTrigger = isOwner || isOwnerDevice || showSecretOwnerTrigger;
+
+  // Check URL query on mount (?owner, ?admin, or ?edit)
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
-      if (params.has('owner') || params.has('admin')) {
+      if (params.has('owner') || params.has('admin') || params.has('edit')) {
+        setShowSecretOwnerTrigger(true);
         setIsOwnerLoginOpen(true);
       }
     }
   }, []);
 
-  // Shortcut Ctrl+Shift+E
+  // Shortcut Ctrl+Shift+E (or Cmd+Shift+E)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'e') {
         e.preventDefault();
+        setShowSecretOwnerTrigger(true);
         if (isOwner) {
           setIsPreviewMode((prev) => !prev);
         } else {
@@ -348,11 +357,24 @@ export default function App() {
     showBanner('Signed out of owner mode.');
   };
 
+  const handleForgetDevice = () => {
+    setOwnerSession(false);
+    setIsOwner(false);
+    setIsPreviewMode(false);
+    setRecognizedOwnerDevice(false);
+    setIsOwnerDevice(false);
+    setShowSecretOwnerTrigger(false);
+    showBanner('Owner button is now 100% hidden on this device.');
+  };
+
   const handleLoginSuccess = () => {
     setOwnerSession(true);
+    setRecognizedOwnerDevice(true);
+    setIsOwnerDevice(true);
+    setShowSecretOwnerTrigger(true);
     setIsOwner(true);
     setIsPreviewMode(false);
-    showBanner('Owner mode unlocked! Every line of text is now editable.');
+    showBanner('Welcome back, Avinash! Owner Mode is unlocked.');
   };
 
   const ownerCanEdit = isOwner && !isPreviewMode;
@@ -409,6 +431,7 @@ export default function App() {
           isPreviewMode={isPreviewMode}
           onTogglePreview={() => setIsPreviewMode(!isPreviewMode)}
           onLogout={handleLogout}
+          onForgetDevice={handleForgetDevice}
           hasCustomResumePdf={Boolean(resumePdf)}
         />
       )}
@@ -437,6 +460,9 @@ export default function App() {
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
         avatarUrl={siteContent.avatarUrl || DEFAULT_AVATAR_URL}
+        onOpenOwnerLogin={() => setIsOwnerLoginOpen(true)}
+        isOwner={isOwner}
+        showOwnerTrigger={showOwnerTrigger}
       />
 
       <main className="flex-1">
@@ -1466,16 +1492,27 @@ export default function App() {
               <span>PDF</span>
             </button>
 
-            {/* Owner Access Trigger in Footer (Strictly only visible when owner is authenticated) */}
-            {isOwner && (
-              <button
-                onClick={() => setIsSiteContentEditorOpen(true)}
-                className="hover:text-red-400 transition-colors flex items-center gap-1.5 text-red-400 font-mono text-[11px] px-2 py-0.5 rounded bg-red-950/40 border border-red-900/60 cursor-pointer"
-                title="Owner Mode Active: Click to edit all text lines"
-              >
-                <Lock className="w-3 h-3 text-red-500" />
-                <span>Owner Mode Active</span>
-              </button>
+            {/* Owner Access Trigger in Footer (Hidden from normal visitors, only visible to Owner) */}
+            {showOwnerTrigger && (
+              isOwner ? (
+                <button
+                  onClick={() => setIsSiteContentEditorOpen(true)}
+                  className="hover:text-red-400 transition-colors flex items-center gap-1.5 text-red-400 font-mono text-[11px] px-2 py-0.5 rounded bg-red-950/40 border border-red-900/60 cursor-pointer"
+                  title="Owner Mode Active: Click to edit all text lines"
+                >
+                  <Lock className="w-3 h-3 text-red-500" />
+                  <span>Owner Mode Active</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => setIsOwnerLoginOpen(true)}
+                  className="hover:text-red-400 transition-colors flex items-center gap-1.5 text-zinc-500 hover:text-zinc-300 font-mono text-[11px] cursor-pointer"
+                  title="Owner Portal Sign In"
+                >
+                  <Lock className="w-3 h-3 text-red-500" />
+                  <span>Owner Portal</span>
+                </button>
+              )
             )}
           </div>
 
