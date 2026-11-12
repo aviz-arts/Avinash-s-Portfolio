@@ -308,6 +308,58 @@ export const LIGHTING_PRESETS: Record<string, LightSettings> = {
       fov: 40,
     },
   },
+  cleanStudio: {
+    name: 'Clean Studio 3-Point',
+    keyLight: {
+      color: '#ffffff',
+      intensity: 2.0,
+      elevation: 50,
+      azimuth: 60,
+      castShadow: true,
+      kelvin: 5600,
+      softness: 1.0,
+    },
+    fillLight: {
+      skyColor: '#c8d6e5',
+      groundColor: '#485460',
+      intensity: 0.6,
+      giBounceMultiplier: 1.0,
+    },
+    rimLight: {
+      color: '#ffffff',
+      intensity: 2.5,
+      angle: 240,
+      elevation: 40,
+    },
+    localLight: {
+      color: '#f1f2f6',
+      intensity: 1.0,
+      x: 0,
+      y: 3,
+      z: 2,
+      distance: 12,
+    },
+    fog: {
+      enabled: false,
+      color: '#12151f',
+      density: 0.01,
+      near: 15,
+      far: 60,
+    },
+    toneMapping: {
+      exposure: 1.1,
+      mode: 'neutral',
+      contrast: 1.0,
+      saturation: 1.0,
+    },
+    surface: {
+      wetness: 0.1,
+    },
+    camera: {
+      focalLengthMm: 50,
+      fov: 40,
+    },
+  },
   redAlert: {
     name: 'Sci-Fi Emergency Red Alert',
     keyLight: {

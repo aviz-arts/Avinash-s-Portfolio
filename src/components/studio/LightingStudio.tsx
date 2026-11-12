@@ -1,13 +1,21 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { applyRenderPassMode } from './proceduralAssets';
 import {
-  buildCyberpunkAlley,
-  buildGothicCrypt,
-  buildMechTurret,
-  applyRenderPassMode,
-} from './proceduralAssets';
+  prepareModelForLightingStudio,
+  buildStudioPedestal,
+  buildDefaultLookdevAsset,
+  loadModelFromArrayBuffer,
+  loadModelFromUrl,
+  ModelStats,
+} from './modelLoaders';
+import {
+  saveUploadedModel,
+  loadUploadedModel,
+  clearUploadedModel,
+} from '../../utils/modelStorage';
 import {
   LIGHTING_PRESETS,
   LightSettings,
@@ -38,21 +46,41 @@ import {
   Move,
   Code,
   Layout,
+  Upload,
+  FileCode,
+  RotateCcw,
+  Target,
+  Box,
+  Link as LinkIcon,
+  X,
+  AlertCircle,
 } from 'lucide-react';
 
 interface LightingStudioProps {
-  initialScene?: 'cyberpunk' | 'crypt' | 'turret';
   className?: string;
 }
 
-export const LightingStudio: React.FC<LightingStudioProps> = ({
-  initialScene = 'cyberpunk',
-  className = '',
-}) => {
+export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }) => {
   const mountRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Studio UI state
-  const [selectedScene, setSelectedScene] = useState<'cyberpunk' | 'crypt' | 'turret'>(initialScene);
+  // Active lighting settings
+  const [lighting, setLighting] = useState<LightSettings>(() => {
+    return LIGHTING_PRESETS.cleanStudio || LIGHTING_PRESETS.studio || Object.values(LIGHTING_PRESETS)[0];
+  });
+
+  // Model & Studio UI state
+  const [modelName, setModelName] = useState<string>('Studio Lookdev Model');
+  const [isCustomModel, setIsCustomModel] = useState<boolean>(false);
+  const [modelStats, setModelStats] = useState<ModelStats | null>(null);
+  const [isLoadingModel, setIsLoadingModel] = useState<boolean>(false);
+  const [modelError, setModelError] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState<boolean>(false);
+  const [modelScale, setModelScale] = useState<number>(1.0);
+  const [showUrlModal, setShowUrlModal] = useState<boolean>(false);
+  const [urlInput, setUrlInput] = useState<string>('');
+
+  // Studio UI layout state
   const [activeTab, setActiveTab] = useState<
     'presets' | 'key' | 'fill' | 'rim' | 'point' | 'atmosphere' | 'post' | 'passes' | 'camera'
   >('presets');
@@ -66,15 +94,13 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({
   const [turntableSpeed, setTurntableSpeed] = useState(1.2);
   const [pulseDiegeticLight, setPulseDiegeticLight] = useState(true);
 
-  // Active lighting settings
-  const [lighting, setLighting] = useState<LightSettings>(LIGHTING_PRESETS.cyberpunk);
-
   // Refs for Three.js objects
   const sceneRef = useRef<THREE.Scene | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
-  const currentSceneMeshRef = useRef<THREE.Group | null>(null);
+  const modelContainerRef = useRef<THREE.Group | null>(null);
+  const activeMeshGroupRef = useRef<THREE.Group | null>(null);
 
   // Light objects refs
   const keyLightRef = useRef<THREE.DirectionalLight | null>(null);
@@ -91,7 +117,6 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({
   // Mutable state for render loop
   const stateRef = useRef({
     lighting,
-    selectedScene,
     renderPass,
     autoRotate,
     turntableSpeed,
@@ -102,153 +127,313 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({
   useEffect(() => {
     stateRef.current = {
       lighting,
-      selectedScene,
       renderPass,
       autoRotate,
       turntableSpeed,
       pulseDiegeticLight,
       isSoftwareGl: stateRef.current.isSoftwareGl,
     };
-  }, [lighting, selectedScene, renderPass, autoRotate, turntableSpeed, pulseDiegeticLight]);
+  }, [lighting, renderPass, autoRotate, turntableSpeed, pulseDiegeticLight]);
+
+  // Replace active model in the scene
+  const replaceSceneModel = useCallback((preparedGroup: THREE.Group, stats: ModelStats, name: string, isCustom: boolean) => {
+    const scene = sceneRef.current;
+    if (!scene) return;
+
+    if (activeMeshGroupRef.current) {
+      scene.remove(activeMeshGroupRef.current);
+    }
+
+    scene.add(preparedGroup);
+    activeMeshGroupRef.current = preparedGroup;
+    modelContainerRef.current = preparedGroup;
+
+    setModelStats(stats);
+    setModelName(name);
+    setIsCustomModel(isCustom);
+    setModelError(null);
+
+    // Apply surface wetness and current render pass
+    applyRenderPassMode(preparedGroup, stateRef.current.renderPass, clayMatRef.current, normalMatRef.current);
+
+    // Re-frame camera and controls target
+    if (controlsRef.current && cameraRef.current) {
+      const targetY = (stats.dimensions.y * 0.45) || 2.2;
+      controlsRef.current.target.set(0, targetY, 0);
+      controlsRef.current.update();
+    }
+  }, []);
+
+  // Load custom 3D model from raw ArrayBuffer
+  const handleModelBufferLoad = useCallback(async (
+    buffer: ArrayBuffer,
+    fileName: string,
+    format: 'glb' | 'gltf' | 'obj'
+  ) => {
+    setIsLoadingModel(true);
+    setModelError(null);
+    try {
+      const rawModel = await loadModelFromArrayBuffer(buffer, format);
+      const { container, stats } = prepareModelForLightingStudio(rawModel);
+      replaceSceneModel(container, stats, fileName, true);
+      // Persist in IndexedDB for session persistence
+      await saveUploadedModel(fileName, buffer, format);
+    } catch (err) {
+      console.error('Failed to load 3D model:', err);
+      setModelError(`Failed to load ${fileName}: ${err instanceof Error ? err.message : 'Invalid 3D format'}`);
+    } finally {
+      setIsLoadingModel(false);
+    }
+  }, [replaceSceneModel]);
+
+  // Load model from direct URL
+  const handleUrlLoad = async (url: string) => {
+    if (!url.trim()) return;
+    setIsLoadingModel(true);
+    setModelError(null);
+    setShowUrlModal(false);
+    try {
+      const rawModel = await loadModelFromUrl(url);
+      const fileName = url.split('/').pop()?.split('?')[0] || 'Remote 3D Model';
+      const { container, stats } = prepareModelForLightingStudio(rawModel);
+      replaceSceneModel(container, stats, fileName, true);
+    } catch (err) {
+      console.error('Failed to load model from URL:', err);
+      setModelError(`Failed to load model from URL: ${err instanceof Error ? err.message : 'Network/CORS or invalid model'}`);
+    } finally {
+      setIsLoadingModel(false);
+    }
+  };
+
+  // Reset to default lookdev calibration asset
+  const handleResetToDefaultModel = async () => {
+    const defaultRaw = buildDefaultLookdevAsset();
+    const { container, stats } = prepareModelForLightingStudio(defaultRaw, 3.8);
+    replaceSceneModel(container, stats, 'Studio Lookdev Model', false);
+    await clearUploadedModel();
+  };
+
+  // File picker handler
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    const format: 'glb' | 'gltf' | 'obj' = ext === 'obj' ? 'obj' : 'glb';
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const buffer = event.target?.result as ArrayBuffer;
+      if (buffer) {
+        handleModelBufferLoad(buffer, file.name, format);
+      }
+    };
+    reader.onerror = () => {
+      setModelError('Failed to read file from disk.');
+    };
+    reader.readAsArrayBuffer(file);
+    e.target.value = '';
+  };
+
+  // Drag and Drop handlers for 3D canvas
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    if (ext !== 'glb' && ext !== 'gltf' && ext !== 'obj') {
+      setModelError('Please drop a .glb, .gltf, or .obj 3D model file.');
+      return;
+    }
+
+    const format: 'glb' | 'gltf' | 'obj' = ext === 'obj' ? 'obj' : 'glb';
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const buffer = event.target?.result as ArrayBuffer;
+      if (buffer) {
+        handleModelBufferLoad(buffer, file.name, format);
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  };
 
   // Main Three.js Lifecycle
   useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
 
-    // 1. Detect software WebGL
+    // Detect software WebGL
     const isSoftwareGl = (() => {
-      const gl = document.createElement('canvas').getContext('webgl2');
-      if (!gl) return true;
-      const ext = gl.getExtension('WEBGL_debug_renderer_info');
-      const param = ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER;
-      const gpu = String(gl.getParameter(param));
-      gl.getExtension('WEBGL_lose_context')?.loseContext();
-      return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
+      try {
+        const testCanvas = document.createElement('canvas');
+        const gl = testCanvas.getContext('webgl2') || testCanvas.getContext('webgl');
+        if (!gl) return true;
+        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+        if (debugInfo) {
+          const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+          return /swiftshader|llvmpipe|software/i.test(renderer);
+        }
+        return false;
+      } catch {
+        return false;
+      }
     })();
     stateRef.current.isSoftwareGl = isSoftwareGl;
+    const activeLighting = lighting || LIGHTING_PRESETS.cleanStudio || LIGHTING_PRESETS.studio || Object.values(LIGHTING_PRESETS)[0];
 
-    // 2. Setup Scene & Camera (Positioned to frame subject in upper/middle view)
+    // 1. Scene
     const scene = new THREE.Scene();
+    scene.background = new THREE.Color(activeLighting.fog?.color || '#07090e');
     sceneRef.current = scene;
-    scene.background = new THREE.Color(lighting.fog.color || '#080812');
 
-    const aspect = container.clientWidth / Math.max(container.clientHeight, 300);
-    const camera = new THREE.PerspectiveCamera(lighting.camera?.fov || 50, aspect, 0.1, 100);
-    camera.position.set(0, 4.8, 12);
+    // 2. Camera with cinematic focal length
+    const camera = new THREE.PerspectiveCamera(
+      activeLighting.camera?.fov ?? 45,
+      container.clientWidth / container.clientHeight,
+      0.1,
+      100
+    );
+    camera.position.set(0, 3.2, 9.5);
     cameraRef.current = camera;
 
-    // 3. Setup Renderer with tone mapping
+    // 3. Renderer with ACES Tone Mapping
     const renderer = new THREE.WebGLRenderer({
       antialias: !isSoftwareGl,
       powerPreference: 'high-performance',
-      alpha: false,
+      precision: isSoftwareGl ? 'mediump' : 'highp',
     });
-    rendererRef.current = renderer;
     renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(isSoftwareGl ? 1 : Math.min(window.devicePixelRatio, 2));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = lighting.toneMapping.exposure;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, isSoftwareGl ? 1 : 2));
     renderer.shadowMap.enabled = !isSoftwareGl;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    container.appendChild(renderer.domElement);
+    // Set ACES Tone Mapping
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = activeLighting.toneMapping?.exposure ?? 1.1;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
 
-    // 4. Studio Environment Reflections
+    container.replaceChildren(renderer.domElement);
+    rendererRef.current = renderer;
+
+    // 4. Studio Environment Lighting
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
-    pmremGenerator.dispose();
+    pmremGenerator.compileEquirectangularShader();
+    const neutralEnv = new RoomEnvironment();
+    scene.environment = pmremGenerator.fromScene(neutralEnv).texture;
 
-    // 5. Controls (Target framed higher so subject is unobstructed by bottom bar)
+    // 5. Controls
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = !isSoftwareGl;
+    controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.maxPolarAngle = Math.PI / 2 - 0.02; // prevent going below floor
-    controls.minDistance = 3.5;
-    controls.maxDistance = 26;
-    controls.target.set(0, 2.6, 0); // Elevated focal point
+    controls.maxPolarAngle = Math.PI / 2 - 0.02; // Prevent camera dipping below floor
+    controls.minDistance = 2.0;
+    controls.maxDistance = 25.0;
+    controls.target.set(0, 2.0, 0);
     controlsRef.current = controls;
 
-    // 6. Lighting Rig Setup
-    // Key Light (Directional Sunlight)
-    const keyLight = new THREE.DirectionalLight(lighting.keyLight.color, lighting.keyLight.intensity);
-    const [kx, ky, kz] = polarToCartesian(lighting.keyLight.azimuth, lighting.keyLight.elevation, 12);
+    // 6. Lights
+    // Key Light (Directional Sun)
+    const keyColorHex = activeLighting.keyLight?.kelvin
+      ? kelvinToHex(activeLighting.keyLight.kelvin)
+      : (activeLighting.keyLight?.color || '#ffffff');
+    const keyLight = new THREE.DirectionalLight(keyColorHex, activeLighting.keyLight?.intensity ?? 2.0);
+    const [kx, ky, kz] = polarToCartesian(activeLighting.keyLight?.azimuth ?? 60, activeLighting.keyLight?.elevation ?? 50, 12);
     keyLight.position.set(kx, ky, kz);
-    keyLight.castShadow = !isSoftwareGl && lighting.keyLight.castShadow;
-    keyLight.shadow.mapSize.width = 1024;
-    keyLight.shadow.mapSize.height = 1024;
+    keyLight.castShadow = !isSoftwareGl;
+    keyLight.shadow.mapSize.width = isSoftwareGl ? 512 : 2048;
+    keyLight.shadow.mapSize.height = isSoftwareGl ? 512 : 2048;
     keyLight.shadow.camera.near = 1;
     keyLight.shadow.camera.far = 30;
     keyLight.shadow.camera.left = -9;
     keyLight.shadow.camera.right = 9;
     keyLight.shadow.camera.top = 9;
     keyLight.shadow.camera.bottom = -9;
-    keyLight.shadow.bias = lighting.keyLight.shadowBias ?? -0.0005;
+    keyLight.shadow.bias = activeLighting.keyLight?.shadowBias ?? -0.0005;
     keyLight.shadow.normalBias = 0.02;
-    keyLight.shadow.radius = lighting.keyLight.softness ?? 1.0;
+    keyLight.shadow.radius = activeLighting.keyLight?.softness ?? 1.0;
     scene.add(keyLight);
     keyLightRef.current = keyLight;
 
     // Fill Light (Hemisphere Skylight with Indirect Bounce)
-    const giMult = lighting.fillLight.giBounceMultiplier ?? 1.0;
+    const giMult = activeLighting.fillLight?.giBounceMultiplier ?? 1.0;
     const fillLight = new THREE.HemisphereLight(
-      lighting.fillLight.skyColor,
-      lighting.fillLight.groundColor,
-      lighting.fillLight.intensity * giMult
+      activeLighting.fillLight?.skyColor || '#c8d6e5',
+      activeLighting.fillLight?.groundColor || '#485460',
+      (activeLighting.fillLight?.intensity ?? 0.6) * giMult
     );
     scene.add(fillLight);
     fillLightRef.current = fillLight;
 
     // Rim Light (Directional Kicker)
-    const rimLight = new THREE.DirectionalLight(lighting.rimLight.color, lighting.rimLight.intensity);
-    const [rx, ry, rz] = polarToCartesian(lighting.rimLight.angle, lighting.rimLight.elevation ?? 30, 10);
+    const rimLight = new THREE.DirectionalLight(activeLighting.rimLight?.color || '#ffffff', activeLighting.rimLight?.intensity ?? 2.5);
+    const [rx, ry, rz] = polarToCartesian(activeLighting.rimLight?.angle ?? 240, activeLighting.rimLight?.elevation ?? 30, 10);
     rimLight.position.set(rx, ry, rz);
     scene.add(rimLight);
     rimLightRef.current = rimLight;
 
     // Local Point Light (Diegetic Accent)
     const localLight = new THREE.PointLight(
-      lighting.localLight.color,
-      lighting.localLight.intensity,
-      lighting.localLight.distance
+      activeLighting.localLight?.color || '#f1f2f6',
+      activeLighting.localLight?.intensity ?? 1.0,
+      activeLighting.localLight?.distance ?? 12
     );
-    localLight.position.set(lighting.localLight.x, lighting.localLight.y, lighting.localLight.z);
+    localLight.position.set(
+      activeLighting.localLight?.x ?? 0,
+      activeLighting.localLight?.y ?? 3,
+      activeLighting.localLight?.z ?? 2
+    );
     scene.add(localLight);
     localLightRef.current = localLight;
 
     // Atmosphere Fog
-    scene.fog = new THREE.Fog(lighting.fog.color, lighting.fog.near, lighting.fog.far);
+    scene.fog = new THREE.Fog(
+      activeLighting.fog?.color || '#07090e',
+      activeLighting.fog?.near ?? 15,
+      activeLighting.fog?.far ?? 60
+    );
 
-    // 7. Load Initial Scene Mesh
-    let meshGroup: THREE.Group;
-    if (selectedScene === 'crypt') meshGroup = buildGothicCrypt();
-    else if (selectedScene === 'turret') meshGroup = buildMechTurret();
-    else meshGroup = buildCyberpunkAlley();
-    scene.add(meshGroup);
-    currentSceneMeshRef.current = meshGroup;
+    // 7. Add Permanent Studio Pedestal Lookdev Stage
+    const pedestal = buildStudioPedestal(8.0);
+    scene.add(pedestal);
 
-    // 8. Animation & Render Loop
+    // 8. Initial Model Loading (Restore from IndexedDB if exists, otherwise load default lookdev model)
+    (async () => {
+      try {
+        const stored = await loadUploadedModel();
+        if (stored && stored.buffer) {
+          const rawModel = await loadModelFromArrayBuffer(stored.buffer, stored.format);
+          const { container, stats } = prepareModelForLightingStudio(rawModel);
+          replaceSceneModel(container, stats, stored.name, true);
+          return;
+        }
+      } catch {
+        // ignore and fallback
+      }
+      // Fallback to default lookdev calibration asset
+      const defaultRaw = buildDefaultLookdevAsset();
+      const { container, stats } = prepareModelForLightingStudio(defaultRaw, 3.8);
+      replaceSceneModel(container, stats, 'Studio Lookdev Model', false);
+    })();
+
+    // 9. Render Loop
     let frameId = 0;
     let isDisposed = false;
-
-    function afterDraw(cb: () => void) {
-      const gl = renderer.getContext() as WebGL2RenderingContext;
-      const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
-      gl.flush();
-      const poll = () => {
-        if (isDisposed) return;
-        const state = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
-        if (state === gl.UNSIGNALED) {
-          frameId = window.setTimeout(poll, 5);
-        } else {
-          if (sync) gl.deleteSync(sync);
-          frameId = window.setTimeout(cb, 80);
-        }
-      };
-      frameId = window.setTimeout(poll, 5);
-    }
-
     let lastTime = performance.now();
     let elapsedTime = 0;
 
@@ -269,328 +454,314 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({
         controlsRef.current.update();
       }
 
-      // Diegetic light pulse / flicker animation
+      // Diegetic light pulse
       if (localLightRef.current && stateRef.current.pulseDiegeticLight) {
         const pulse = Math.sin(elapsedTime * (stateRef.current.lighting.localLight.pulseSpeed || 1.8));
         localLightRef.current.intensity =
           stateRef.current.lighting.localLight.intensity * (0.85 + pulse * 0.15);
       }
 
-      // Dynamic scene animations
-      if (currentSceneMeshRef.current) {
-        // Floating crystal in crypt
-        const crystal = currentSceneMeshRef.current.getObjectByName('MysticCrystal');
-        if (crystal) {
-          crystal.rotation.y += delta * 0.8;
-          crystal.position.y = 2.0 + Math.sin(elapsedTime * 1.5) * 0.12;
-        }
-        // Turret scanner pan
-        const turretHead = currentSceneMeshRef.current.getObjectByName('TurretHead');
-        if (turretHead && stateRef.current.autoRotate) {
-          turretHead.rotation.y = Math.sin(elapsedTime * 0.6) * 0.4;
-        }
-      }
-
       renderer.render(scene, camera);
-
-      if (isSoftwareGl) {
-        afterDraw(tick);
-      } else {
-        frameId = requestAnimationFrame(tick);
-      }
+      frameId = requestAnimationFrame(tick);
     }
 
-    tick();
+    frameId = requestAnimationFrame(tick);
 
-    // 9. Resize Observer
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const { width, height } = entry.contentRect;
-        if (width > 0 && height > 0) {
-          camera.aspect = width / height;
-          camera.updateProjectionMatrix();
-          renderer.setSize(width, height);
-        }
-      }
-    });
-    resizeObserver.observe(container);
+    // Resize observer
+    const handleResize = () => {
+      if (!container || !renderer || !camera) return;
+      camera.aspect = container.clientWidth / container.clientHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(container.clientWidth, container.clientHeight);
+    };
+
+    window.addEventListener('resize', handleResize);
 
     return () => {
       isDisposed = true;
       cancelAnimationFrame(frameId);
-      clearTimeout(frameId);
-      resizeObserver.disconnect();
-      controls.dispose();
+      window.removeEventListener('resize', handleResize);
       renderer.dispose();
-      if (container.contains(renderer.domElement)) {
-        container.removeChild(renderer.domElement);
-      }
+      pmremGenerator.dispose();
+      neutralEnv.dispose();
     };
-  }, []);
+  }, [replaceSceneModel]);
 
-  // Sync scene mesh change
+  // Synchronize dynamic light parameters without reloading the scene
   useEffect(() => {
-    const scene = sceneRef.current;
-    if (!scene) return;
+    if (!lighting || !keyLightRef.current || !fillLightRef.current || !rimLightRef.current || !localLightRef.current) return;
 
-    if (currentSceneMeshRef.current) {
-      scene.remove(currentSceneMeshRef.current);
-    }
-
-    let newMesh: THREE.Group;
-    if (selectedScene === 'crypt') {
-      newMesh = buildGothicCrypt();
-      if (controlsRef.current) controlsRef.current.target.set(0, 2.2, 0);
-    } else if (selectedScene === 'turret') {
-      newMesh = buildMechTurret();
-      if (controlsRef.current) controlsRef.current.target.set(0, 1.8, 0);
-    } else {
-      newMesh = buildCyberpunkAlley();
-      if (controlsRef.current) controlsRef.current.target.set(0, 2.6, 0);
-    }
-
-    scene.add(newMesh);
-    currentSceneMeshRef.current = newMesh;
-
-    // Apply surface wetness to floor
-    updateFloorWetness(newMesh, lighting.surface?.wetness ?? 0.5);
-
-    // Reapply current render pass
-    applyRenderPassMode(newMesh, renderPass, clayMatRef.current, normalMatRef.current);
-  }, [selectedScene]);
-
-  // Helper to dynamically modulate floor material wetness & roughness
-  const updateFloorWetness = (group: THREE.Group, wetness: number) => {
-    const floor = group.getObjectByName('StudioFloor') as THREE.Mesh;
-    if (floor && floor.material instanceof THREE.MeshStandardMaterial) {
-      // wetness 1.0 => roughness 0.08 (slick puddle mirror), wetness 0.0 => roughness 0.85 (dry rough stone/asphalt)
-      floor.material.roughness = Math.max(0.06, 0.85 - wetness * 0.77);
-      floor.material.metalness = 0.2 + wetness * 0.35;
-      floor.material.needsUpdate = true;
-    }
-  };
-
-  // Sync lighting changes to Three.js objects
-  useEffect(() => {
-    if (!keyLightRef.current || !fillLightRef.current || !rimLightRef.current || !localLightRef.current)
-      return;
-
-    // Key light
-    keyLightRef.current.color.set(lighting.keyLight.color);
+    // Key Light
+    const keyColorHex = lighting.keyLight.kelvin
+      ? kelvinToHex(lighting.keyLight.kelvin)
+      : lighting.keyLight.color;
+    keyLightRef.current.color.set(keyColorHex);
     keyLightRef.current.intensity = lighting.keyLight.intensity;
     const [kx, ky, kz] = polarToCartesian(lighting.keyLight.azimuth, lighting.keyLight.elevation, 12);
     keyLightRef.current.position.set(kx, ky, kz);
-    keyLightRef.current.castShadow = !stateRef.current.isSoftwareGl && lighting.keyLight.castShadow;
-    if (keyLightRef.current.shadow) {
-      keyLightRef.current.shadow.radius = lighting.keyLight.softness ?? 1.0;
-      keyLightRef.current.shadow.bias = lighting.keyLight.shadowBias ?? -0.0005;
-    }
+    keyLightRef.current.shadow.bias = lighting.keyLight.shadowBias ?? -0.0005;
+    keyLightRef.current.shadow.radius = lighting.keyLight.softness ?? 1.0;
 
-    // Fill light with GI multiplier
+    // Fill Light with GI multiplier
     const giMult = lighting.fillLight.giBounceMultiplier ?? 1.0;
     fillLightRef.current.color.set(lighting.fillLight.skyColor);
     fillLightRef.current.groundColor.set(lighting.fillLight.groundColor);
     fillLightRef.current.intensity = lighting.fillLight.intensity * giMult;
 
-    // Rim light
+    // Rim Light
     rimLightRef.current.color.set(lighting.rimLight.color);
     rimLightRef.current.intensity = lighting.rimLight.intensity;
-    const [rx, ry, rz] = polarToCartesian(
-      lighting.rimLight.angle,
-      lighting.rimLight.elevation ?? 30,
-      10
-    );
+    const [rx, ry, rz] = polarToCartesian(lighting.rimLight.angle, lighting.rimLight.elevation ?? 30, 10);
     rimLightRef.current.position.set(rx, ry, rz);
 
-    // Local light
+    // Local Point Light
     localLightRef.current.color.set(lighting.localLight.color);
     localLightRef.current.intensity = lighting.localLight.intensity;
     localLightRef.current.distance = lighting.localLight.distance;
-    localLightRef.current.position.set(
-      lighting.localLight.x,
-      lighting.localLight.y,
-      lighting.localLight.z
-    );
+    localLightRef.current.position.set(lighting.localLight.x, lighting.localLight.y, lighting.localLight.z);
 
-    // Atmosphere Fog
-    if (sceneRef.current && sceneRef.current.fog instanceof THREE.Fog) {
-      sceneRef.current.fog.color.set(lighting.fog.color);
-      sceneRef.current.fog.near = lighting.fog.near;
-      sceneRef.current.fog.far = lighting.fog.far;
+    // Fog & Background
+    if (sceneRef.current) {
       sceneRef.current.background = new THREE.Color(lighting.fog.color);
+      if (sceneRef.current.fog instanceof THREE.Fog) {
+        sceneRef.current.fog.color.set(lighting.fog.color);
+        sceneRef.current.fog.near = lighting.fog.near;
+        sceneRef.current.fog.far = lighting.fog.far;
+      }
     }
 
-    // Renderer Tone Mapping & Exposure
+    // ACES Tone Mapping
     if (rendererRef.current) {
-      rendererRef.current.toneMappingExposure = lighting.toneMapping.exposure;
-      if (lighting.toneMapping.mode === 'cineon') {
-        rendererRef.current.toneMapping = THREE.CineonToneMapping;
-      } else if (lighting.toneMapping.mode === 'reinhard') {
-        rendererRef.current.toneMapping = THREE.ReinhardToneMapping;
-      } else if (lighting.toneMapping.mode === 'neutral') {
-        rendererRef.current.toneMapping = THREE.NeutralToneMapping;
-      } else if (lighting.toneMapping.mode === 'linear') {
-        rendererRef.current.toneMapping = THREE.LinearToneMapping;
-      } else {
-        rendererRef.current.toneMapping = THREE.ACESFilmicToneMapping;
-      }
+      if (lighting.toneMapping?.mode === 'reinhard') rendererRef.current.toneMapping = THREE.ReinhardToneMapping;
+      else if (lighting.toneMapping?.mode === 'cineon') rendererRef.current.toneMapping = THREE.CineonToneMapping;
+      else if (lighting.toneMapping?.mode === 'neutral') rendererRef.current.toneMapping = THREE.NeutralToneMapping;
+      else if (lighting.toneMapping?.mode === 'linear') rendererRef.current.toneMapping = THREE.LinearToneMapping;
+      else rendererRef.current.toneMapping = THREE.ACESFilmicToneMapping;
+
+      rendererRef.current.toneMappingExposure = lighting.toneMapping?.exposure ?? 1.1;
     }
 
     // Camera FOV
     if (cameraRef.current && lighting.camera?.fov) {
-      if (cameraRef.current.fov !== lighting.camera.fov) {
-        cameraRef.current.fov = lighting.camera.fov;
-        cameraRef.current.updateProjectionMatrix();
-      }
-    }
-
-    // Surface wetness
-    if (currentSceneMeshRef.current) {
-      updateFloorWetness(currentSceneMeshRef.current, lighting.surface?.wetness ?? 0.5);
+      cameraRef.current.fov = lighting.camera.fov;
+      cameraRef.current.updateProjectionMatrix();
     }
   }, [lighting]);
 
-  // Sync render pass changes
+  // Synchronize Render Pass (PBR Lit, Clay, Normals, Wireframe)
   useEffect(() => {
-    if (!currentSceneMeshRef.current) return;
-    applyRenderPassMode(
-      currentSceneMeshRef.current,
-      renderPass,
-      clayMatRef.current,
-      normalMatRef.current
-    );
+    if (activeMeshGroupRef.current) {
+      applyRenderPassMode(activeMeshGroupRef.current, renderPass, clayMatRef.current, normalMatRef.current);
+    }
   }, [renderPass]);
 
-  // Camera preset positions
-  const setCameraPreset = (preset: 'cinematic' | 'hero' | 'top' | 'macro') => {
-    if (!cameraRef.current || !controlsRef.current) return;
-    if (preset === 'cinematic') {
-      cameraRef.current.position.set(0, 4.6, 12);
-      controlsRef.current.target.set(0, 2.6, 0);
-    } else if (preset === 'hero') {
-      cameraRef.current.position.set(-3.8, 1.4, 5.8);
-      controlsRef.current.target.set(0, 2.4, 0);
-    } else if (preset === 'top') {
-      cameraRef.current.position.set(0, 14, 2.5);
-      controlsRef.current.target.set(0, 0, 0);
-    } else if (preset === 'macro') {
-      cameraRef.current.position.set(1.4, 2.2, 3.4);
-      controlsRef.current.target.set(0, 2.0, 0);
+  // Synchronize Model Scale
+  useEffect(() => {
+    if (activeMeshGroupRef.current) {
+      activeMeshGroupRef.current.scale.setScalar(modelScale);
+    }
+  }, [modelScale]);
+
+  // Center camera focus on the model
+  const handleFrameModel = () => {
+    if (!controlsRef.current || !modelStats) return;
+    const targetY = (modelStats.dimensions.y * 0.45 * modelScale) || 2.0;
+    controlsRef.current.target.set(0, targetY, 0);
+    if (cameraRef.current) {
+      cameraRef.current.position.set(0, targetY + 1.2, 9.5);
     }
     controlsRef.current.update();
   };
 
-  // Lens focal length switcher
-  const handleFocalLengthChange = (mm: number) => {
-    // 24mm: ~73.7, 35mm: ~54.4, 50mm: ~39.6, 85mm: ~23.9
-    let fov = 54;
-    if (mm === 24) fov = 74;
-    else if (mm === 35) fov = 54;
-    else if (mm === 50) fov = 40;
-    else if (mm === 85) fov = 24;
-
-    setLighting((prev) => ({
-      ...prev,
-      camera: { ...prev.camera, focalLengthMm: mm, fov },
-    }));
+  // Preset lighting selection handler
+  const handleSelectPreset = (presetKey: keyof typeof LIGHTING_PRESETS) => {
+    const preset = LIGHTING_PRESETS[presetKey];
+    if (preset) {
+      setLighting(preset);
+      if (preset.camera?.fov && cameraRef.current) {
+        cameraRef.current.fov = preset.camera.fov;
+        cameraRef.current.updateProjectionMatrix();
+      }
+    }
   };
 
-  // Color temperature Kelvin helper
-  const handleKelvinChange = (kelvin: number) => {
-    const hex = kelvinToHex(kelvin);
-    setLighting((prev) => ({
-      ...prev,
-      keyLight: { ...prev.keyLight, color: hex, kelvin },
-    }));
-  };
-
-  // Azimuth compass label
-  const getCompassHeading = (azimuth: number): string => {
-    const norm = (azimuth % 360 + 360) % 360;
-    if (norm >= 337.5 || norm < 22.5) return 'N (0°)';
-    if (norm >= 22.5 && norm < 67.5) return 'NE (45°)';
-    if (norm >= 67.5 && norm < 112.5) return 'E (90°)';
-    if (norm >= 112.5 && norm < 157.5) return 'SE (135°)';
-    if (norm >= 157.5 && norm < 202.5) return 'S (180°)';
-    if (norm >= 202.5 && norm < 247.5) return 'SW (225°)';
-    if (norm >= 247.5 && norm < 292.5) return 'W (270°)';
-    return 'NW (315°)';
-  };
-
-  // Export formats
+  // Code Export generator
   const handleCopyCode = (format: 'ue5' | 'threejs' | 'json') => {
-    let text = '';
+    let output = '';
+    const keyHex = lighting.keyLight.kelvin
+      ? kelvinToHex(lighting.keyLight.kelvin)
+      : lighting.keyLight.color;
+
     if (format === 'ue5') {
-      text = `// --- UNREAL ENGINE 5 LUMEN LIGHTING RIG SPEC ---
-// Scene: ${selectedScene.toUpperCase()}
-// Key Light (Directional): Intensity: ${lighting.keyLight.intensity} Lux | Color: ${lighting.keyLight.color} | Pitch: -${lighting.keyLight.elevation}° | Yaw: ${lighting.keyLight.azimuth}° | Softness: ${lighting.keyLight.softness || 1.0}
-// Skylight (Fill & GI): Intensity: ${lighting.fillLight.intensity} | Sky Color: ${lighting.fillLight.skyColor} | Ground Color: ${lighting.fillLight.groundColor} | Lumen Indirect Multiplier: ${lighting.fillLight.giBounceMultiplier || 1.0}x
-// Rim Kicker: Intensity: ${lighting.rimLight.intensity} | Color: ${lighting.rimLight.color} | Angle: ${lighting.rimLight.angle}°
-// Exponential Height Fog: Density: ${lighting.fog.density} | Color: ${lighting.fog.color} | Start Distance: ${lighting.fog.near * 100}cm
-// PostProcessVolume: EV100 Exposure: ${lighting.toneMapping.exposure} | ToneCurve: ACES Filmic
-// Authored by Avinash · Game Designer & Lighting Artist`;
+      output = `// Unreal Engine 5 Lumen Lighting Rig Specification
+// Model: ${modelName}
+// Generated from Avinash's Real-time 3D Lighting Studio
+
+// 1. Directional Sun Light (Key Light)
+DirectionalLight->SetIntensity(${lighting.keyLight.intensity.toFixed(2)}f);
+DirectionalLight->SetLightColor(FLinearColor::FromSRGBColor(FColor::FromHex("${keyHex}")));
+DirectionalLight->SetCastShadows(true);
+DirectionalLight->bUseTemperature = true;
+DirectionalLight->Temperature = ${lighting.keyLight.kelvin ?? 5600}f;
+DirectionalLight->ShadowSourceAngle = ${((lighting.keyLight.softness ?? 1.0) * 1.5).toFixed(1)}f;
+
+// 2. SkyLight (Lumen Indirect GI Bounce)
+SkyLight->SetIntensity(${lighting.fillLight.intensity.toFixed(2)}f);
+SkyLight->IndirectLightingIntensity = ${(lighting.fillLight.giBounceMultiplier ?? 1.0).toFixed(2)}f;
+
+// 3. PostProcess Volume (ACES Tone Mapping)
+PostProcessVolume->Settings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
+PostProcessVolume->Settings.AutoExposureBias = ${(lighting.toneMapping?.exposure ? (lighting.toneMapping.exposure - 1.0) * 2 : 0).toFixed(2)}f;
+PostProcessVolume->Settings.ToneCurveAmount = 1.0f; // ACES Filmic`;
     } else if (format === 'threejs') {
-      text = `// --- THREE.JS LIGHT RIG SETUP ---
-const keyLight = new THREE.DirectionalLight('${lighting.keyLight.color}', ${lighting.keyLight.intensity});
-const [kx, ky, kz] = polarToCartesian(${lighting.keyLight.azimuth}, ${lighting.keyLight.elevation}, 12);
-keyLight.position.set(kx, ky, kz);
-keyLight.castShadow = true;
-scene.add(keyLight);
-
+      output = `// Three.js Lighting Setup for "${modelName}"
+const keyLight = new THREE.DirectionalLight('${keyHex}', ${lighting.keyLight.intensity});
 const fillLight = new THREE.HemisphereLight('${lighting.fillLight.skyColor}', '${lighting.fillLight.groundColor}', ${lighting.fillLight.intensity});
-scene.add(fillLight);
-
 const rimLight = new THREE.DirectionalLight('${lighting.rimLight.color}', ${lighting.rimLight.intensity});
-scene.add(rimLight);
 
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = ${lighting.toneMapping.exposure};`;
+renderer.toneMappingExposure = ${lighting.toneMapping?.exposure ?? 1.1};
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
     } else {
-      text = JSON.stringify(lighting, null, 2);
+      output = JSON.stringify(
+        {
+          model: modelName,
+          stats: modelStats,
+          lighting,
+        },
+        null,
+        2
+      );
     }
 
-    navigator.clipboard.writeText(text);
+    navigator.clipboard.writeText(output);
     setCopiedFormat(format);
-    setTimeout(() => setCopiedFormat(null), 2000);
+    setTimeout(() => setCopiedFormat(null), 2500);
   };
 
   return (
-    <div className={`flex flex-col w-full ${className}`}>
-      {/* 3D Canvas Viewport Box */}
+    <div className={`relative w-full ${className}`}>
+      {/* Hidden file input for 3D model upload */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".glb,.gltf,.obj"
+        className="hidden"
+        onChange={handleFileChange}
+      />
+
+      {/* Main 3D Canvas Box */}
       <div
         className={`relative w-full overflow-hidden bg-[#07090e] border border-zinc-800/80 rounded-2xl transition-all duration-300 ${
           isFullscreen
             ? 'fixed inset-0 z-50 rounded-none border-none h-screen'
             : 'h-[620px] sm:h-[680px] lg:h-[760px]'
         }`}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
       >
-        {/* Three.js Isolated Canvas Mount */}
+        {/* Three.js Canvas Mount */}
         <div ref={mountRef} className="absolute inset-0 w-full h-full cursor-grab active:cursor-grabbing" />
 
-        {/* Top Left: Scene Spec Badge & Real-time Info */}
-        <div className="absolute top-4 left-4 z-10 pointer-events-none flex flex-col gap-1.5">
-          <div className="flex items-center gap-2 text-xs font-mono text-zinc-300 bg-zinc-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-zinc-800 shadow-xl">
+        {/* Drag and Drop Visual Feedback Overlay */}
+        {isDragOver && (
+          <div className="absolute inset-0 z-40 bg-black/80 border-2 border-dashed border-red-500 rounded-2xl flex flex-col items-center justify-center p-6 text-center backdrop-blur-md animate-in fade-in duration-150">
+            <div className="w-16 h-16 rounded-2xl bg-red-950/80 border border-red-600/80 flex items-center justify-center text-red-400 mb-4 animate-bounce">
+              <Upload className="w-8 h-8" />
+            </div>
+            <h3 className="text-xl font-display font-bold text-white mb-1">
+              Drop 3D Model to Inspect in Real-Time
+            </h3>
+            <p className="text-xs font-mono text-zinc-400 max-w-sm">
+              Release to auto-center, auto-ground, and light your real <code className="text-red-400">.glb</code>, <code className="text-red-400">.gltf</code>, or <code className="text-red-400">.obj</code> file.
+            </p>
+          </div>
+        )}
+
+        {/* Loading Spinner Overlay */}
+        {isLoadingModel && (
+          <div className="absolute inset-0 z-40 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+            <div className="w-10 h-10 border-3 border-red-500 border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs font-mono text-zinc-200">
+              Parsing & Normalizing 3D Model Geometry...
+            </span>
+          </div>
+        )}
+
+        {/* Top Left: Active Model Info & Pass Status */}
+        <div className="absolute top-4 left-4 z-10 pointer-events-none flex flex-col gap-1.5 max-w-[80%]">
+          <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-zinc-300 bg-zinc-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-zinc-800 shadow-xl pointer-events-auto">
             <span className="text-red-500 font-bold tracking-wider">3D LIGHTING LAB</span>
             <span className="text-zinc-600">/</span>
-            <span className="text-zinc-200">
-              {selectedScene === 'cyberpunk'
-                ? 'Cyberpunk Alleyway'
-                : selectedScene === 'crypt'
-                ? 'Gothic Moonlit Crypt'
-                : 'Titan Rail Turret'}
+
+            {/* Current Active Model */}
+            <span className="text-white font-semibold truncate max-w-[180px] sm:max-w-[260px]" title={modelName}>
+              {modelName}
             </span>
+
+            {isCustomModel && (
+              <span className="px-1.5 py-0.5 text-[10px] bg-red-950/60 border border-red-800/80 text-red-300 rounded">
+                Custom Model
+              </span>
+            )}
+
             <span className="text-zinc-600">/</span>
-            <span className="text-red-400 font-mono font-medium">
+            <span className="text-red-400 font-medium">
               {renderPass === 'final' ? 'PBR Lit' : renderPass === 'clay' ? 'Clay Pass' : renderPass}
             </span>
           </div>
-          <p className="text-[11px] text-zinc-400 font-sans tracking-tight pl-1 drop-shadow">
+
+          <p className="text-[11px] text-zinc-400 font-sans tracking-tight pl-1 drop-shadow pointer-events-none">
             Left click + drag to orbit · Right click to pan · Scroll to zoom
           </p>
+
+          {/* Model error alert */}
+          {modelError && (
+            <div className="flex items-center gap-2 p-2 bg-red-950/90 border border-red-800 rounded-xl text-xs font-mono text-red-300 shadow-xl pointer-events-auto mt-1">
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+              <span>{modelError}</span>
+              <button
+                onClick={() => setModelError(null)}
+                className="ml-auto text-red-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* Top Right: Fullscreen, Layout Switcher & Code Export */}
+        {/* Top Right: Upload 3D Model, Fullscreen, Layout Switcher & Code Export */}
         <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+          {/* Primary Upload 3D Model Button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold bg-red-600 hover:bg-red-500 text-white rounded-xl shadow-lg shadow-red-600/30 transition-all cursor-pointer"
+            title="Upload your own 3D model (.glb, .gltf, .obj)"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span>Upload 3D Model</span>
+          </button>
+
+          {/* Link URL input */}
+          <button
+            onClick={() => setShowUrlModal(true)}
+            className="p-1.5 bg-zinc-950/80 hover:bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 backdrop-blur-md transition-colors cursor-pointer"
+            title="Load model from URL"
+          >
+            <LinkIcon className="w-4 h-4 text-zinc-400" />
+          </button>
+
+          {/* Frame Camera */}
+          <button
+            onClick={handleFrameModel}
+            className="p-1.5 bg-zinc-950/80 hover:bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 backdrop-blur-md transition-colors cursor-pointer"
+            title="Frame Camera on Model"
+          >
+            <Target className="w-4 h-4 text-zinc-400" />
+          </button>
+
           {/* Layout Toggle (Overlay vs Below) */}
           <button
             onClick={() => setLayoutMode(layoutMode === 'overlay' ? 'below' : 'overlay')}
@@ -599,14 +770,10 @@ renderer.toneMappingExposure = ${lighting.toneMapping.exposure};`;
                 ? 'bg-red-950/60 text-red-300 border-red-800 shadow-md'
                 : 'bg-zinc-950/80 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
             }`}
-            title={
-              layoutMode === 'below'
-                ? 'Docked Below Canvas (100% Unobstructed Scene)'
-                : 'Overlay Dock (Bottom edge of canvas)'
-            }
+            title={layoutMode === 'below' ? 'Docked Below Canvas' : 'Overlay Dock'}
           >
             <Layout className="w-3.5 h-3.5 text-red-500" />
-            <span>{layoutMode === 'below' ? 'Console Below Canvas' : 'Overlay Dock'}</span>
+            <span>{layoutMode === 'below' ? 'Below Canvas' : 'Overlay Dock'}</span>
           </button>
 
           {/* Code Export Button */}
@@ -623,25 +790,63 @@ renderer.toneMappingExposure = ${lighting.toneMapping.exposure};`;
           <button
             onClick={() => setIsFullscreen(!isFullscreen)}
             className="p-2 bg-zinc-950/80 hover:bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 backdrop-blur-md transition-colors cursor-pointer"
-            aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
         </div>
 
+        {/* Remote URL Modal */}
+        {showUrlModal && (
+          <div className="absolute top-16 right-4 z-40 w-80 bg-zinc-950/95 border border-zinc-800 rounded-2xl shadow-2xl p-4 text-xs font-mono text-zinc-200 animate-in fade-in duration-150">
+            <div className="flex items-center justify-between pb-2 mb-3 border-b border-zinc-800">
+              <span className="font-semibold text-white flex items-center gap-1.5">
+                <LinkIcon className="w-3.5 h-3.5 text-red-500" />
+                <span>Load 3D Model from URL</span>
+              </span>
+              <button onClick={() => setShowUrlModal(false)} className="text-zinc-500 hover:text-white">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-[11px] text-zinc-400 mb-2 leading-relaxed">
+              Enter a direct link to any <code className="text-red-400">.glb</code>, <code className="text-red-400">.gltf</code>, or <code className="text-red-400">.obj</code> file:
+            </p>
+            <input
+              type="url"
+              autoFocus
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              placeholder="https://example.com/model.glb"
+              className="w-full px-3 py-2 bg-black border border-zinc-700 rounded-xl text-xs font-mono text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-red-500 mb-3"
+            />
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowUrlModal(false)}
+                className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 rounded-lg text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleUrlLoad(urlInput)}
+                className="px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg text-xs shadow-md shadow-red-600/30"
+              >
+                Load Model
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Code Export Dropdown Modal */}
         {showExportModal && (
-          <div className="absolute top-14 right-4 z-30 w-72 bg-zinc-950/95 border border-zinc-800 rounded-2xl shadow-2xl p-3 text-xs font-mono text-zinc-300 animate-in fade-in duration-150">
+          <div className="absolute top-16 right-4 z-30 w-72 bg-zinc-950/95 border border-zinc-800 rounded-2xl shadow-2xl p-3 text-xs font-mono text-zinc-300 animate-in fade-in duration-150">
             <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-800">
               <span className="font-semibold text-zinc-100 flex items-center gap-1.5">
                 <Code className="w-3.5 h-3.5 text-red-500" />
                 <span>Export Light Rig</span>
               </span>
-              <button
-                onClick={() => setShowExportModal(false)}
-                className="text-zinc-500 hover:text-white"
-              >
+              <button onClick={() => setShowExportModal(false)} className="text-zinc-500 hover:text-white">
                 ✕
               </button>
             </div>
@@ -671,7 +876,7 @@ renderer.toneMappingExposure = ${lighting.toneMapping.exposure};`;
           </div>
         )}
 
-        {/* OVERLAY DOCK (Placed flush at the very bottom so entire 3D scene is visible) */}
+        {/* OVERLAY DOCK (Flush at the bottom) */}
         {layoutMode === 'overlay' && (
           <div
             className={`absolute bottom-0 left-0 right-0 z-20 transition-all duration-300 ease-out ${
@@ -706,7 +911,7 @@ renderer.toneMappingExposure = ${lighting.toneMapping.exposure};`;
         )}
       </div>
 
-      {/* EXTERNAL CONSOLE (When in 'below' mode, placed completely below canvas for 100% unobstructed 3D scene) */}
+      {/* EXTERNAL CONSOLE (When in 'below' mode) */}
       {layoutMode === 'below' && (
         <div className="w-full mt-3 bg-zinc-950 border border-zinc-800 rounded-2xl p-4 shadow-xl text-zinc-200">
           <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-800">
@@ -733,40 +938,42 @@ renderer.toneMappingExposure = ${lighting.toneMapping.exposure};`;
   function renderControlPanelContent() {
     return (
       <div className="max-w-7xl mx-auto space-y-3">
-        {/* Row 1: Scene Switcher + Primary Feature Tabs */}
+        {/* Row 1: Model Management Actions + Lighting Tool Tabs */}
         <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2.5 border-b border-zinc-800/80">
-          {/* 3D Scene Selector */}
-          <div className="flex items-center gap-1 bg-zinc-900/90 p-1 rounded-xl border border-zinc-800">
+          {/* Active Model Info & Upload Trigger */}
+          <div className="flex items-center gap-2 bg-zinc-900/90 p-1.5 rounded-xl border border-zinc-800">
             <button
-              onClick={() => setSelectedScene('cyberpunk')}
-              className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-                selectedScene === 'cyberpunk'
-                  ? 'bg-red-600 text-white font-semibold shadow-sm shadow-red-600/30'
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
+              onClick={() => fileInputRef.current?.click()}
+              className="px-3 py-1 text-xs font-medium bg-red-600 hover:bg-red-500 text-white rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm shadow-red-600/30"
+              title="Upload your own 3D model (.glb, .gltf, .obj)"
             >
-              Cyberpunk Alley
+              <Upload className="w-3.5 h-3.5" />
+              <span>Upload Model</span>
             </button>
-            <button
-              onClick={() => setSelectedScene('crypt')}
-              className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-                selectedScene === 'crypt'
-                  ? 'bg-red-600 text-white font-semibold shadow-sm shadow-red-600/30'
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-            >
-              Gothic Crypt
-            </button>
-            <button
-              onClick={() => setSelectedScene('turret')}
-              className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-                selectedScene === 'turret'
-                  ? 'bg-red-600 text-white font-semibold shadow-sm shadow-red-600/30'
-                  : 'text-zinc-400 hover:text-zinc-200'
-              }`}
-            >
-              Mech Turret
-            </button>
+
+            {/* Model Name and stats badge */}
+            <div className="flex items-center gap-1.5 px-2 text-xs font-mono text-zinc-300">
+              <Box className="w-3.5 h-3.5 text-red-400" />
+              <span className="font-semibold text-zinc-100 truncate max-w-[140px] sm:max-w-[200px]" title={modelName}>
+                {modelName}
+              </span>
+              {modelStats && (
+                <span className="text-[10px] text-zinc-500 hidden md:inline">
+                  ({modelStats.triangles > 0 ? `${(modelStats.triangles / 1000).toFixed(1)}k tris` : `${modelStats.vertices} verts`})
+                </span>
+              )}
+            </div>
+
+            {/* Reset Model Button if custom model is loaded */}
+            {isCustomModel && (
+              <button
+                onClick={handleResetToDefaultModel}
+                className="p-1 text-zinc-400 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+                title="Reset to default calibration lookdev model"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
           {/* Advanced Lighting Tool Tabs */}
@@ -803,7 +1010,7 @@ renderer.toneMappingExposure = ${lighting.toneMapping.exposure};`;
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              <Sliders className="w-3.5 h-3.5 text-sky-400" />
+              <Sliders className="w-3.5 h-3.5 text-cyan-400" />
               <span>Fill & GI</span>
             </button>
 
@@ -815,7 +1022,7 @@ renderer.toneMappingExposure = ${lighting.toneMapping.exposure};`;
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              <Flame className="w-3.5 h-3.5 text-pink-400" />
+              <Flame className="w-3.5 h-3.5 text-rose-400" />
               <span>Rim Kicker</span>
             </button>
 
@@ -827,7 +1034,7 @@ renderer.toneMappingExposure = ${lighting.toneMapping.exposure};`;
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              <Crosshair className="w-3.5 h-3.5 text-red-400" />
+              <Crosshair className="w-3.5 h-3.5 text-orange-400" />
               <span>Point Light</span>
             </button>
 
@@ -839,7 +1046,7 @@ renderer.toneMappingExposure = ${lighting.toneMapping.exposure};`;
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              <Droplets className="w-3.5 h-3.5 text-teal-400" />
+              <Droplets className="w-3.5 h-3.5 text-emerald-400" />
               <span>Atmosphere & Wetness</span>
             </button>
 
@@ -875,548 +1082,407 @@ renderer.toneMappingExposure = ${lighting.toneMapping.exposure};`;
                   : 'text-zinc-400 hover:text-zinc-200'
               }`}
             >
-              <Camera className="w-3.5 h-3.5 text-zinc-300" />
+              <Camera className="w-3.5 h-3.5 text-amber-500" />
               <span>Optics</span>
             </button>
           </div>
         </div>
 
-        {/* Row 2: Selected Tool's Interactive Controls */}
-        <div className="min-h-[110px] flex items-center">
-          {/* TAB 1: PRESETS */}
+        {/* Row 2: Active Tab Controls Subpanel */}
+        <div className="pt-1">
+          {/* TAB: PRESETS */}
           {activeTab === 'presets' && (
-            <div className="w-full grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-              {Object.entries(LIGHTING_PRESETS).map(([key, preset]) => (
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2">
+              {Object.entries(LIGHTING_PRESETS).map(([key, p]) => (
                 <button
                   key={key}
-                  onClick={() => {
-                    setLighting(preset);
-                    if (key === 'cyberpunk' || key === 'redAlert') setSelectedScene('cyberpunk');
-                    if (key === 'crypt') setSelectedScene('crypt');
-                    if (key === 'studio' || key === 'noir') setSelectedScene('turret');
-                  }}
-                  className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                    lighting.name === preset.name
-                      ? 'bg-zinc-800/90 border-red-500/90 shadow-md shadow-red-500/20'
-                      : 'bg-zinc-900/60 border-zinc-800 hover:bg-zinc-800/50'
-                  }`}
+                  onClick={() => handleSelectPreset(key as keyof typeof LIGHTING_PRESETS)}
+                  className="p-2.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800/90 hover:border-red-500/50 text-left transition-all cursor-pointer group"
                 >
-                  <div className="text-xs font-bold text-zinc-100 flex items-center justify-between">
-                    <span className="truncate">{preset.name}</span>
-                    <div
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold text-zinc-200 group-hover:text-white">
+                      {p.name}
+                    </span>
+                    <span
                       className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
-                      style={{ backgroundColor: preset.keyLight.color }}
+                      style={{ backgroundColor: p.keyLight.color }}
                     />
                   </div>
-                  <div className="text-[10px] text-zinc-400 font-mono mt-1">
-                    Key {preset.keyLight.intensity}x · {preset.keyLight.kelvin || 5600}K
+                  <div className="text-[10px] font-mono text-zinc-500 truncate">
+                    Key: {p.keyLight.intensity}x · Exp {p.toneMapping?.exposure ?? 1}
                   </div>
                 </button>
               ))}
             </div>
           )}
 
-          {/* TAB 2: KEY LIGHT & SUN RIG */}
+          {/* TAB: KEY LIGHT */}
           {activeTab === 'key' && (
-            <div className="w-full grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs font-mono">
-              {/* Color & Kelvin */}
-              <div className="space-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs font-mono">
+              {/* Intensity */}
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
                 <div className="flex justify-between text-zinc-400">
-                  <span>Color & Temp</span>
-                  <span className="text-zinc-200">{lighting.keyLight.kelvin || 5600}K</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={lighting.keyLight.color}
-                    onChange={(e) =>
-                      setLighting((prev) => ({
-                        ...prev,
-                        keyLight: { ...prev.keyLight, color: e.target.value },
-                      }))
-                    }
-                    className="w-7 h-7 rounded border border-zinc-700 bg-transparent cursor-pointer shrink-0"
-                  />
-                  <input
-                    type="range"
-                    min="2000"
-                    max="9000"
-                    step="100"
-                    value={lighting.keyLight.kelvin || 5600}
-                    onChange={(e) => handleKelvinChange(parseInt(e.target.value))}
-                    className="w-full accent-red-500 bg-zinc-800"
-                    title="Color Temperature Kelvin (2000K Candle to 9000K Ice)"
-                  />
-                </div>
-              </div>
-
-              {/* Intensity / Lux */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-zinc-400">
-                  <span>Key Intensity</span>
-                  <span className="text-zinc-200">{lighting.keyLight.intensity.toFixed(1)}x</span>
+                  <span>Intensity</span>
+                  <span className="text-white font-bold">{lighting.keyLight.intensity.toFixed(1)} lux</span>
                 </div>
                 <input
                   type="range"
-                  min="0.2"
-                  max="7.0"
+                  min="0"
+                  max="6.0"
                   step="0.1"
                   value={lighting.keyLight.intensity}
                   onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      keyLight: { ...prev.keyLight, intensity: parseFloat(e.target.value) },
-                    }))
+                    setLighting({
+                      ...lighting,
+                      keyLight: { ...lighting.keyLight, intensity: parseFloat(e.target.value) },
+                    })
                   }
-                  className="w-full accent-red-500 bg-zinc-800"
+                  className="w-full accent-red-500 cursor-pointer"
                 />
               </div>
 
-              {/* Azimuth (Orbit angle) */}
-              <div className="space-y-1">
+              {/* Color Temperature (Kelvin) */}
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
                 <div className="flex justify-between text-zinc-400">
-                  <span>Azimuth Orbit</span>
-                  <span className="text-zinc-200">{getCompassHeading(lighting.keyLight.azimuth)}</span>
+                  <span>Color Temp</span>
+                  <span className="text-white font-bold">
+                    {lighting.keyLight.kelvin ?? 5600}K
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="2000"
+                  max="12000"
+                  step="200"
+                  value={lighting.keyLight.kelvin ?? 5600}
+                  onChange={(e) =>
+                    setLighting({
+                      ...lighting,
+                      keyLight: {
+                        ...lighting.keyLight,
+                        kelvin: parseInt(e.target.value, 10),
+                      },
+                    })
+                  }
+                  className="w-full accent-amber-500 cursor-pointer"
+                />
+              </div>
+
+              {/* Azimuth Angle */}
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+                <div className="flex justify-between text-zinc-400">
+                  <span>Sun Angle</span>
+                  <span className="text-white font-bold">{lighting.keyLight.azimuth}°</span>
                 </div>
                 <input
                   type="range"
                   min="0"
                   max="360"
-                  step="5"
                   value={lighting.keyLight.azimuth}
                   onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      keyLight: { ...prev.keyLight, azimuth: parseInt(e.target.value) },
-                    }))
+                    setLighting({
+                      ...lighting,
+                      keyLight: { ...lighting.keyLight, azimuth: parseInt(e.target.value, 10) },
+                    })
                   }
-                  className="w-full accent-red-500 bg-zinc-800"
+                  className="w-full accent-red-500 cursor-pointer"
                 />
               </div>
 
-              {/* Elevation / Solar Angle */}
-              <div className="space-y-1">
+              {/* Elevation Angle */}
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
                 <div className="flex justify-between text-zinc-400">
-                  <span>Sun Elevation</span>
-                  <span className="text-zinc-200">{lighting.keyLight.elevation}°</span>
+                  <span>Elevation</span>
+                  <span className="text-white font-bold">{lighting.keyLight.elevation}°</span>
                 </div>
                 <input
                   type="range"
                   min="5"
                   max="85"
-                  step="1"
                   value={lighting.keyLight.elevation}
                   onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      keyLight: { ...prev.keyLight, elevation: parseInt(e.target.value) },
-                    }))
+                    setLighting({
+                      ...lighting,
+                      keyLight: { ...lighting.keyLight, elevation: parseInt(e.target.value, 10) },
+                    })
                   }
-                  className="w-full accent-red-500 bg-zinc-800"
+                  className="w-full accent-red-500 cursor-pointer"
                 />
               </div>
 
-              {/* Soft Shadows Radius */}
-              <div className="space-y-1">
+              {/* Soft Shadows & Penumbra Radius */}
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
                 <div className="flex justify-between text-zinc-400">
-                  <span>Soft Shadows</span>
-                  <span className="text-zinc-200">{(lighting.keyLight.softness || 1.0).toFixed(1)}</span>
+                  <span>Soft Shadows (PCF)</span>
+                  <span className="text-white font-bold">
+                    {(lighting.keyLight.softness ?? 1.0).toFixed(1)}x
+                  </span>
                 </div>
                 <input
                   type="range"
-                  min="0.2"
-                  max="3.0"
+                  min="0.5"
+                  max="4.0"
                   step="0.1"
-                  value={lighting.keyLight.softness || 1.0}
+                  value={lighting.keyLight.softness ?? 1.0}
                   onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      keyLight: { ...prev.keyLight, softness: parseFloat(e.target.value) },
-                    }))
+                    setLighting({
+                      ...lighting,
+                      keyLight: { ...lighting.keyLight, softness: parseFloat(e.target.value) },
+                    })
                   }
-                  className="w-full accent-red-500 bg-zinc-800"
+                  className="w-full accent-red-500 cursor-pointer"
                 />
-              </div>
-
-              {/* Shadow Casting Toggle */}
-              <div className="space-y-1 flex flex-col justify-end">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      keyLight: { ...prev.keyLight, castShadow: !prev.keyLight.castShadow },
-                    }))
-                  }
-                  className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                    lighting.keyLight.castShadow
-                      ? 'bg-red-950/50 border-red-800 text-red-300'
-                      : 'bg-zinc-900 border-zinc-800 text-zinc-500'
-                  }`}
-                >
-                  <Sun className="w-3.5 h-3.5" />
-                  <span>{lighting.keyLight.castShadow ? 'Shadows: Active' : 'Shadows: Off'}</span>
-                </button>
               </div>
             </div>
           )}
 
-          {/* TAB 3: FILL LIGHT & INDIRECT GI BOUNCE */}
+          {/* TAB: FILL & GI */}
           {activeTab === 'fill' && (
-            <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-              {/* Sky Color */}
-              <div className="space-y-1">
-                <span className="text-zinc-400">Sky Dome Tint</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={lighting.fillLight.skyColor}
-                    onChange={(e) =>
-                      setLighting((prev) => ({
-                        ...prev,
-                        fillLight: { ...prev.fillLight, skyColor: e.target.value },
-                      }))
-                    }
-                    className="w-8 h-8 rounded border border-zinc-700 bg-transparent cursor-pointer"
-                  />
-                  <span className="text-zinc-200">{lighting.fillLight.skyColor.toUpperCase()}</span>
-                </div>
-              </div>
-
-              {/* Ground Bounce Color */}
-              <div className="space-y-1">
-                <span className="text-zinc-400">Ground Bounce Tint</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={lighting.fillLight.groundColor}
-                    onChange={(e) =>
-                      setLighting((prev) => ({
-                        ...prev,
-                        fillLight: { ...prev.fillLight, groundColor: e.target.value },
-                      }))
-                    }
-                    className="w-8 h-8 rounded border border-zinc-700 bg-transparent cursor-pointer"
-                  />
-                  <span className="text-zinc-200">{lighting.fillLight.groundColor.toUpperCase()}</span>
-                </div>
-              </div>
-
-              {/* Fill Intensity */}
-              <div className="space-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
                 <div className="flex justify-between text-zinc-400">
-                  <span>Fill Ambient</span>
-                  <span className="text-zinc-200">{lighting.fillLight.intensity.toFixed(2)}x</span>
+                  <span>Fill Skylight Intensity</span>
+                  <span className="text-white font-bold">{lighting.fillLight.intensity.toFixed(2)}</span>
                 </div>
                 <input
                   type="range"
                   min="0.0"
-                  max="2.5"
+                  max="3.0"
                   step="0.05"
                   value={lighting.fillLight.intensity}
                   onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      fillLight: { ...prev.fillLight, intensity: parseFloat(e.target.value) },
-                    }))
+                    setLighting({
+                      ...lighting,
+                      fillLight: { ...lighting.fillLight, intensity: parseFloat(e.target.value) },
+                    })
                   }
-                  className="w-full accent-red-500 bg-zinc-800"
+                  className="w-full accent-cyan-400 cursor-pointer"
                 />
               </div>
 
-              {/* Simulated Lumen Indirect GI Bounce */}
-              <div className="space-y-1">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
                 <div className="flex justify-between text-zinc-400">
-                  <span>Lumen GI Bounce</span>
-                  <span className="text-red-400 font-bold">
-                    {(lighting.fillLight.giBounceMultiplier || 1.0).toFixed(1)}x
+                  <span>Lumen GI Bounce Mult</span>
+                  <span className="text-white font-bold">
+                    {(lighting.fillLight.giBounceMultiplier ?? 1.0).toFixed(2)}x
                   </span>
                 </div>
                 <input
                   type="range"
                   min="0.2"
                   max="3.0"
-                  step="0.1"
-                  value={lighting.fillLight.giBounceMultiplier || 1.0}
+                  step="0.05"
+                  value={lighting.fillLight.giBounceMultiplier ?? 1.0}
                   onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      fillLight: { ...prev.fillLight, giBounceMultiplier: parseFloat(e.target.value) },
-                    }))
+                    setLighting({
+                      ...lighting,
+                      fillLight: {
+                        ...lighting.fillLight,
+                        giBounceMultiplier: parseFloat(e.target.value),
+                      },
+                    })
                   }
-                  className="w-full accent-red-500 bg-zinc-800"
+                  className="w-full accent-cyan-400 cursor-pointer"
                 />
+              </div>
+
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+                <div className="flex justify-between text-zinc-400">
+                  <span>Sky Hemis Color</span>
+                  <span className="text-zinc-200">{lighting.fillLight.skyColor}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={lighting.fillLight.skyColor}
+                    onChange={(e) =>
+                      setLighting({
+                        ...lighting,
+                        fillLight: { ...lighting.fillLight, skyColor: e.target.value },
+                      })
+                    }
+                    className="w-8 h-7 bg-transparent border-none cursor-pointer rounded"
+                  />
+                  <span className="text-[11px] text-zinc-500">Indirect dome radiance</span>
+                </div>
+              </div>
+
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+                <div className="flex justify-between text-zinc-400">
+                  <span>Ground Bounce Color</span>
+                  <span className="text-zinc-200">{lighting.fillLight.groundColor}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={lighting.fillLight.groundColor}
+                    onChange={(e) =>
+                      setLighting({
+                        ...lighting,
+                        fillLight: { ...lighting.fillLight, groundColor: e.target.value },
+                      })
+                    }
+                    className="w-8 h-7 bg-transparent border-none cursor-pointer rounded"
+                  />
+                  <span className="text-[11px] text-zinc-500">Floor diffuse return</span>
+                </div>
               </div>
             </div>
           )}
 
-          {/* TAB 4: RIM LIGHT / KICKER */}
+          {/* TAB: RIM KICKER */}
           {activeTab === 'rim' && (
-            <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-              {/* Rim Color */}
-              <div className="space-y-1">
-                <span className="text-zinc-400">Rim Kicker Color</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={lighting.rimLight.color}
-                    onChange={(e) =>
-                      setLighting((prev) => ({
-                        ...prev,
-                        rimLight: { ...prev.rimLight, color: e.target.value },
-                      }))
-                    }
-                    className="w-8 h-8 rounded border border-zinc-700 bg-transparent cursor-pointer"
-                  />
-                  <span className="text-zinc-200">{lighting.rimLight.color.toUpperCase()}</span>
-                </div>
-              </div>
-
-              {/* Rim Intensity */}
-              <div className="space-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
                 <div className="flex justify-between text-zinc-400">
                   <span>Rim Intensity</span>
-                  <span className="text-zinc-200">{lighting.rimLight.intensity.toFixed(1)}x</span>
+                  <span className="text-white font-bold">{lighting.rimLight.intensity.toFixed(1)}</span>
                 </div>
                 <input
                   type="range"
                   min="0.0"
-                  max="8.0"
-                  step="0.2"
+                  max="6.0"
+                  step="0.1"
                   value={lighting.rimLight.intensity}
                   onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      rimLight: { ...prev.rimLight, intensity: parseFloat(e.target.value) },
-                    }))
+                    setLighting({
+                      ...lighting,
+                      rimLight: { ...lighting.rimLight, intensity: parseFloat(e.target.value) },
+                    })
                   }
-                  className="w-full accent-red-500 bg-zinc-800"
+                  className="w-full accent-rose-500 cursor-pointer"
                 />
               </div>
 
-              {/* Rim Angle (Azimuth) */}
-              <div className="space-y-1">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
                 <div className="flex justify-between text-zinc-400">
                   <span>Rim Angle</span>
-                  <span className="text-zinc-200">{lighting.rimLight.angle}°</span>
+                  <span className="text-white font-bold">{lighting.rimLight.angle}°</span>
                 </div>
                 <input
                   type="range"
                   min="0"
                   max="360"
-                  step="5"
                   value={lighting.rimLight.angle}
                   onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      rimLight: { ...prev.rimLight, angle: parseInt(e.target.value) },
-                    }))
+                    setLighting({
+                      ...lighting,
+                      rimLight: { ...lighting.rimLight, angle: parseInt(e.target.value, 10) },
+                    })
                   }
-                  className="w-full accent-red-500 bg-zinc-800"
+                  className="w-full accent-rose-500 cursor-pointer"
                 />
               </div>
 
-              {/* Rim Elevation */}
-              <div className="space-y-1">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
                 <div className="flex justify-between text-zinc-400">
-                  <span>Rim Elevation</span>
-                  <span className="text-zinc-200">{lighting.rimLight.elevation || 30}°</span>
+                  <span>Rim Color</span>
+                  <span className="text-zinc-200">{lighting.rimLight.color}</span>
                 </div>
                 <input
-                  type="range"
-                  min="10"
-                  max="75"
-                  step="5"
-                  value={lighting.rimLight.elevation || 30}
+                  type="color"
+                  value={lighting.rimLight.color}
                   onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      rimLight: { ...prev.rimLight, elevation: parseInt(e.target.value) },
-                    }))
+                    setLighting({
+                      ...lighting,
+                      rimLight: { ...lighting.rimLight, color: e.target.value },
+                    })
                   }
-                  className="w-full accent-red-500 bg-zinc-800"
+                  className="w-8 h-7 bg-transparent border-none cursor-pointer rounded"
                 />
               </div>
             </div>
           )}
 
-          {/* TAB 5: POINT LIGHT (DIEGETIC ACCENT) */}
+          {/* TAB: POINT LIGHT */}
           {activeTab === 'point' && (
-            <div className="w-full grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-xs font-mono">
-              {/* Point Color */}
-              <div className="space-y-1">
-                <span className="text-zinc-400">Point Color</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={lighting.localLight.color}
-                    onChange={(e) =>
-                      setLighting((prev) => ({
-                        ...prev,
-                        localLight: { ...prev.localLight, color: e.target.value },
-                      }))
-                    }
-                    className="w-8 h-8 rounded border border-zinc-700 bg-transparent cursor-pointer"
-                  />
-                  <span className="text-zinc-200">{lighting.localLight.color.toUpperCase()}</span>
-                </div>
-              </div>
-
-              {/* Intensity */}
-              <div className="space-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
                 <div className="flex justify-between text-zinc-400">
                   <span>Intensity</span>
-                  <span className="text-zinc-200">{lighting.localLight.intensity.toFixed(1)}x</span>
+                  <span className="text-white font-bold">{lighting.localLight.intensity.toFixed(1)}</span>
                 </div>
                 <input
                   type="range"
-                  min="0.0"
-                  max="10.0"
+                  min="0"
+                  max="8.0"
                   step="0.2"
                   value={lighting.localLight.intensity}
                   onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      localLight: { ...prev.localLight, intensity: parseFloat(e.target.value) },
-                    }))
+                    setLighting({
+                      ...lighting,
+                      localLight: { ...lighting.localLight, intensity: parseFloat(e.target.value) },
+                    })
                   }
-                  className="w-full accent-red-500 bg-zinc-800"
+                  className="w-full accent-orange-500 cursor-pointer"
                 />
               </div>
 
-              {/* Position X */}
-              <div className="space-y-1">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
                 <div className="flex justify-between text-zinc-400">
-                  <span>Coord X</span>
-                  <span className="text-zinc-200">{lighting.localLight.x.toFixed(1)}m</span>
+                  <span>Pulse Animation</span>
+                  <span className="text-white font-bold">{pulseDiegeticLight ? 'Active' : 'Static'}</span>
+                </div>
+                <button
+                  onClick={() => setPulseDiegeticLight(!pulseDiegeticLight)}
+                  className={`w-full py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+                    pulseDiegeticLight
+                      ? 'bg-orange-600 text-white'
+                      : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  {pulseDiegeticLight ? 'Diegetic Pulse Enabled' : 'Fixed Steady Output'}
+                </button>
+              </div>
+
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+                <div className="flex justify-between text-zinc-400">
+                  <span>Point Color</span>
+                  <span className="text-zinc-200">{lighting.localLight.color}</span>
                 </div>
                 <input
-                  type="range"
-                  min="-6.0"
-                  max="6.0"
-                  step="0.2"
-                  value={lighting.localLight.x}
+                  type="color"
+                  value={lighting.localLight.color}
                   onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      localLight: { ...prev.localLight, x: parseFloat(e.target.value) },
-                    }))
+                    setLighting({
+                      ...lighting,
+                      localLight: { ...lighting.localLight, color: e.target.value },
+                    })
                   }
-                  className="w-full accent-red-500 bg-zinc-800"
+                  className="w-8 h-7 bg-transparent border-none cursor-pointer rounded"
                 />
               </div>
 
-              {/* Position Y (Height) */}
-              <div className="space-y-1">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
                 <div className="flex justify-between text-zinc-400">
-                  <span>Coord Y (Height)</span>
-                  <span className="text-zinc-200">{lighting.localLight.y.toFixed(1)}m</span>
+                  <span>Position (Y Height)</span>
+                  <span className="text-white font-bold">{lighting.localLight.y.toFixed(1)}m</span>
                 </div>
                 <input
                   type="range"
-                  min="0.2"
+                  min="0.5"
                   max="6.0"
                   step="0.2"
                   value={lighting.localLight.y}
                   onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      localLight: { ...prev.localLight, y: parseFloat(e.target.value) },
-                    }))
+                    setLighting({
+                      ...lighting,
+                      localLight: { ...lighting.localLight, y: parseFloat(e.target.value) },
+                    })
                   }
-                  className="w-full accent-red-500 bg-zinc-800"
+                  className="w-full accent-orange-500 cursor-pointer"
                 />
-              </div>
-
-              {/* Position Z */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-zinc-400">
-                  <span>Coord Z</span>
-                  <span className="text-zinc-200">{lighting.localLight.z.toFixed(1)}m</span>
-                </div>
-                <input
-                  type="range"
-                  min="-6.0"
-                  max="6.0"
-                  step="0.2"
-                  value={lighting.localLight.z}
-                  onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      localLight: { ...prev.localLight, z: parseFloat(e.target.value) },
-                    }))
-                  }
-                  className="w-full accent-red-500 bg-zinc-800"
-                />
-              </div>
-
-              {/* Animation pulse toggle */}
-              <div className="space-y-1 flex flex-col justify-end">
-                <button
-                  type="button"
-                  onClick={() => setPulseDiegeticLight(!pulseDiegeticLight)}
-                  className={`py-2 px-3 rounded-lg border text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                    pulseDiegeticLight
-                      ? 'bg-red-950/50 border-red-800 text-red-300'
-                      : 'bg-zinc-900 border-zinc-800 text-zinc-500'
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>{pulseDiegeticLight ? 'Neon Pulse: On' : 'Neon Pulse: Off'}</span>
-                </button>
               </div>
             </div>
           )}
 
-          {/* TAB 6: ATMOSPHERE & SURFACE WETNESS */}
+          {/* TAB: ATMOSPHERE & WETNESS */}
           {activeTab === 'atmosphere' && (
-            <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs font-mono">
-              {/* Fog Color */}
-              <div className="space-y-1">
-                <span className="text-zinc-400">Atmospheric Fog Color</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={lighting.fog.color}
-                    onChange={(e) =>
-                      setLighting((prev) => ({
-                        ...prev,
-                        fog: { ...prev.fog, color: e.target.value },
-                      }))
-                    }
-                    className="w-8 h-8 rounded border border-zinc-700 bg-transparent cursor-pointer"
-                  />
-                  <span className="text-zinc-200">{lighting.fog.color.toUpperCase()}</span>
-                </div>
-              </div>
-
-              {/* Fog Distance (Far falloff) */}
-              <div className="space-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
                 <div className="flex justify-between text-zinc-400">
-                  <span>Fog Density Distance</span>
-                  <span className="text-zinc-200">{lighting.fog.far}m</span>
-                </div>
-                <input
-                  type="range"
-                  min="16"
-                  max="60"
-                  step="2"
-                  value={lighting.fog.far}
-                  onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      fog: { ...prev.fog, far: parseInt(e.target.value) },
-                    }))
-                  }
-                  className="w-full accent-red-500 bg-zinc-800"
-                />
-              </div>
-
-              {/* Floor Surface Wetness (modulates specular puddles) */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-zinc-400">
-                  <span>Floor Rain Wetness</span>
-                  <span className="text-cyan-400 font-bold">
+                  <span>Surface Pavement Wetness</span>
+                  <span className="text-white font-bold">
                     {Math.round((lighting.surface?.wetness ?? 0.5) * 100)}%
                   </span>
                 </div>
@@ -1427,181 +1493,197 @@ renderer.toneMappingExposure = ${lighting.toneMapping.exposure};`;
                   step="0.05"
                   value={lighting.surface?.wetness ?? 0.5}
                   onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      surface: { ...prev.surface, wetness: parseFloat(e.target.value) },
-                    }))
+                    setLighting({
+                      ...lighting,
+                      surface: { wetness: parseFloat(e.target.value) },
+                    })
                   }
-                  className="w-full accent-cyan-500 bg-zinc-800"
-                  title="Adjust puddle reflections and ground specular roughness"
+                  className="w-full accent-emerald-500 cursor-pointer"
                 />
               </div>
 
-              {/* Fog Near Distance */}
-              <div className="space-y-1">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
                 <div className="flex justify-between text-zinc-400">
-                  <span>Fog Inset Start</span>
-                  <span className="text-zinc-200">{lighting.fog.near}m</span>
+                  <span>Volumetric Fog Near</span>
+                  <span className="text-white font-bold">{lighting.fog.near}m</span>
                 </div>
                 <input
                   type="range"
                   min="1"
-                  max="15"
-                  step="1"
+                  max="20"
                   value={lighting.fog.near}
                   onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      fog: { ...prev.fog, near: parseInt(e.target.value) },
-                    }))
+                    setLighting({
+                      ...lighting,
+                      fog: { ...lighting.fog, near: parseInt(e.target.value, 10) },
+                    })
                   }
-                  className="w-full accent-red-500 bg-zinc-800"
+                  className="w-full accent-emerald-500 cursor-pointer"
+                />
+              </div>
+
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+                <div className="flex justify-between text-zinc-400">
+                  <span>Volumetric Fog Far</span>
+                  <span className="text-white font-bold">{lighting.fog.far}m</span>
+                </div>
+                <input
+                  type="range"
+                  min="15"
+                  max="60"
+                  value={lighting.fog.far}
+                  onChange={(e) =>
+                    setLighting({
+                      ...lighting,
+                      fog: { ...lighting.fog, far: parseInt(e.target.value, 10) },
+                    })
+                  }
+                  className="w-full accent-emerald-500 cursor-pointer"
                 />
               </div>
             </div>
           )}
 
-          {/* TAB 7: ACES COLOR GRADING & POST-PROCESS */}
+          {/* TAB: ACES POST-PROCESS */}
           {activeTab === 'post' && (
-            <div className="w-full grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 text-xs font-mono">
-              {/* Tone Mapping Curve */}
-              <div className="space-y-1">
-                <span className="text-zinc-400">Tone Mapping Engine</span>
-                <select
-                  value={lighting.toneMapping.mode || 'aces'}
-                  onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      toneMapping: { ...prev.toneMapping, mode: e.target.value as any },
-                    }))
-                  }
-                  className="w-full px-2.5 py-1.5 bg-zinc-900 border border-zinc-800 rounded-lg text-xs font-mono text-zinc-200 focus:outline-none focus:border-red-500"
-                >
-                  <option value="aces">ACES Filmic (Cinematic)</option>
-                  <option value="reinhard">Reinhard (Smooth Highlights)</option>
-                  <option value="cineon">Cineon (Film Roll-off)</option>
-                  <option value="neutral">Neutral (sRGB Standard)</option>
-                  <option value="linear">Linear (Raw HDR)</option>
-                </select>
-              </div>
-
-              {/* Exposure EV */}
-              <div className="space-y-1">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
                 <div className="flex justify-between text-zinc-400">
-                  <span>Exposure (EV)</span>
-                  <span className="text-zinc-200">{lighting.toneMapping.exposure.toFixed(2)} EV</span>
+                  <span>ACES Filmic Exposure</span>
+                  <span className="text-white font-bold">
+                    {(lighting.toneMapping?.exposure ?? 1.1).toFixed(2)} EV
+                  </span>
                 </div>
                 <input
                   type="range"
-                  min="0.5"
+                  min="0.3"
                   max="2.5"
                   step="0.05"
-                  value={lighting.toneMapping.exposure}
+                  value={lighting.toneMapping?.exposure ?? 1.1}
                   onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      toneMapping: { ...prev.toneMapping, exposure: parseFloat(e.target.value) },
-                    }))
+                    setLighting({
+                      ...lighting,
+                      toneMapping: {
+                        mode: lighting.toneMapping?.mode ?? 'aces',
+                        exposure: parseFloat(e.target.value),
+                      },
+                    })
                   }
-                  className="w-full accent-red-500 bg-zinc-800"
+                  className="w-full accent-purple-500 cursor-pointer"
                 />
               </div>
 
-              {/* Contrast */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-zinc-400">
-                  <span>Contrast S-Curve</span>
-                  <span className="text-zinc-200">
-                    {(lighting.toneMapping.contrast || 1.1).toFixed(2)}x
-                  </span>
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+                <span className="text-zinc-400 block mb-1">Tone Mapping Curve</span>
+                <div className="grid grid-cols-4 gap-1">
+                  {(['aces', 'neutral', 'reinhard', 'cineon'] as const).map((curve) => (
+                    <button
+                      key={curve}
+                      onClick={() =>
+                        setLighting({
+                          ...lighting,
+                          toneMapping: {
+                            mode: curve,
+                            exposure: lighting.toneMapping?.exposure ?? 1.1,
+                          },
+                        })
+                      }
+                      className={`py-1 rounded text-center uppercase text-[10px] cursor-pointer transition-colors ${
+                        (lighting.toneMapping?.mode ?? 'aces') === curve
+                          ? 'bg-purple-600 text-white font-bold'
+                          : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      {curve}
+                    </button>
+                  ))}
                 </div>
-                <input
-                  type="range"
-                  min="0.8"
-                  max="1.6"
-                  step="0.05"
-                  value={lighting.toneMapping.contrast || 1.1}
-                  onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      toneMapping: { ...prev.toneMapping, contrast: parseFloat(e.target.value) },
-                    }))
-                  }
-                  className="w-full accent-red-500 bg-zinc-800"
-                />
-              </div>
-
-              {/* Saturation */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-zinc-400">
-                  <span>Saturation</span>
-                  <span className="text-zinc-200">
-                    {(lighting.toneMapping.saturation || 1.0).toFixed(2)}x
-                  </span>
-                </div>
-                <input
-                  type="range"
-                  min="0.0"
-                  max="2.0"
-                  step="0.05"
-                  value={lighting.toneMapping.saturation ?? 1.0}
-                  onChange={(e) =>
-                    setLighting((prev) => ({
-                      ...prev,
-                      toneMapping: { ...prev.toneMapping, saturation: parseFloat(e.target.value) },
-                    }))
-                  }
-                  className="w-full accent-red-500 bg-zinc-800"
-                />
               </div>
             </div>
           )}
 
-          {/* TAB 8: RENDER PASSES (Clay, Normals, Lit, Wireframe) */}
+          {/* TAB: PASSES */}
           {activeTab === 'passes' && (
-            <div className="w-full flex flex-wrap items-center gap-2">
-              {[
-                { id: 'final', label: 'Final Lit (PBR)', desc: 'Full materials, wetness & environment' },
-                { id: 'clay', label: 'Lighting Only (Clay)', desc: 'Isolate pure light & shadow falloff' },
-                { id: 'normals', label: 'World Surface Normals', desc: 'Surface orientation buffer inspection' },
-                { id: 'wireframe', label: 'Wireframe Topology', desc: 'Polygon flow & structural density' },
-              ].map((mode) => (
-                <button
-                  key={mode.id}
-                  onClick={() => setRenderPass(mode.id as any)}
-                  className={`flex-1 min-w-[150px] p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                    renderPass === mode.id
-                      ? 'bg-zinc-800 border-red-500/80 text-white shadow-md'
-                      : 'bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40'
-                  }`}
-                >
-                  <div className="text-xs font-bold">{mode.label}</div>
-                  <div className="text-[10px] text-zinc-400 mt-0.5">{mode.desc}</div>
-                </button>
-              ))}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+              <button
+                onClick={() => setRenderPass('final')}
+                className={`p-3 rounded-xl border text-left transition-colors cursor-pointer ${
+                  renderPass === 'final'
+                    ? 'bg-red-950/60 border-red-600 text-white font-bold'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                }`}
+              >
+                <div className="text-sm font-semibold">PBR Lit (Final)</div>
+                <div className="text-[10px] text-zinc-500 mt-1">Full textures, materials & shadows</div>
+              </button>
+
+              <button
+                onClick={() => setRenderPass('clay')}
+                className={`p-3 rounded-xl border text-left transition-colors cursor-pointer ${
+                  renderPass === 'clay'
+                    ? 'bg-red-950/60 border-red-600 text-white font-bold'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                }`}
+              >
+                <div className="text-sm font-semibold">Clay Pass</div>
+                <div className="text-[10px] text-zinc-500 mt-1">Neutral greybox diffuse inspection</div>
+              </button>
+
+              <button
+                onClick={() => setRenderPass('normals')}
+                className={`p-3 rounded-xl border text-left transition-colors cursor-pointer ${
+                  renderPass === 'normals'
+                    ? 'bg-red-950/60 border-red-600 text-white font-bold'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                }`}
+              >
+                <div className="text-sm font-semibold">World Normals</div>
+                <div className="text-[10px] text-zinc-500 mt-1">Surface curvature orientation</div>
+              </button>
+
+              <button
+                onClick={() => setRenderPass('wireframe')}
+                className={`p-3 rounded-xl border text-left transition-colors cursor-pointer ${
+                  renderPass === 'wireframe'
+                    ? 'bg-red-950/60 border-red-600 text-white font-bold'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white'
+                }`}
+              >
+                <div className="text-sm font-semibold">Wireframe</div>
+                <div className="text-[10px] text-zinc-500 mt-1">Mesh topology & edge density</div>
+              </button>
             </div>
           )}
 
-          {/* TAB 9: OPTICS & CAMERA */}
+          {/* TAB: CAMERA & OPTICS */}
           {activeTab === 'camera' && (
-            <div className="w-full grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono items-center">
-              {/* Focal Length Lens */}
-              <div className="space-y-1">
-                <span className="text-zinc-400">Cinematic Lens:</span>
-                <div className="flex items-center gap-1.5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
+              {/* Lenses */}
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+                <span className="text-zinc-400 block mb-1">Cinematic Prime Lenses</span>
+                <div className="grid grid-cols-4 gap-1">
                   {[
-                    { mm: 24, label: '24mm Wide' },
-                    { mm: 35, label: '35mm Cine' },
-                    { mm: 50, label: '50mm Eye' },
-                    { mm: 85, label: '85mm Tele' },
+                    { label: '24mm', fov: 65 },
+                    { label: '35mm', fov: 50 },
+                    { label: '50mm', fov: 38 },
+                    { label: '85mm', fov: 24 },
                   ].map((lens) => (
                     <button
-                      key={lens.mm}
-                      onClick={() => handleFocalLengthChange(lens.mm)}
-                      className={`flex-1 py-1.5 px-2 rounded-lg border text-center transition-colors cursor-pointer ${
-                        (lighting.camera?.focalLengthMm || 50) === lens.mm
-                          ? 'bg-red-950/60 border-red-800 text-red-300 font-bold'
-                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                      key={lens.label}
+                      onClick={() => {
+                        setLighting({
+                          ...lighting,
+                          camera: { fov: lens.fov },
+                        });
+                        if (cameraRef.current) {
+                          cameraRef.current.fov = lens.fov;
+                          cameraRef.current.updateProjectionMatrix();
+                        }
+                      }}
+                      className={`py-1 rounded text-center text-[10px] font-bold cursor-pointer transition-colors ${
+                        (lighting.camera?.fov ?? 45) === lens.fov
+                          ? 'bg-amber-600 text-white'
+                          : 'bg-zinc-800 text-zinc-400 hover:text-white'
                       }`}
                     >
                       {lens.label}
@@ -1610,65 +1692,39 @@ renderer.toneMappingExposure = ${lighting.toneMapping.exposure};`;
                 </div>
               </div>
 
-              {/* Viewpoints */}
-              <div className="space-y-1">
-                <span className="text-zinc-400">Camera Viewpoints:</span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => setCameraPreset('cinematic')}
-                    className="flex-1 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 rounded-lg border border-zinc-800 transition-colors cursor-pointer text-center"
-                  >
-                    Cinematic
-                  </button>
-                  <button
-                    onClick={() => setCameraPreset('hero')}
-                    className="flex-1 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 rounded-lg border border-zinc-800 transition-colors cursor-pointer text-center"
-                  >
-                    Hero
-                  </button>
-                  <button
-                    onClick={() => setCameraPreset('top')}
-                    className="flex-1 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 rounded-lg border border-zinc-800 transition-colors cursor-pointer text-center"
-                  >
-                    Top
-                  </button>
-                  <button
-                    onClick={() => setCameraPreset('macro')}
-                    className="flex-1 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 rounded-lg border border-zinc-800 transition-colors cursor-pointer text-center"
-                  >
-                    Macro
-                  </button>
+              {/* Turntable Auto-Rotate */}
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+                <div className="flex justify-between text-zinc-400">
+                  <span>Turntable Turntable</span>
+                  <span className="text-white font-bold">{autoRotate ? `${turntableSpeed}x` : 'Paused'}</span>
                 </div>
+                <button
+                  onClick={() => setAutoRotate(!autoRotate)}
+                  className={`w-full py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+                    autoRotate
+                      ? 'bg-red-600 text-white'
+                      : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  {autoRotate ? 'Stop Turntable Orbit' : 'Start 360° Turntable'}
+                </button>
               </div>
 
-              {/* Turntable Auto-rotate */}
-              <div className="space-y-1">
-                <span className="text-zinc-400">Turntable 360° Orbit:</span>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setAutoRotate(!autoRotate)}
-                    className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg border text-xs font-medium transition-colors cursor-pointer ${
-                      autoRotate
-                        ? 'bg-red-950/40 text-red-400 border-red-500/50'
-                        : 'bg-zinc-900 text-zinc-300 border-zinc-800 hover:bg-zinc-800'
-                    }`}
-                  >
-                    <RotateCw className={`w-3.5 h-3.5 ${autoRotate ? 'animate-spin' : ''}`} />
-                    <span>{autoRotate ? 'Rotating (On)' : 'Turntable Off'}</span>
-                  </button>
-                  {autoRotate && (
-                    <input
-                      type="range"
-                      min="0.5"
-                      max="3.0"
-                      step="0.2"
-                      value={turntableSpeed}
-                      onChange={(e) => setTurntableSpeed(parseFloat(e.target.value))}
-                      className="w-20 accent-red-500"
-                      title="Rotation Speed"
-                    />
-                  )}
+              {/* Model Scale Slider */}
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+                <div className="flex justify-between text-zinc-400">
+                  <span>Model Scale</span>
+                  <span className="text-white font-bold">{modelScale.toFixed(2)}x</span>
                 </div>
+                <input
+                  type="range"
+                  min="0.4"
+                  max="2.5"
+                  step="0.05"
+                  value={modelScale}
+                  onChange={(e) => setModelScale(parseFloat(e.target.value))}
+                  className="w-full accent-amber-500 cursor-pointer"
+                />
               </div>
             </div>
           )}

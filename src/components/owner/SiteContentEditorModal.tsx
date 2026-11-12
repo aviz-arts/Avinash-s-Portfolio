@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Save, Search, Type, Layers, Box, Compass, Sparkles, Sliders, Image as ImageIcon, Film } from 'lucide-react';
-import { SiteContent, DEFAULT_SITE_CONTENT } from '../../utils/portfolioStorage';
+import { SiteContent, DEFAULT_SITE_CONTENT, DEFAULT_CONTACT_OPTIONS } from '../../utils/portfolioStorage';
 import { MediaUploadField } from '../common/MediaUploadField';
 
 interface SiteContentEditorModalProps {
@@ -734,8 +734,45 @@ export const SiteContentEditorModal: React.FC<SiteContentEditorModalProps> = ({
                 />
               </div>
 
+              {/* Project Focus / Role Dropdown Options Editor */}
+              <div className="pt-2 border-t border-zinc-900 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-mono text-zinc-300 font-semibold">
+                    Contact Form "Project Focus / Role" Options (One per line)
+                  </label>
+                  <span className="text-[10px] font-mono text-red-400">Customizable Dropdown</span>
+                </div>
+                <p className="text-[11px] text-zinc-500 font-mono">
+                  Enter each service or project inquiry option on its own line. Visitors choose from these in the inquiry form dropdown.
+                </p>
+                <textarea
+                  rows={5}
+                  value={
+                    Array.isArray(formData.contactProjectOptions)
+                      ? formData.contactProjectOptions.join('\n')
+                      : typeof formData.contactProjectOptions === 'string'
+                      ? formData.contactProjectOptions
+                      : DEFAULT_CONTACT_OPTIONS.join('\n')
+                  }
+                  onChange={(e) => {
+                    const lines = e.target.value.split('\n');
+                    updateField('contactProjectOptions', lines);
+                  }}
+                  placeholder="Game Design & Core Mechanics (Loops & Pacing)&#10;Level Design & 3D Arena Blockout..."
+                  className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs font-mono text-zinc-100 leading-relaxed focus:outline-none focus:border-red-500"
+                />
+              </div>
+
               <div className="pt-2 border-t border-zinc-900">
-                <div className="text-xs font-mono text-zinc-400 mb-3 font-semibold">Social Profile Links</div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-xs font-mono text-zinc-300 font-semibold">
+                    Featured Social Links (LinkedIn, ArtStation, Instagram)
+                  </div>
+                  <span className="text-[10px] font-mono text-red-400">Featured on Contact page</span>
+                </div>
+                <p className="text-[11px] text-zinc-500 font-mono mb-3">
+                  Paste your active profile URLs below, or use the direct "Edit Link" buttons right on the Contact page.
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-mono">
                   <div>
                     <label className="block text-zinc-500 mb-1">YouTube URL</label>

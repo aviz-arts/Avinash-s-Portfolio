@@ -304,4 +304,37 @@ test('recognized owner device toggles maintain private visibility', async () => 
   assert.equal(isRecognizedOwnerDevice(), false);
 });
 
+test('featured social platform URLs (LinkedIn, ArtStation, Instagram) can be updated accurately', () => {
+  assert.ok(DEFAULT_SITE_CONTENT.socialLinkedinUrl);
+  assert.ok(DEFAULT_SITE_CONTENT.socialArtstationUrl);
+  assert.ok(DEFAULT_SITE_CONTENT.socialInstagramUrl);
+
+  const updated1 = updateSiteContentKey('socialLinkedinUrl', 'https://linkedin.com/in/avinash-custom', DEFAULT_SITE_CONTENT);
+  assert.equal(updated1.socialLinkedinUrl, 'https://linkedin.com/in/avinash-custom');
+
+  const updated2 = updateSiteContentKey('socialArtstationUrl', 'https://artstation.com/aviz-lighting', updated1);
+  assert.equal(updated2.socialArtstationUrl, 'https://artstation.com/aviz-lighting');
+
+  const updated3 = updateSiteContentKey('socialInstagramUrl', 'https://instagram.com/aviz.arts', updated2);
+  assert.equal(updated3.socialInstagramUrl, 'https://instagram.com/aviz.arts');
+});
+
+test('contactProjectOptions can be updated via array or string lines', () => {
+  assert.ok(Array.isArray(DEFAULT_SITE_CONTENT.contactProjectOptions));
+  assert.equal(DEFAULT_SITE_CONTENT.contactProjectOptions.length, 5);
+
+  const customList = [
+    'Systems & Combat Verbs',
+    '3D Arena Encounter Blockout',
+    'UE5 Volumetric Lighting',
+  ];
+
+  const updatedArray = updateSiteContentKey('contactProjectOptions', customList, DEFAULT_SITE_CONTENT);
+  assert.deepEqual(updatedArray.contactProjectOptions, customList);
+
+  const updatedNewline = updateSiteContentKey('contactProjectOptions', 'Option A\nOption B\nOption C', updatedArray);
+  assert.deepEqual(updatedNewline.contactProjectOptions, ['Option A', 'Option B', 'Option C']);
+});
+
+
 

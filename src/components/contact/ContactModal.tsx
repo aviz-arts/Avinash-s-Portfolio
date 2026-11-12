@@ -4,14 +4,15 @@ import { X, Send, Mail, CheckCircle2, MessageSquare, Briefcase } from 'lucide-re
 interface ContactModalProps {
   isOpen: boolean;
   onClose: () => void;
+  options?: string[];
 }
 
-export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) => {
+export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, options }) => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     studio: '',
-    service: 'lighting-art',
+    service: options && options.length > 0 ? options[0] : 'Game Design & Core Mechanics (Loops & Pacing)',
     message: '',
   });
 
@@ -130,10 +131,27 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) =
                   onChange={(e) => setFormData({ ...formData, service: e.target.value })}
                   className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:outline-none focus:border-red-500 transition-colors"
                 >
-                  <option value="lighting-art">Cinematic & Real-Time Lighting</option>
-                  <option value="level-design">Level Design & Greybox Blockout</option>
-                  <option value="full-production">Full Environment & Lighting Lead</option>
-                  <option value="consultation">60 FPS Optimization / Consultation</option>
+                  {options && options.length > 0 ? (
+                    options.map((opt, i) => (
+                      <option key={i} value={opt} className="bg-zinc-900 text-zinc-100">
+                        {opt}
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Game Design & Core Mechanics (Loops & Pacing)">
+                        Game Design & Core Mechanics (Loops & Pacing)
+                      </option>
+                      <option value="Level Design & 3D Arena Blockout">Level Design & 3D Arena Blockout</option>
+                      <option value="Unreal Engine 5 Lighting Art (Passion)">
+                        Unreal Engine 5 Lighting Art (Passion)
+                      </option>
+                      <option value="Lead Role / Full-Time Studio Opportunity">
+                        Lead Role / Full-Time Studio Opportunity
+                      </option>
+                      <option value="General Inquiry / Coffee Chat">General Inquiry / Coffee Chat</option>
+                    </>
+                  )}
                 </select>
               </div>
             </div>

@@ -84,7 +84,6 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeProject, setActiveProject] = useState<ProjectItem | null>(null);
   const [isContactOpen, setIsContactOpen] = useState(false);
-  const [studioScene, setStudioScene] = useState<'cyberpunk' | 'crypt' | 'turret'>('cyberpunk');
   const [siteContentEditorTab, setSiteContentEditorTab] = useState<'hero' | 'studio' | 'works' | 'reels' | 'level' | 'about' | 'contact' | 'footer'>('hero');
 
   // Persistent State
@@ -154,8 +153,7 @@ export default function App() {
   // Filter projects using pure tested logic
   const filteredProjects = filterProjects(projects, selectedCategory, searchQuery);
 
-  const handleOpenInStudio = (scene: 'cyberpunk' | 'crypt' | 'turret') => {
-    setStudioScene(scene);
+  const handleOpenInStudio = () => {
     setActiveTab('work');
     setTimeout(() => {
       const studioEl = document.getElementById('studio');
@@ -192,8 +190,8 @@ export default function App() {
     }
   };
 
-  // Single-line text update handler for EditableText
-  const handleUpdateSiteLine = <K extends keyof SiteContent>(key: K, val: string) => {
+  // Single-line text update handler for EditableText and custom fields
+  const handleUpdateSiteLine = <K extends keyof SiteContent>(key: K, val: any) => {
     const updated = updateSiteContentKey(key, val, siteContent);
     setSiteContent(updated);
     showBanner(`Updated: ${String(key)}`);
@@ -876,7 +874,7 @@ export default function App() {
             </div>
 
             {/* Three.js Studio Component */}
-            <LightingStudio initialScene={studioScene} />
+            <LightingStudio />
           </div>
         </section>
 
@@ -1542,6 +1540,7 @@ export default function App() {
       <ContactModal
         isOpen={isContactOpen}
         onClose={() => setIsContactOpen(false)}
+        options={siteContent.contactProjectOptions}
       />
 
       {/* Resume PDF Uploader Modal */}

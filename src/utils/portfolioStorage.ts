@@ -126,6 +126,7 @@ export interface SiteContent {
   socialInstagramUrl: string;
   socialEducationUrl: string;
   socialGithubUrl: string;
+  contactProjectOptions?: string[];
 
   // Section Visibility & Built-in Modules (Allow adding or removing sections)
   heroShowStats?: boolean;
@@ -296,6 +297,14 @@ export const DEFAULT_CUSTOM_SECTIONS: CustomSection[] = [
   },
 ];
 
+export const DEFAULT_CONTACT_OPTIONS: string[] = [
+  'Game Design & Core Mechanics (Loops & Pacing)',
+  'Level Design & 3D Arena Blockout',
+  'Unreal Engine 5 Lighting Art (Passion)',
+  'Lead Role / Full-Time Studio Opportunity',
+  'General Inquiry / Coffee Chat',
+];
+
 export const DEFAULT_SITE_CONTENT: SiteContent = {
   // Hero
   heroKickerName: 'Avinash',
@@ -385,6 +394,7 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
   socialInstagramUrl: 'https://instagram.com/avinash',
   socialEducationUrl: '#',
   socialGithubUrl: 'https://github.com/avinash',
+  contactProjectOptions: DEFAULT_CONTACT_OPTIONS,
 
   // Section Visibility & Built-in Modules (Allow adding or removing sections)
   heroShowStats: true,
@@ -566,6 +576,19 @@ export function updateSiteContentKey<K extends keyof SiteContent>(
       parsedValue = value === 'true';
     } else {
       parsedValue = Boolean(value);
+    }
+  } else if (key === 'contactProjectOptions') {
+    if (typeof value === 'string') {
+      try {
+        const parsed = JSON.parse(value);
+        if (Array.isArray(parsed)) {
+          parsedValue = parsed;
+        } else {
+          parsedValue = value.split('\n').map((s: string) => s.trim()).filter(Boolean);
+        }
+      } catch {
+        parsedValue = value.split('\n').map((s: string) => s.trim()).filter(Boolean);
+      }
     }
   }
   const updated: SiteContent = { ...base, [key]: parsedValue };

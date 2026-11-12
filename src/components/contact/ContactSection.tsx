@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Mail,
   Phone,
@@ -7,22 +7,21 @@ import {
   Send,
   ExternalLink,
   MapPin,
-  Youtube,
-  Linkedin,
-  Instagram,
-  GraduationCap,
-  Github,
   MessageSquare,
   Sparkles,
+  Sliders,
 } from 'lucide-react';
-import { SiteContent, CustomSection } from '../../utils/portfolioStorage';
+import { SiteContent, CustomSection, DEFAULT_CONTACT_OPTIONS } from '../../utils/portfolioStorage';
 import { EditableText } from '../common/EditableText';
 import { CustomSectionRenderer } from '../portfolio/CustomSectionRenderer';
+import { LiveIstClock } from './LiveIstClock';
+import { SocialShowcase } from './SocialShowcase';
+import { ContactOptionsEditorModal } from './ContactOptionsEditorModal';
 
 interface ContactSectionProps {
   siteContent: SiteContent;
   isOwner?: boolean;
-  onUpdateSiteContent?: (key: keyof SiteContent, value: string) => void;
+  onUpdateSiteContent?: (key: keyof SiteContent, value: any) => void;
   customSections?: CustomSection[];
   onUpdateCustomSection?: (id: string, updated: Partial<CustomSection>) => void;
   onDeleteCustomSection?: (id: string) => void;
@@ -40,15 +39,28 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
   onAddSectionClick,
   onEditSectionClick,
 }) => {
+  const projectOptions =
+    siteContent.contactProjectOptions && siteContent.contactProjectOptions.length > 0
+      ? siteContent.contactProjectOptions
+      : DEFAULT_CONTACT_OPTIONS;
+
+  const [isOptionsEditorOpen, setIsOptionsEditorOpen] = useState(false);
   const [copiedEmail, setCopiedEmail] = useState(false);
   const [copiedPhone, setCopiedPhone] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    projectType: 'Game Design & Core Mechanics',
+    projectType: projectOptions[0] || 'Game Design & Core Mechanics (Loops & Pacing)',
     message: '',
   });
   const [isSubmitted, setIsSubmitted] = useState(false);
+
+  // Sync formData.projectType if options list changes
+  useEffect(() => {
+    if (projectOptions.length > 0 && !projectOptions.includes(formData.projectType)) {
+      setFormData((prev) => ({ ...prev, projectType: projectOptions[0] }));
+    }
+  }, [projectOptions, formData.projectType]);
 
   const email = siteContent.contactEmail || 'avinashr5904@gmail.com';
   const phone = siteContent.contactPhone || '+91 9361287193';
@@ -124,7 +136,10 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
           </p>
         </div>
 
-        {/* 2. Two Primary Cards: Email & Phone (Matching user reference layout) */}
+        {/* 2. Real-Time Running Indian Standard Time (IST) Clock */}
+        <LiveIstClock />
+
+        {/* 3. Two Primary Cards: Email & Phone (Matching user reference layout) */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Card 1: EMAIL */}
           <div className="relative group bg-zinc-950/80 hover:bg-zinc-900/80 border border-zinc-800/90 hover:border-red-500/60 rounded-3xl p-7 transition-all duration-300 shadow-xl backdrop-blur-xl flex flex-col justify-between">
@@ -306,18 +321,43 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-mono text-zinc-400 mb-1">Project Focus / Role</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-mono text-zinc-400">Project Focus / Role</label>
+                  {isOwner && (
+                    <button
+                      type="button"
+                      onClick={() => setIsOptionsEditorOpen(true)}
+                      className="text-[11px] font-mono text-red-400 hover:text-red-300 bg-red-950/60 hover:bg-red-900/60 border border-red-800/60 px-2.5 py-0.5 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                      title="Edit dropdown options for project focus"
+                    >
+                      <Sliders className="w-3 h-3 text-red-400" />
+                      <span>Edit Options ({projectOptions.length})</span>
+                    </button>
+                  )}
+                </div>
                 <select
                   value={formData.projectType}
                   onChange={(e) => setFormData({ ...formData, projectType: e.target.value })}
                   className="w-full px-3.5 py-2.5 bg-zinc-900/80 border border-zinc-800 rounded-xl text-xs font-mono text-zinc-200 focus:outline-none focus:border-red-500 transition-colors cursor-pointer"
                 >
-                  <option value="Game Design & Core Mechanics">Game Design & Core Mechanics (Loops & Pacing)</option>
-                  <option value="Level Design & 3D Blockout">Level Design & 3D Arena Blockout</option>
-                  <option value="Unreal Engine 5 Lighting Art (Passion)">Unreal Engine 5 Lighting Art (Passion)</option>
-                  <option value="Lead Role / Full-Time Studio Opportunity">Lead Role / Full-Time Studio Opportunity</option>
-                  <option value="General Consultation">General Inquiry / Coffee Chat</option>
+                  {projectOptions.map((opt, idx) => (
+                    <option key={idx} value={opt} className="bg-zinc-900 text-zinc-100 py-1">
+                      {opt}
+                    </option>
+                  ))}
                 </select>
+                {isOwner && (
+                  <div className="mt-1.5 flex items-center justify-between text-[10px] font-mono text-zinc-500">
+                    <span>Owner Mode: Click "Edit Options" to add, edit or remove choices</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsOptionsEditorOpen(true)}
+                      className="text-red-400 hover:underline cursor-pointer"
+                    >
+                      Customize options &rarr;
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -343,80 +383,12 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
           )}
         </div>
 
-        {/* 4. CONNECT ON SOCIAL (Icons matching user reference) */}
-        <div className="space-y-5 text-center">
-          <div className="text-xs font-mono uppercase tracking-widest text-zinc-500 font-semibold">
-            CONNECT ON SOCIAL
-          </div>
-
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            {/* YouTube */}
-            <a
-              href={siteContent.socialYoutubeUrl || 'https://youtube.com'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-12 h-12 rounded-2xl bg-zinc-950 border border-zinc-800/90 hover:border-red-500/60 hover:bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-red-400 transition-all duration-300 shadow-md group"
-              title="YouTube"
-            >
-              <Youtube className="w-5 h-5 group-hover:scale-110 transition-transform" />
-            </a>
-
-            {/* LinkedIn */}
-            <a
-              href={siteContent.socialLinkedinUrl || 'https://linkedin.com/in/avinash'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-12 h-12 rounded-2xl bg-zinc-950 border border-zinc-800/90 hover:border-red-500/60 hover:bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-red-400 transition-all duration-300 shadow-md group"
-              title="LinkedIn"
-            >
-              <Linkedin className="w-5 h-5 group-hover:scale-110 transition-transform" />
-            </a>
-
-            {/* ArtStation */}
-            <a
-              href={siteContent.socialArtstationUrl || 'https://artstation.com/avinash'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-12 h-12 rounded-2xl bg-zinc-950 border border-zinc-800/90 hover:border-red-500/60 hover:bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-red-400 transition-all duration-300 shadow-md group"
-              title="ArtStation"
-            >
-              <svg className="w-5 h-5 fill-current group-hover:scale-110 transition-transform" viewBox="0 0 24 24">
-                <path d="M12 2L1 21h4.6l2.1-4h8.6l2.1 4H23L12 2zm-1.8 12.8L12 9.2l1.8 5.6h-3.6z" />
-              </svg>
-            </a>
-
-            {/* Instagram */}
-            <a
-              href={siteContent.socialInstagramUrl || 'https://instagram.com/avinash'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-12 h-12 rounded-2xl bg-zinc-950 border border-zinc-800/90 hover:border-red-500/60 hover:bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-red-400 transition-all duration-300 shadow-md group"
-              title="Instagram"
-            >
-              <Instagram className="w-5 h-5 group-hover:scale-110 transition-transform" />
-            </a>
-
-            {/* Academic / Scholar / Certifications */}
-            <a
-              href={siteContent.socialEducationUrl || '#'}
-              className="w-12 h-12 rounded-2xl bg-zinc-950 border border-zinc-800/90 hover:border-red-500/60 hover:bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-red-400 transition-all duration-300 shadow-md group"
-              title="Academic & Unreal Certifications"
-            >
-              <GraduationCap className="w-5 h-5 group-hover:scale-110 transition-transform" />
-            </a>
-
-            {/* GitHub */}
-            <a
-              href={siteContent.socialGithubUrl || 'https://github.com/avinash'}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-12 h-12 rounded-2xl bg-zinc-950 border border-zinc-800/90 hover:border-red-500/60 hover:bg-zinc-900 flex items-center justify-center text-zinc-400 hover:text-red-400 transition-all duration-300 shadow-md group"
-              title="GitHub / Dev Prototypes"
-            >
-              <Github className="w-5 h-5 group-hover:scale-110 transition-transform" />
-            </a>
-          </div>
-        </div>
+        {/* 4. Featured & Editable Social Platforms (LinkedIn, ArtStation, Instagram) */}
+        <SocialShowcase
+          siteContent={siteContent}
+          isOwner={isOwner}
+          onUpdateSiteContent={handleUpdate}
+        />
 
         {/* 5. Location Badge (Matching user reference) */}
         <div className="flex items-center justify-center gap-2 text-xs font-mono text-zinc-400 pt-4">
@@ -459,6 +431,18 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
           </div>
         )}
       </div>
+
+      {/* Contact Options Editor Modal */}
+      <ContactOptionsEditorModal
+        isOpen={isOptionsEditorOpen}
+        onClose={() => setIsOptionsEditorOpen(false)}
+        currentOptions={projectOptions}
+        onSave={(newOpts) => {
+          if (onUpdateSiteContent) {
+            onUpdateSiteContent('contactProjectOptions', newOpts);
+          }
+        }}
+      />
     </div>
   );
 };
