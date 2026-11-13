@@ -451,6 +451,7 @@ const CUSTOM_SECTIONS_STORAGE_KEY = 'avinash_portfolio_custom_sections_v2';
 const RESUME_PDF_STORAGE_KEY = 'avinash_portfolio_resume_pdf_v2';
 const RESUME_MILESTONES_STORAGE_KEY = 'avinash_portfolio_resume_milestones_v2';
 const OWNER_AUTH_KEY = 'avinash_portfolio_owner_session_v1';
+const OWNER_BASELINE_KEY = 'avinash_portfolio_owner_baseline_v1';
 const OWNER_PIN_KEY = 'avinash_portfolio_owner_pin_v1';
 const TWO_FACTOR_CODE_KEY = 'avinash_portfolio_2fa_code_v1';
 const TWO_FACTOR_EXPIRY_KEY = 'avinash_portfolio_2fa_expiry_v1';
@@ -691,6 +692,14 @@ export function deleteStoredResumePdf(): void {
   removeStorageItem(RESUME_PDF_STORAGE_KEY);
 }
 
+export function restoreStoredResumePdf(pdf: StoredResumePdf | null): void {
+  if (pdf && pdf.dataUrl) {
+    setStorageItem(RESUME_PDF_STORAGE_KEY, JSON.stringify(pdf));
+  } else {
+    deleteStoredResumePdf();
+  }
+}
+
 /**
  * Resume Interactive Milestones CRUD
  */
@@ -801,9 +810,14 @@ startxref
 /**
  * Owner authentication logic
  */
+export function verifyOwnerPasscode(pinInput: string): boolean {
+  const customPin = getStorageItem(OWNER_PIN_KEY);
+  const currentPin = customPin || DEFAULT_OWNER_PIN;
+  return pinInput.trim() === currentPin;
+}
+
 export function verifyOwnerCredentials(emailInput: string, pinInput: string): boolean {
   const normalizedEmail = emailInput.trim().toLowerCase();
-  const currentPin = getStorageItem(OWNER_PIN_KEY) || DEFAULT_OWNER_PIN;
   const validEmails = [
     OWNER_EMAIL.toLowerCase(),
     'aviz.arts@gmail.com',
@@ -813,11 +827,7 @@ export function verifyOwnerCredentials(emailInput: string, pinInput: string): bo
     getStoredSiteContent().contactEmail.toLowerCase(),
   ];
   const isEmailMatch = validEmails.includes(normalizedEmail);
-  const isPinMatch =
-    pinInput.trim() === currentPin ||
-    pinInput.trim() === '5904' ||
-    pinInput.trim() === DEFAULT_OWNER_PIN;
-  return isEmailMatch && isPinMatch;
+  return isEmailMatch && verifyOwnerPasscode(pinInput);
 }
 
 const BASE32_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
@@ -850,6 +860,10 @@ export function bytesToBase32(bytes: Uint8Array): string {
   return base32;
 }
 
+export function isCustomTotpSecretConfigured(): boolean {
+  return Boolean(getStorageItem(TOTP_SECRET_STORAGE_KEY));
+}
+
 export function getStoredTotpSecret(): string {
   return getStorageItem(TOTP_SECRET_STORAGE_KEY) || DEFAULT_TOTP_SECRET;
 }
@@ -861,9 +875,18 @@ export function saveStoredTotpSecret(secret: string): void {
   }
 }
 
-export function generateRandomTotpSecret(): string {
+export function generateRandomTotpSecret(length: number = 32): string {
+  const cryptoObj = typeof window !== 'undefined' ? window.crypto : globalThis.crypto;
   let result = '';
-  for (let i = 0; i < 16; i++) {
+  if (cryptoObj && cryptoObj.getRandomValues) {
+    const bytes = new Uint8Array(length);
+    cryptoObj.getRandomValues(bytes);
+    for (let i = 0; i < length; i++) {
+      result += BASE32_ALPHABET.charAt(bytes[i] % BASE32_ALPHABET.length);
+    }
+    return result;
+  }
+  for (let i = 0; i < length; i++) {
     result += BASE32_ALPHABET.charAt(Math.floor(Math.random() * BASE32_ALPHABET.length));
   }
   return result;
@@ -970,8 +993,13 @@ export async function verifyTwoFactorCode(inputCode: string): Promise<boolean> {
   const clean = inputCode.trim().replace(/\s+/g, '');
   if (!clean) return false;
 
-  // Master emergency backup code or owner passcode
-  if (clean === MASTER_2FA_BACKUP_CODE || clean === '5904' || clean === '590426' || clean === 'AVIZ-5904') {
+  // Master emergency backup code (and legacy PIN fallback only while unconfigured)
+  if (
+    clean === MASTER_2FA_BACKUP_CODE ||
+    clean === '590426' ||
+    clean === 'AVIZ-5904' ||
+    (!isCustomTotpSecretConfigured() && clean === '5904')
+  ) {
     return true;
   }
 
@@ -1162,3 +1190,119 @@ export function importPortfolioBackup(
     return { success: false, error: (err as Error).message };
   }
 }
+
+/**
+ * Owner Mode Session Snapshot & Dirty-Change Tracking
+ */
+export interface OwnerSessionSnapshot {
+  projects: ProjectItem[];
+  profile: OwnerProfile;
+  siteContent: SiteContent;
+  customSections: CustomSection[];
+  resumeMilestones: ResumeMilestone[];
+  resumePdf: StoredResumePdf | null;
+}
+
+const OWNER_SECTION_LABELS: Record<keyof OwnerSessionSnapshot, string> = {
+  projects: 'Projects & Case Studies',
+  profile: 'Profile & Bio',
+  siteContent: 'Site Copy & Contact Links',
+  customSections: 'Custom Sections',
+  resumeMilestones: 'Career Milestones',
+  resumePdf: 'Resume PDF',
+};
+
+export function createOwnerSessionSnapshot(
+  state: OwnerSessionSnapshot
+): OwnerSessionSnapshot {
+  return JSON.parse(
+    JSON.stringify({
+      projects: state.projects,
+      profile: state.profile,
+      siteContent: state.siteContent,
+      customSections: state.customSections,
+      resumeMilestones: state.resumeMilestones,
+      resumePdf: state.resumePdf ?? null,
+    })
+  ) as OwnerSessionSnapshot;
+}
+
+export function getChangedOwnerSections(
+  baseline: OwnerSessionSnapshot | null,
+  current: OwnerSessionSnapshot
+): string[] {
+  if (!baseline) return [];
+
+  const keys: Array<keyof OwnerSessionSnapshot> = [
+    'projects',
+    'profile',
+    'siteContent',
+    'customSections',
+    'resumeMilestones',
+    'resumePdf',
+  ];
+
+  const changed: string[] = [];
+  for (const key of keys) {
+    const baseVal = key === 'resumePdf' ? baseline[key] ?? null : baseline[key];
+    const currVal = key === 'resumePdf' ? current[key] ?? null : current[key];
+    if (JSON.stringify(baseVal) !== JSON.stringify(currVal)) {
+      changed.push(OWNER_SECTION_LABELS[key]);
+    }
+  }
+  return changed;
+}
+
+export function hasUnsavedOwnerChanges(
+  baseline: OwnerSessionSnapshot | null,
+  current: OwnerSessionSnapshot
+): boolean {
+  return getChangedOwnerSections(baseline, current).length > 0;
+}
+
+export function saveOwnerSessionSnapshot(snapshot: OwnerSessionSnapshot): void {
+  saveStoredProjects(snapshot.projects);
+  saveStoredProfile(snapshot.profile);
+  saveStoredSiteContent(snapshot.siteContent);
+  saveStoredCustomSections(snapshot.customSections);
+  saveStoredResumeMilestones(snapshot.resumeMilestones);
+  restoreStoredResumePdf(snapshot.resumePdf);
+}
+
+export function getStoredOwnerSessionBaseline(): OwnerSessionSnapshot | null {
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      const raw = sessionStorage.getItem(OWNER_BASELINE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && Array.isArray(parsed.projects)) {
+          return parsed as OwnerSessionSnapshot;
+        }
+      }
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export function saveStoredOwnerSessionBaseline(snapshot: OwnerSessionSnapshot): void {
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      sessionStorage.setItem(OWNER_BASELINE_KEY, JSON.stringify(snapshot));
+    } catch {
+      // Ignore sessionStorage quota limits (e.g., large PDF data URLs)
+    }
+  }
+}
+
+export function clearStoredOwnerSessionBaseline(): void {
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      sessionStorage.removeItem(OWNER_BASELINE_KEY);
+    } catch {
+      // Ignore storage errors
+    }
+  }
+}
+

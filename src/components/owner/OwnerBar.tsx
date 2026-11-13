@@ -12,6 +12,8 @@ import {
   FileText,
   Type,
   Layers,
+  Save,
+  QrCode,
 } from 'lucide-react';
 
 interface OwnerBarProps {
@@ -30,6 +32,9 @@ interface OwnerBarProps {
   onLogout: () => void;
   onForgetDevice?: () => void;
   hasCustomResumePdf?: boolean;
+  hasUnsavedChanges?: boolean;
+  onSaveChanges?: () => void;
+  onOpenSecurity?: () => void;
 }
 
 export const OwnerBar: React.FC<OwnerBarProps> = ({
@@ -48,15 +53,24 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
   onLogout,
   onForgetDevice,
   hasCustomResumePdf = false,
+  hasUnsavedChanges = false,
+  onSaveChanges,
+  onOpenSecurity,
 }) => {
   return (
-    <div className="bg-zinc-950/95 border-b border-red-950/80 text-zinc-200 px-4 py-2 text-xs font-mono sticky top-0 z-50 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+    <div className="bg-zinc-950/95 border-b border-red-950/80 text-zinc-200 py-2 text-xs font-mono sticky top-0 z-50 backdrop-blur-md">
+      <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 flex flex-wrap items-center justify-between gap-3">
         {/* Left: Owner identity */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           <ShieldCheck className="w-4 h-4 text-red-500" />
           <span className="font-semibold text-white">Owner Mode Active:</span>
           <span className="text-zinc-400">aviz.arts@gmail.com</span>
+          {hasUnsavedChanges && (
+            <span className="inline-flex items-center gap-1.5 text-amber-300 border-l border-zinc-800 pl-2.5 text-[11px]">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <span>Unsaved changes</span>
+            </span>
+          )}
           {isPreviewMode && (
             <span className="px-2 py-0.5 rounded bg-zinc-800 text-white border border-zinc-700 text-[10px]">
               Visitor Preview Active
@@ -133,6 +147,17 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
             <span>Profile & Bio</span>
           </button>
 
+          {onOpenSecurity && (
+            <button
+              onClick={onOpenSecurity}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 rounded-lg transition-colors cursor-pointer"
+              title="Manage private 2FA QR pairing and owner passcode"
+            >
+              <QrCode className="w-3.5 h-3.5 text-red-400" />
+              <span>2FA &amp; Security</span>
+            </button>
+          )}
+
           <button
             onClick={onTogglePreview}
             className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors ${
@@ -172,26 +197,29 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
 
+          {hasUnsavedChanges && onSaveChanges && (
+            <button
+              onClick={onSaveChanges}
+              className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 border border-amber-500/40 rounded-lg transition-colors cursor-pointer"
+              title="Save all pending changes made during this Owner Mode session"
+            >
+              <Save className="w-3.5 h-3.5 text-amber-400" />
+              <span>Save Changes</span>
+            </button>
+          )}
+
           <button
             onClick={onLogout}
             className="flex items-center gap-1 px-2.5 py-1 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 rounded-lg transition-colors cursor-pointer"
-            title="Log out of owner mode (keeps quick owner button on this device)"
+            title="Close Owner Mode (prompts to save if edits were made)"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span>Logout</span>
+            <span>Close Owner Mode</span>
           </button>
 
           {onForgetDevice && (
             <button
-              onClick={() => {
-                if (
-                  confirm(
-                    'Hide Owner Button on this device?\n\nThe button will disappear for 100% privacy. You can always re-open the portal anytime by visiting ?owner or pressing Ctrl+Shift+E.'
-                  )
-                ) {
-                  onForgetDevice();
-                }
-              }}
+              onClick={onForgetDevice}
               className="flex items-center gap-1 px-2.5 py-1 bg-red-950/40 hover:bg-red-900/60 text-red-300 border border-red-800/60 rounded-lg transition-colors cursor-pointer"
               title="Completely hide the owner button on this device"
             >

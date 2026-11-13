@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import QRCode from 'qrcode';
 import {
   X,
   Lock,
@@ -9,25 +8,13 @@ import {
   CheckCircle2,
   ArrowRight,
   ArrowLeft,
-  Copy,
-  Check,
   Smartphone,
-  QrCode,
-  Sparkles,
-  HelpCircle,
-  RotateCcw,
-  CheckCheck,
+  ShieldAlert,
 } from 'lucide-react';
 import {
   verifyOwnerCredentials,
   verifyTwoFactorCode,
-  calculateTotpCode,
-  getStoredTotpSecret,
-  saveStoredTotpSecret,
-  generateRandomTotpSecret,
-  getOtpAuthUri,
   OWNER_EMAIL,
-  MASTER_2FA_BACKUP_CODE,
 } from '../../utils/portfolioStorage';
 
 interface OwnerLoginModalProps {
@@ -49,14 +36,6 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
-  const [showQrDetails, setShowQrDetails] = useState(true);
-
-  // Authenticator TOTP State
-  const [totpSecret, setTotpSecret] = useState<string>(() => getStoredTotpSecret());
-  const [qrDataUrl, setQrDataUrl] = useState<string>('');
-  const [copiedKey, setCopiedKey] = useState(false);
-  const [syncedCode, setSyncedCode] = useState<string>('');
-  const [showSyncedPreview, setShowSyncedPreview] = useState(false);
   const [cycleSecondsRemaining, setCycleSecondsRemaining] = useState<number>(30);
 
   // Initialize or reset on open
@@ -70,59 +49,26 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
       setError('');
       setSuccessMsg('');
       setIsVerifying(false);
-      setCopiedKey(false);
-      setShowSyncedPreview(false);
-      const secret = getStoredTotpSecret();
-      setTotpSecret(secret);
-      generateQr(secret);
     }
   }, [isOpen]);
 
-  // Generate QR Code data URL whenever secret changes
-  const generateQr = async (secret: string) => {
-    try {
-      const uri = getOtpAuthUri(secret);
-      const url = await QRCode.toDataURL(uri, {
-        width: 240,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#ffffff',
-        },
-      });
-      setQrDataUrl(url);
-    } catch (err) {
-      console.error('Failed to generate QR code', err);
-    }
-  };
-
-  // 30-Second TOTP Cycle Clock & Live Preview
+  // Neutral 30-second TOTP cycle timer (does not expose or calculate any secret/code)
   useEffect(() => {
-    let interval: any;
-    if (step === 'two-factor' && isOpen) {
-      const updateCycle = async () => {
-        const epoch = Math.floor(Date.now() / 1000);
-        const remaining = 30 - (epoch % 30);
-        setCycleSecondsRemaining(remaining);
+    if (step !== 'two-factor' || !isOpen) return;
 
-        // Update live synced code
-        try {
-          const code = await calculateTotpCode(totpSecret);
-          setSyncedCode(code);
-        } catch {
-          // ignore
-        }
-      };
+    const updateCycle = () => {
+      const epoch = Math.floor(Date.now() / 1000);
+      setCycleSecondsRemaining(30 - (epoch % 30));
+    };
 
-      updateCycle();
-      interval = setInterval(updateCycle, 1000);
-    }
+    updateCycle();
+    const interval = setInterval(updateCycle, 1000);
     return () => clearInterval(interval);
-  }, [step, isOpen, totpSecret]);
+  }, [step, isOpen]);
 
   if (!isOpen) return null;
 
-  // Step 1: Verify Email + Passcode (5904)
+  // Step 1: Verify Email + Passcode
   const handleCredentialsSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -130,21 +76,25 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
     const isValid = verifyOwnerCredentials(email, pin);
     if (isValid) {
       setStep('two-factor');
+      setActiveTab('authenticator');
       setTwoFactorInput('');
-      generateQr(totpSecret);
     } else {
       setError('Invalid owner credentials. Please verify your email and passcode.');
     }
   };
 
-  // Step 2: Verify 6-digit Authenticator App Code
+  // Step 2: Verify 6-digit Authenticator App Code or Private Recovery Code
   const handleTwoFactorSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     setError('');
 
     const cleanInput = twoFactorInput.trim().replace(/\s+/g, '');
     if (!cleanInput) {
-      setError('Please enter the 6-digit code from your authenticator app.');
+      setError(
+        activeTab === 'authenticator'
+          ? 'Please enter the 6-digit code from your paired Authenticator app.'
+          : 'Please enter your private emergency recovery code.'
+      );
       return;
     }
 
@@ -156,52 +106,19 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
         setTimeout(() => {
           onSuccess();
           onClose();
-        }, 750);
+        }, 650);
       } else {
         setError(
-          'Invalid code. Please enter the current 6-digit code shown in your Authenticator app.'
+          activeTab === 'authenticator'
+            ? 'Invalid code. Enter the active 6-digit code from your paired Authenticator app.'
+            : 'Invalid emergency recovery code.'
         );
       }
-    } catch (err) {
+    } catch {
       setError('Verification failed. Please try again.');
     } finally {
       setIsVerifying(false);
     }
-  };
-
-  // Copy Secret Key for manual entry
-  const handleCopySecretKey = () => {
-    navigator.clipboard.writeText(totpSecret);
-    setCopiedKey(true);
-    setTimeout(() => setCopiedKey(false), 2000);
-  };
-
-  // Generate new TOTP setup key and QR code
-  const handleRegenerateSecret = () => {
-    if (
-      window.confirm(
-        'Generate a new Authenticator Secret Key? You will need to scan the new QR code in your authenticator app.'
-      )
-    ) {
-      const newSecret = generateRandomTotpSecret();
-      saveStoredTotpSecret(newSecret);
-      setTotpSecret(newSecret);
-      generateQr(newSecret);
-      setError('');
-    }
-  };
-
-  // Quick autofill for live test or emergency backup
-  const handleAutofillLive = () => {
-    if (syncedCode) {
-      setTwoFactorInput(syncedCode);
-      setError('');
-    }
-  };
-
-  const handleAutofillBackup = () => {
-    setTwoFactorInput(MASTER_2FA_BACKUP_CODE);
-    setError('');
   };
 
   return (
@@ -281,7 +198,7 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
         {step === 'credentials' && (
           <form onSubmit={handleCredentialsSubmit} className="mt-5 space-y-4">
             <p className="text-xs text-zinc-400 leading-relaxed font-light">
-              Enter your registered owner email and master passcode to proceed to your Authenticator App verification.
+              Enter your registered owner email and passcode to proceed to two-factor verification.
             </p>
 
             <div>
@@ -315,14 +232,17 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
 
             <div className="pt-2 flex items-center justify-between">
               <span className="text-[10px] font-mono text-zinc-500">
-                Shortcut: <kbd className="px-1.5 py-0.5 bg-zinc-900 border border-zinc-800 rounded text-zinc-400">Ctrl+Shift+E</kbd>
+                Shortcut:{' '}
+                <kbd className="px-1.5 py-0.5 bg-zinc-900 border border-zinc-800 rounded text-zinc-400">
+                  Ctrl+Shift+E
+                </kbd>
               </span>
 
               <button
                 type="submit"
                 className="px-4 py-2.5 bg-red-600 hover:bg-red-500 text-white font-medium rounded-xl text-xs flex items-center gap-2 transition-all font-sans shadow-lg shadow-red-600/30 cursor-pointer"
               >
-                <span>Continue to Authenticator</span>
+                <span>Continue to 2FA</span>
                 <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -336,7 +256,11 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
             <div className="flex border-b border-zinc-800 gap-4 text-xs font-mono pb-2">
               <button
                 type="button"
-                onClick={() => setActiveTab('authenticator')}
+                onClick={() => {
+                  setActiveTab('authenticator');
+                  setTwoFactorInput('');
+                  setError('');
+                }}
                 className={`flex items-center gap-1.5 pb-1 transition-colors cursor-pointer ${
                   activeTab === 'authenticator'
                     ? 'text-red-400 font-bold border-b-2 border-red-500'
@@ -349,7 +273,11 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
 
               <button
                 type="button"
-                onClick={() => setActiveTab('backup')}
+                onClick={() => {
+                  setActiveTab('backup');
+                  setTwoFactorInput('');
+                  setError('');
+                }}
                 className={`flex items-center gap-1.5 pb-1 transition-colors cursor-pointer ${
                   activeTab === 'backup'
                     ? 'text-red-400 font-bold border-b-2 border-red-500'
@@ -357,171 +285,71 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
                 }`}
               >
                 <Key className="w-3.5 h-3.5" />
-                <span>Emergency Backup Key</span>
+                <span>Recovery Code</span>
               </button>
             </div>
 
-            {/* TAB 1: AUTHENTICATOR APP (Google Authenticator, Microsoft Authenticator, Authy, Apple Passwords) */}
+            {/* TAB 1: AUTHENTICATOR APP (QR & Secret hidden from login screen) */}
             {activeTab === 'authenticator' && (
-              <div className="space-y-3.5">
-                {/* QR Code & App Instructions Accordion/Card */}
-                <div className="p-3.5 bg-zinc-900/90 border border-zinc-800 rounded-2xl space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <QrCode className="w-4 h-4 text-red-400" />
-                      <span className="text-xs font-mono font-semibold text-zinc-200">
-                        Pair Authenticator App
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowQrDetails(!showQrDetails)}
-                      className="text-[10px] font-mono text-zinc-400 hover:text-white underline cursor-pointer"
-                    >
-                      {showQrDetails ? 'Minimize QR' : 'Show QR & Setup Key'}
-                    </button>
+              <div className="p-3.5 bg-zinc-900/90 border border-zinc-800 rounded-2xl space-y-2.5">
+                <div className="flex items-start gap-2.5">
+                  <ShieldAlert className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-xs text-zinc-200 font-medium">
+                      Paired Authenticator Required
+                    </p>
+                    <p className="text-[11px] text-zinc-400 leading-relaxed">
+                      Open your paired Authenticator app and enter the active 6-digit code. For
+                      security, your 2FA QR code and setup key are never displayed on this screen —
+                      manage or pair new devices inside <strong>Owner Mode → 2FA &amp; Security</strong>.
+                    </p>
                   </div>
+                </div>
 
-                  {showQrDetails && (
-                    <div className="pt-1 space-y-3">
-                      <div className="flex flex-col sm:flex-row items-center gap-4 bg-black/60 p-3 rounded-xl border border-zinc-800/80">
-                        {/* QR Code Display */}
-                        {qrDataUrl ? (
-                          <div className="shrink-0 p-1.5 bg-white rounded-lg shadow-md">
-                            <img
-                              src={qrDataUrl}
-                              alt="Scan in Authenticator App"
-                              className="w-28 h-28 object-contain block"
-                            />
-                          </div>
-                        ) : (
-                          <div className="w-28 h-28 bg-zinc-800 animate-pulse rounded-lg flex items-center justify-center text-xs font-mono text-zinc-500">
-                            Loading QR...
-                          </div>
-                        )}
-
-                        {/* Setup details */}
-                        <div className="flex-1 text-left space-y-1.5">
-                          <p className="text-[11px] text-zinc-300 leading-snug">
-                            1. Open <strong>Google Authenticator</strong>, <strong>Microsoft Authenticator</strong>, or <strong>Authy</strong> on your phone.
-                          </p>
-                          <p className="text-[11px] text-zinc-300 leading-snug">
-                            2. Tap <strong>+</strong> and choose <strong>Scan a QR code</strong>.
-                          </p>
-                          <p className="text-[11px] text-zinc-400 leading-snug">
-                            Or enter setup key manually:
-                          </p>
-
-                          <div className="flex items-center gap-1.5 pt-0.5">
-                            <code className="px-2 py-1 bg-zinc-950 border border-zinc-800 text-red-400 font-mono text-[11px] font-semibold tracking-wider rounded select-all">
-                              {totpSecret}
-                            </code>
-                            <button
-                              type="button"
-                              onClick={handleCopySecretKey}
-                              className="p-1 text-zinc-400 hover:text-white bg-zinc-800 hover:bg-zinc-700 rounded transition-colors cursor-pointer"
-                              title="Copy setup key"
-                            >
-                              {copiedKey ? (
-                                <Check className="w-3 h-3 text-emerald-400" />
-                              ) : (
-                                <Copy className="w-3 h-3" />
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Supported Authenticator Apps Pill List */}
-                      <div className="flex items-center justify-between text-[10px] font-mono text-zinc-500 pt-0.5">
-                        <span>Works with: Google Authenticator · Microsoft Authenticator · Authy · 1Password · Apple Passwords</span>
-                        <button
-                          type="button"
-                          onClick={handleRegenerateSecret}
-                          className="hover:text-red-400 flex items-center gap-1 cursor-pointer"
-                          title="Generate a fresh secret key"
-                        >
-                          <RotateCcw className="w-2.5 h-2.5" />
-                          <span>Reset Key</span>
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* 30s Live Sync Indicator */}
-                  <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400 pt-1 border-t border-zinc-800/60">
-                    <span className="flex items-center gap-1.5">
-                      <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                      </span>
-                      <span>App code cycle: <strong>{cycleSecondsRemaining}s remaining</strong></span>
+                <div className="flex items-center justify-between text-[10px] font-mono text-zinc-400 pt-2 border-t border-zinc-800/70">
+                  <span className="flex items-center gap-1.5">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                     </span>
-
-                    <button
-                      type="button"
-                      onClick={() => setShowSyncedPreview(!showSyncedPreview)}
-                      className="text-zinc-500 hover:text-zinc-300 underline cursor-pointer"
-                    >
-                      {showSyncedPreview ? 'Hide Preview' : 'Show Synced Preview'}
-                    </button>
-                  </div>
-
-                  {showSyncedPreview && syncedCode && (
-                    <div className="p-2.5 bg-black/60 border border-zinc-800 rounded-xl flex items-center justify-between animate-in fade-in">
-                      <span className="text-[11px] font-mono text-zinc-400">
-                        Current App Code: <strong className="text-white font-mono tracking-widest text-sm">{syncedCode}</strong>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={handleAutofillLive}
-                        className="px-2 py-0.5 bg-red-950/60 border border-red-800 text-red-300 hover:bg-red-900 rounded text-[10px] font-mono flex items-center gap-1 cursor-pointer"
-                      >
-                        <Sparkles className="w-3 h-3" />
-                        <span>Autofill</span>
-                      </button>
-                    </div>
-                  )}
+                    <span>
+                      TOTP window refreshes in <strong>{cycleSecondsRemaining}s</strong>
+                    </span>
+                  </span>
+                  <span className="text-zinc-500">QR Hidden</span>
                 </div>
               </div>
             )}
 
-            {/* TAB 2: EMERGENCY BACKUP KEY */}
+            {/* TAB 2: EMERGENCY RECOVERY CODE (Input only, never displayed) */}
             {activeTab === 'backup' && (
-              <div className="p-4 bg-zinc-900/90 border border-zinc-800 rounded-2xl space-y-3">
+              <div className="p-3.5 bg-zinc-900/90 border border-zinc-800 rounded-2xl space-y-2">
                 <div className="flex items-center gap-2 text-zinc-200 text-xs font-mono font-semibold">
                   <Key className="w-4 h-4 text-red-400" />
-                  <span>Master Emergency Recovery Key</span>
+                  <span>Private Emergency Recovery</span>
                 </div>
-                <p className="text-xs text-zinc-400 leading-relaxed font-light">
-                  If you lost your phone or cannot open your Authenticator app, use your permanent master recovery key:
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  Lost access to your paired Authenticator device? Enter your private emergency
+                  recovery code below to sign in, then re-pair or rotate your QR key inside{' '}
+                  <strong>2FA &amp; Security</strong>.
                 </p>
-                <div className="flex items-center justify-between p-3 bg-black/60 border border-zinc-800 rounded-xl font-mono">
-                  <span className="text-lg font-bold tracking-[0.2em] text-red-400 pl-2">
-                    {MASTER_2FA_BACKUP_CODE}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={handleAutofillBackup}
-                    className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded text-xs font-sans font-medium transition-colors cursor-pointer"
-                  >
-                    Autofill Backup Key
-                  </button>
-                </div>
               </div>
             )}
 
-            {/* 6-Digit Code Input */}
+            {/* Code Input */}
             <div>
               <label className="block text-xs font-mono text-zinc-400 mb-1.5">
-                Enter 6-Digit Code from your Authenticator App
+                {activeTab === 'authenticator'
+                  ? 'Enter 6-Digit Code from Your Authenticator App'
+                  : 'Enter Private Recovery Code'}
               </label>
               <input
-                type="text"
+                type={activeTab === 'backup' ? 'password' : 'text'}
+                inputMode={activeTab === 'authenticator' ? 'numeric' : 'text'}
                 required
-                maxLength={8}
+                maxLength={12}
                 autoFocus
+                autoComplete="one-time-code"
                 value={twoFactorInput}
                 onChange={(e) => setTwoFactorInput(e.target.value.replace(/[^0-9A-Za-z-]/g, ''))}
                 placeholder="••••••"
@@ -536,6 +364,7 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
                 onClick={() => {
                   setStep('credentials');
                   setError('');
+                  setTwoFactorInput('');
                 }}
                 className="px-3 py-2 text-zinc-400 hover:text-white rounded-xl text-xs font-mono flex items-center gap-1.5 hover:bg-zinc-900 transition-colors cursor-pointer"
               >
@@ -553,7 +382,7 @@ export const OwnerLoginModal: React.FC<OwnerLoginModalProps> = ({
                 ) : (
                   <>
                     <Key className="w-3.5 h-3.5" />
-                    <span>Verify & Unlock Portal</span>
+                    <span>Verify &amp; Unlock Portal</span>
                   </>
                 )}
               </button>

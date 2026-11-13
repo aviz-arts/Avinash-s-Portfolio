@@ -22,6 +22,17 @@ import {
   generateTwoFactorCode,
   verifyTwoFactorCode,
   MASTER_2FA_BACKUP_CODE,
+  DEFAULT_RESUME_MILESTONES,
+  createOwnerSessionSnapshot,
+  getChangedOwnerSections,
+  hasUnsavedOwnerChanges,
+  saveOwnerSessionSnapshot,
+  getStoredProjects,
+  getStoredProfile,
+  getStoredSiteContent,
+  getStoredCustomSections,
+  getStoredResumeMilestones,
+  getStoredResumePdf,
 } from './portfolioStorage';
 import { ProjectItem } from '../types/portfolio';
 
@@ -336,5 +347,93 @@ test('contactProjectOptions can be updated via array or string lines', () => {
   assert.deepEqual(updatedNewline.contactProjectOptions, ['Option A', 'Option B', 'Option C']);
 });
 
+test('owner session snapshot detects changes across all editable slices and restores baseline cleanly', () => {
+  const initialState = createOwnerSessionSnapshot({
+    projects: [mockProject],
+    profile: DEFAULT_PROFILE,
+    siteContent: DEFAULT_SITE_CONTENT,
+    customSections: DEFAULT_CUSTOM_SECTIONS,
+    resumeMilestones: DEFAULT_RESUME_MILESTONES,
+    resumePdf: null,
+  });
 
+  // Baseline clone does not share object references
+  const current = createOwnerSessionSnapshot(initialState);
+  assert.equal(hasUnsavedOwnerChanges(initialState, current), false);
+  assert.deepEqual(getChangedOwnerSections(initialState, current), []);
+  assert.equal(hasUnsavedOwnerChanges(null, current), false);
+
+  // Modify each slice and confirm accurate detection
+  current.siteContent.heroHeadline = 'Edited Headline';
+  current.projects[0].title = 'Edited Project Title';
+  current.profile.name = 'Avinash R';
+  current.customSections[0].title = 'Updated Custom Section';
+  current.resumeMilestones[0].role = 'Principal Game Designer';
+  current.resumePdf = {
+    dataUrl: 'data:application/pdf;base64,AAAA',
+    filename: 'Resume_v2.pdf',
+    uploadedAt: '2026-11-13T10:00:00.000Z',
+    sizeBytes: 1024,
+  };
+
+  assert.equal(hasUnsavedOwnerChanges(initialState, current), true);
+  const changed = getChangedOwnerSections(initialState, current);
+  assert.deepEqual(changed, [
+    'Projects & Case Studies',
+    'Profile & Bio',
+    'Site Copy & Contact Links',
+    'Custom Sections',
+    'Career Milestones',
+    'Resume PDF',
+  ]);
+
+  // Save edited snapshot, then restore baseline (simulating Discard Changes)
+  saveOwnerSessionSnapshot(current);
+  assert.equal(getStoredSiteContent().heroHeadline, 'Edited Headline');
+  assert.equal(getStoredResumePdf()?.filename, 'Resume_v2.pdf');
+
+  saveOwnerSessionSnapshot(initialState);
+  assert.equal(getStoredSiteContent().heroHeadline, DEFAULT_SITE_CONTENT.heroHeadline);
+  assert.equal(getStoredProjects()[0].title, 'Test Cyber Hub');
+  assert.equal(getStoredProfile().name, DEFAULT_PROFILE.name);
+  assert.equal(getStoredCustomSections()[0].title, DEFAULT_CUSTOM_SECTIONS[0].title);
+  assert.equal(getStoredResumeMilestones()[0].role, DEFAULT_RESUME_MILESTONES[0].role);
+  assert.equal(getStoredResumePdf(), null);
+});
+
+test('custom TOTP secret rotation enforces private 2FA and custom passcode disables factory PIN', async () => {
+  const {
+    isCustomTotpSecretConfigured,
+    generateRandomTotpSecret,
+    saveStoredTotpSecret,
+    calculateTotpCode,
+    verifyTwoFactorCode,
+    verifyOwnerPasscode,
+    updateOwnerPin,
+    verifyOwnerCredentials,
+  } = await import('./portfolioStorage');
+
+  assert.equal(isCustomTotpSecretConfigured(), false);
+  const rotatedSecret = generateRandomTotpSecret(32);
+  assert.equal(rotatedSecret.length, 32);
+  assert.ok(/^[A-Z2-7]{32}$/.test(rotatedSecret));
+
+  saveStoredTotpSecret(rotatedSecret);
+  assert.equal(isCustomTotpSecretConfigured(), true);
+
+  // Step 1 default PIN '5904' is rejected once custom TOTP secret is active
+  assert.equal(await verifyTwoFactorCode('5904'), false);
+
+  // Valid TOTP code generated from the new rotated secret succeeds
+  const validCode = await calculateTotpCode(rotatedSecret);
+  assert.equal(await verifyTwoFactorCode(validCode), true);
+
+  // Changing passcode replaces factory PIN '5904'
+  assert.equal(verifyOwnerPasscode('5904'), true);
+  assert.equal(updateOwnerPin('5904', '884422'), true);
+  assert.equal(verifyOwnerPasscode('884422'), true);
+  assert.equal(verifyOwnerPasscode('5904'), false);
+  assert.equal(verifyOwnerCredentials('aviz.arts@gmail.com', '884422'), true);
+  assert.equal(verifyOwnerCredentials('aviz.arts@gmail.com', '5904'), false);
+});
 

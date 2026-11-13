@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ProjectItem } from './types/portfolio';
 import { filterProjects } from './utils/lightingLogic';
@@ -19,6 +19,8 @@ import { ProfileEditorModal } from './components/owner/ProfileEditorModal';
 import { ResumeUploaderModal } from './components/resume/ResumeUploaderModal';
 import { SiteContentEditorModal } from './components/owner/SiteContentEditorModal';
 import { SectionManagerModal } from './components/owner/SectionManagerModal';
+import { UnsavedChangesModal } from './components/owner/UnsavedChangesModal';
+import { OwnerSecurityModal } from './components/owner/OwnerSecurityModal';
 import { CustomSectionRenderer } from './components/portfolio/CustomSectionRenderer';
 import { EditableText } from './components/common/EditableText';
 import { CustomCursor } from './components/common/CustomCursor';
@@ -58,6 +60,13 @@ import {
   StoredResumePdf,
   CustomSection,
   ResumeMilestone,
+  OwnerSessionSnapshot,
+  createOwnerSessionSnapshot,
+  getChangedOwnerSections,
+  saveOwnerSessionSnapshot,
+  getStoredOwnerSessionBaseline,
+  saveStoredOwnerSessionBaseline,
+  clearStoredOwnerSessionBaseline,
   DEFAULT_AVATAR_URL,
 } from './utils/portfolioStorage';
 import {
@@ -109,6 +118,24 @@ export default function App() {
   const [editingCustomSection, setEditingCustomSection] = useState<CustomSection | null>(null);
   const [editingProject, setEditingProject] = useState<ProjectItem | null>(null);
   const [statusBanner, setStatusBanner] = useState<string | null>(null);
+  const [ownerSessionBaseline, setOwnerSessionBaseline] = useState<OwnerSessionSnapshot | null>(() => {
+    if (!isOwnerSessionActive()) return null;
+    const savedBaseline = getStoredOwnerSessionBaseline();
+    if (savedBaseline) return savedBaseline;
+    const initial = createOwnerSessionSnapshot({
+      projects: getStoredProjects(),
+      profile: getStoredProfile(),
+      siteContent: getStoredSiteContent(),
+      customSections: getStoredCustomSections(),
+      resumeMilestones: getStoredResumeMilestones(),
+      resumePdf: getStoredResumePdf(),
+    });
+    saveStoredOwnerSessionBaseline(initial);
+    return initial;
+  });
+  const [pendingOwnerCloseAction, setPendingOwnerCloseAction] = useState<'logout' | 'forgetDevice' | null>(null);
+  const [pendingCloseModalMode, setPendingCloseModalMode] = useState<'unsaved' | 'confirmForget'>('unsaved');
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -149,6 +176,36 @@ export default function App() {
       setStatusBanner(null);
     }, 4000);
   };
+
+  const currentOwnerSnapshot = useMemo<OwnerSessionSnapshot>(
+    () => ({
+      projects,
+      profile,
+      siteContent,
+      customSections,
+      resumeMilestones,
+      resumePdf,
+    }),
+    [projects, profile, siteContent, customSections, resumeMilestones, resumePdf]
+  );
+
+  const changedOwnerSections = useMemo(
+    () => (isOwner ? getChangedOwnerSections(ownerSessionBaseline, currentOwnerSnapshot) : []),
+    [isOwner, ownerSessionBaseline, currentOwnerSnapshot]
+  );
+
+  const hasUnsavedOwnerEdits = changedOwnerSections.length > 0;
+
+  // Warn before browser tab reload/close when Owner Mode has unsaved edits
+  useEffect(() => {
+    if (!isOwner || !hasUnsavedOwnerEdits) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isOwner, hasUnsavedOwnerEdits]);
 
   // Filter projects using pure tested logic
   const filteredProjects = filterProjects(projects, selectedCategory, searchQuery);
@@ -192,8 +249,7 @@ export default function App() {
 
   // Single-line text update handler for EditableText and custom fields
   const handleUpdateSiteLine = <K extends keyof SiteContent>(key: K, val: any) => {
-    const updated = updateSiteContentKey(key, val, siteContent);
-    setSiteContent(updated);
+    setSiteContent((prev) => updateSiteContentKey(key, val, prev));
     showBanner(`Updated: ${String(key)}`);
   };
 
@@ -348,24 +404,87 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const executeCloseOwnerMode = (action: 'logout' | 'forgetDevice', bannerMsg?: string) => {
     setOwnerSession(false);
     setIsOwner(false);
     setIsPreviewMode(false);
-    showBanner('Signed out of owner mode.');
+    setIsSecurityModalOpen(false);
+    clearStoredOwnerSessionBaseline();
+    setOwnerSessionBaseline(null);
+    setPendingOwnerCloseAction(null);
+
+    if (action === 'forgetDevice') {
+      setRecognizedOwnerDevice(false);
+      setIsOwnerDevice(false);
+      setShowSecretOwnerTrigger(false);
+      showBanner(bannerMsg || 'Owner button is now 100% hidden on this device.');
+    } else {
+      showBanner(bannerMsg || 'Signed out of owner mode.');
+    }
+  };
+
+  const handleSaveAllOwnerChanges = () => {
+    saveOwnerSessionSnapshot(currentOwnerSnapshot);
+    const freshBaseline = createOwnerSessionSnapshot(currentOwnerSnapshot);
+    setOwnerSessionBaseline(freshBaseline);
+    saveStoredOwnerSessionBaseline(freshBaseline);
+    showBanner('All Owner Mode changes saved.');
+  };
+
+  const handleLogout = () => {
+    if (hasUnsavedOwnerEdits) {
+      setPendingCloseModalMode('unsaved');
+      setPendingOwnerCloseAction('logout');
+      return;
+    }
+    executeCloseOwnerMode('logout');
   };
 
   const handleForgetDevice = () => {
-    setOwnerSession(false);
-    setIsOwner(false);
-    setIsPreviewMode(false);
-    setRecognizedOwnerDevice(false);
-    setIsOwnerDevice(false);
-    setShowSecretOwnerTrigger(false);
-    showBanner('Owner button is now 100% hidden on this device.');
+    if (hasUnsavedOwnerEdits) {
+      setPendingCloseModalMode('unsaved');
+      setPendingOwnerCloseAction('forgetDevice');
+      return;
+    }
+    setPendingCloseModalMode('confirmForget');
+    setPendingOwnerCloseAction('forgetDevice');
+  };
+
+  const handleSaveAndCloseOwnerMode = () => {
+    const action = pendingOwnerCloseAction || 'logout';
+    saveOwnerSessionSnapshot(currentOwnerSnapshot);
+    executeCloseOwnerMode(
+      action,
+      action === 'forgetDevice'
+        ? 'Changes saved and Owner button hidden on this device.'
+        : 'All changes saved and Owner Mode closed.'
+    );
+  };
+
+  const handleDiscardAndCloseOwnerMode = () => {
+    const action = pendingOwnerCloseAction || 'logout';
+    if (ownerSessionBaseline) {
+      const restored = createOwnerSessionSnapshot(ownerSessionBaseline);
+      setProjects(restored.projects);
+      setProfile(restored.profile);
+      setSiteContent(restored.siteContent);
+      setCustomSections(restored.customSections);
+      setResumeMilestones(restored.resumeMilestones);
+      setResumePdf(restored.resumePdf);
+      saveOwnerSessionSnapshot(restored);
+    }
+    executeCloseOwnerMode(
+      action,
+      action === 'forgetDevice'
+        ? 'Changes discarded and Owner button hidden on this device.'
+        : 'Changes discarded and Owner Mode closed.'
+    );
   };
 
   const handleLoginSuccess = () => {
+    const snapshot = createOwnerSessionSnapshot(currentOwnerSnapshot);
+    setOwnerSessionBaseline(snapshot);
+    saveStoredOwnerSessionBaseline(snapshot);
     setOwnerSession(true);
     setRecognizedOwnerDevice(true);
     setIsOwnerDevice(true);
@@ -431,6 +550,9 @@ export default function App() {
           onLogout={handleLogout}
           onForgetDevice={handleForgetDevice}
           hasCustomResumePdf={Boolean(resumePdf)}
+          hasUnsavedChanges={hasUnsavedOwnerEdits}
+          onSaveChanges={handleSaveAllOwnerChanges}
+          onOpenSecurity={() => setIsSecurityModalOpen(true)}
         />
       )}
 
@@ -1605,6 +1727,27 @@ export default function App() {
         initialTab={sectionManagerTargetTab}
         initialSectionToEdit={editingCustomSection}
       />
+
+      {/* Save Changes Before Closing Owner Mode Modal */}
+      <UnsavedChangesModal
+        isOpen={pendingOwnerCloseAction !== null}
+        mode={pendingCloseModalMode}
+        closeAction={pendingOwnerCloseAction}
+        changedSections={changedOwnerSections}
+        onSaveAndClose={handleSaveAndCloseOwnerMode}
+        onDiscardAndClose={handleDiscardAndCloseOwnerMode}
+        onConfirmForgetOnly={() => executeCloseOwnerMode('forgetDevice')}
+        onCancel={() => setPendingOwnerCloseAction(null)}
+      />
+
+      {/* Owner-Only 2FA QR & Passcode Security Vault */}
+      {isOwner && (
+        <OwnerSecurityModal
+          isOpen={isSecurityModalOpen}
+          onClose={() => setIsSecurityModalOpen(false)}
+          onStatusMessage={showBanner}
+        />
+      )}
     </div>
   );
 }
