@@ -91,7 +91,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
   };
 
   return (
-    <div className="relative min-h-[calc(100vh-80px)] py-16 sm:py-24 overflow-hidden bg-[#050505]">
+    <div className="relative min-h-[calc(100vh-80px)] py-12 sm:py-16 overflow-hidden bg-[#050505]">
       {/* Atmospheric ambient lighting & vignette */}
       <div className="absolute inset-0 pointer-events-none z-0">
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[450px] bg-red-600/10 blur-[150px] rounded-full" />
@@ -99,7 +99,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-[#050505]/70 to-[#000000]" />
       </div>
 
-      <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 relative z-10 space-y-12 sm:space-y-16">
+      <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 relative z-10 space-y-10 sm:space-y-12">
         {/* 1. Header Display: Kicker + Let's Work Together */}
         <div className="text-center max-w-2xl mx-auto space-y-3">
           <div className="text-xs font-mono tracking-widest text-red-500 uppercase font-semibold">

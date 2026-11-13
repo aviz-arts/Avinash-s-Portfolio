@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ProjectItem } from './types/portfolio';
 import { filterProjects } from './utils/lightingLogic';
+import { getAdaptiveGridClass } from './utils/layoutHelpers';
 import { Header } from './components/navigation/Header';
 import { LightingStudio } from './components/studio/LightingStudio';
 import { ProjectCard } from './components/portfolio/ProjectCard';
@@ -516,7 +517,7 @@ export default function App() {
           onAddNewProject={handleAddNewProject}
           onAddNewSection={() => handleOpenAddSection('work')}
           onAddNewMilestone={() => {
-            setActiveTab('resume');
+            setActiveTab('about');
             const newId = `milestone-${Date.now()}`;
             handleCreateResumeMilestone({
               id: newId,
@@ -533,7 +534,14 @@ export default function App() {
               photoUrl: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?auto=format&fit=crop&w=1200&q=80',
               photoCaption: 'Mechanics blockout & sightline analysis pass',
             });
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            setTimeout(() => {
+              const el = document.getElementById('career-timeline');
+              if (el) {
+                el.scrollIntoView({ behavior: 'smooth' });
+              } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
+            }, 150);
           }}
           onOpenSectionManager={() => {
             setEditingCustomSection(null);
@@ -746,12 +754,15 @@ export default function App() {
                   </button>
 
                   <button
-                    onClick={handleDownloadResume}
+                    onClick={() => {
+                      setActiveTab('resume');
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
                     className="px-4 py-3 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 hover:text-white border border-zinc-700/80 rounded-xl text-sm transition-all flex items-center gap-2 font-mono cursor-pointer"
-                    title="Download Resume PDF"
+                    title="Open Resume Tab"
                   >
                     <Download className="w-4 h-4 text-red-500" />
-                    <span>Download Resume PDF</span>
+                    <span>Download Resume</span>
                   </button>
 
                   {ownerCanEdit && (
@@ -765,165 +776,48 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Right Column: High-Fidelity Artist Portrait & Studio Card (lg:col-span-5) */}
+              {/* Right Column: Clean Artist Portrait Card with Direct Inquiry (lg:col-span-5) */}
               <div className="lg:col-span-5">
                 <div className="relative group max-w-sm mx-auto lg:max-w-none">
                   {/* Subtle rim-lighting bloom */}
                   <div className="absolute -inset-1 bg-gradient-to-tr from-red-600/20 via-zinc-800/10 to-red-600/30 rounded-3xl blur-xl opacity-70 group-hover:opacity-100 transition duration-500" />
 
                   <div className="relative bg-zinc-900/80 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-xl">
-                    {/* Top status bar */}
-                    <div className="px-5 py-3 border-b border-zinc-800 bg-zinc-950/80 flex items-center justify-between text-xs font-mono">
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                        <span className="text-zinc-200 font-medium">Available for Lead Roles</span>
-                      </div>
-                      {ownerCanEdit ? (
-                        <button
-                          onClick={() => setIsProfileEditorOpen(true)}
-                          className="text-red-400 hover:text-red-300 text-[11px] font-semibold flex items-center gap-1 bg-red-950/60 px-2 py-0.5 rounded border border-red-800/60 transition-colors"
-                          title="Upload or update artist portrait"
-                        >
-                          <Upload className="w-3 h-3" />
-                          <span>Edit Photo</span>
-                        </button>
-                      ) : (
-                        <span className="text-red-400 text-[11px] font-semibold">Unreal Engine 5.4</span>
-                      )}
-                    </div>
-
-                    {/* Portrait Image with subtle lighting contrast */}
+                    {/* Portrait Image */}
                     <div className="relative aspect-[4/5] sm:aspect-square lg:aspect-[4/5] w-full overflow-hidden bg-zinc-950">
                       <img
                         src={siteContent.avatarUrl || DEFAULT_AVATAR_URL}
                         alt="Avinash - Game Designer & Lighting Artist"
                         className="w-full h-full object-cover object-top filter contrast-105 group-hover:scale-102 transition-transform duration-700"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/30 to-transparent" />
+                      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/70 via-transparent to-transparent" />
 
-                      {/* Telemetry overlay card */}
-                      <div className="absolute bottom-4 left-4 right-4 text-xs font-mono">
-                        <div className="p-3.5 rounded-2xl bg-zinc-950/90 backdrop-blur-md border border-zinc-800 space-y-1.5 shadow-xl">
-                          <div className="flex items-center justify-between">
-                            <span className="text-white font-display font-bold text-base">Avinash</span>
-                            <span className="text-red-400 text-[11px] font-semibold">100% Core Design</span>
-                          </div>
-                          <div className="text-[11px] text-zinc-300">
-                            Game Designer (Profession) · Lighting Artist (Passion)
-                          </div>
-                          <div className="text-[10px] text-zinc-400 pt-1.5 border-t border-zinc-800/80 flex items-center justify-between">
-                            <span>Core Loops · Mechanics · Pacing</span>
-                            <span>Lumen 60 FPS (Passion)</span>
-                          </div>
-                        </div>
-                      </div>
+                      {ownerCanEdit && (
+                        <button
+                          onClick={() => setIsProfileEditorOpen(true)}
+                          className="absolute top-3.5 right-3.5 text-red-300 hover:text-white text-[11px] font-mono font-semibold flex items-center gap-1 bg-zinc-950/85 backdrop-blur-md px-2.5 py-1 rounded-lg border border-red-800/60 transition-colors cursor-pointer"
+                          title="Upload or update artist portrait"
+                        >
+                          <Upload className="w-3 h-3" />
+                          <span>Edit Photo</span>
+                        </button>
+                      )}
                     </div>
 
-                    {/* Card Footer */}
-                    <div className="p-4 bg-zinc-950/80 border-t border-zinc-800/80 flex items-center justify-between text-xs font-mono">
-                      <div className="text-zinc-400 flex items-center gap-2">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
-                        <span>Game Systems & Atmosphere</span>
-                      </div>
+                    {/* Card Footer: Direct Inquiry Only */}
+                    <div className="p-4 bg-zinc-950/85 border-t border-zinc-800/80 flex items-center justify-end text-xs font-mono">
                       <button
                         onClick={() => {
                           setActiveTab('contact');
                           window.scrollTo({ top: 0, behavior: 'smooth' });
                         }}
-                        className="text-red-400 hover:text-red-300 transition-colors flex items-center gap-1 font-medium cursor-pointer"
+                        className="text-red-400 hover:text-red-300 transition-colors flex items-center gap-1.5 font-medium cursor-pointer"
                       >
                         <span>Direct Inquiry</span>
                         <ArrowRight className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Production KPI Strip */}
-            <div className="mt-16 pt-8 border-t border-zinc-800/80 grid grid-cols-2 md:grid-cols-4 gap-6 text-zinc-400 font-mono text-xs">
-              <div>
-                <div className="text-2xl font-bold font-display text-white tabular-nums">
-                  <EditableText
-                    value={siteContent.stat1Value}
-                    onChange={(v) => handleUpdateSiteLine('stat1Value', v)}
-                    isOwner={ownerCanEdit}
-                    label="Stat 1 Value"
-                    as="span"
-                  />
-                </div>
-                <div className="text-zinc-500 mt-0.5">
-                  <EditableText
-                    value={siteContent.stat1Label}
-                    onChange={(v) => handleUpdateSiteLine('stat1Label', v)}
-                    isOwner={ownerCanEdit}
-                    label="Stat 1 Label"
-                    as="span"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="text-2xl font-bold font-display text-red-500 tabular-nums">
-                  <EditableText
-                    value={siteContent.stat2Value}
-                    onChange={(v) => handleUpdateSiteLine('stat2Value', v)}
-                    isOwner={ownerCanEdit}
-                    label="Stat 2 Value"
-                    as="span"
-                  />
-                </div>
-                <div className="text-zinc-500 mt-0.5">
-                  <EditableText
-                    value={siteContent.stat2Label}
-                    onChange={(v) => handleUpdateSiteLine('stat2Label', v)}
-                    isOwner={ownerCanEdit}
-                    label="Stat 2 Label"
-                    as="span"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="text-2xl font-bold font-display text-zinc-100 tabular-nums">
-                  <EditableText
-                    value={siteContent.stat3Value}
-                    onChange={(v) => handleUpdateSiteLine('stat3Value', v)}
-                    isOwner={ownerCanEdit}
-                    label="Stat 3 Value"
-                    as="span"
-                  />
-                </div>
-                <div className="text-zinc-500 mt-0.5">
-                  <EditableText
-                    value={siteContent.stat3Label}
-                    onChange={(v) => handleUpdateSiteLine('stat3Label', v)}
-                    isOwner={ownerCanEdit}
-                    label="Stat 3 Label"
-                    as="span"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="text-2xl font-bold font-display text-zinc-100 tabular-nums">
-                  <EditableText
-                    value={siteContent.stat4Value}
-                    onChange={(v) => handleUpdateSiteLine('stat4Value', v)}
-                    isOwner={ownerCanEdit}
-                    label="Stat 4 Value"
-                    as="span"
-                  />
-                </div>
-                <div className="text-zinc-500 mt-0.5">
-                  <EditableText
-                    value={siteContent.stat4Label}
-                    onChange={(v) => handleUpdateSiteLine('stat4Label', v)}
-                    isOwner={ownerCanEdit}
-                    label="Stat 4 Label"
-                    as="span"
-                  />
                 </div>
               </div>
             </div>
@@ -1079,7 +973,7 @@ export default function App() {
                 No matching projects found for "{searchQuery}".
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className={getAdaptiveGridClass(filteredProjects.length, 'cards')}>
                 {filteredProjects.map((project) => (
                   <ProjectCard
                     key={project.id}
@@ -1437,7 +1331,7 @@ export default function App() {
         exit={{ opacity: 0, y: -12 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
       >
-        {/* 7. About & Toolset Section */}
+        {/* 7. About, Toolset & Interactive Career Timeline */}
         <AboutSection
           onOpenContact={() => {
             setActiveTab('contact');
@@ -1447,20 +1341,27 @@ export default function App() {
           siteContent={siteContent}
           isOwner={ownerCanEdit}
           onUpdateSiteContent={handleUpdateSiteLine}
+          milestones={resumeMilestones}
+          onUpdateMilestone={handleUpdateResumeMilestone}
+          onCreateMilestone={handleCreateResumeMilestone}
+          onDeleteMilestone={handleDeleteResumeMilestone}
         />
 
         {/* Custom Sections assigned to ABOUT tab (e.g. Hardware Rig, Look-dev Pipeline) */}
-        <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 pb-20">
-          <CustomSectionRenderer
-            sections={customSections}
-            tab="about"
-            isOwner={ownerCanEdit}
-            onUpdateSection={handleUpdateCustomSection}
-            onDeleteSection={handleDeleteCustomSection}
-            onAddSectionClick={handleOpenAddSection}
-            onEditSectionClick={handleOpenEditSection}
-          />
-        </div>
+        {(ownerCanEdit ||
+          customSections.some((s) => s.tab === 'about' && s.visible !== false)) && (
+          <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 pb-12">
+            <CustomSectionRenderer
+              sections={customSections}
+              tab="about"
+              isOwner={ownerCanEdit}
+              onUpdateSection={handleUpdateCustomSection}
+              onDeleteSection={handleDeleteCustomSection}
+              onAddSectionClick={handleOpenAddSection}
+              onEditSectionClick={handleOpenEditSection}
+            />
+          </div>
+        )}
       </motion.div>
     )}
 
@@ -1472,17 +1373,13 @@ export default function App() {
         exit={{ opacity: 0, y: -12 }}
         transition={{ duration: 0.3, ease: 'easeOut' }}
       >
-        {/* Dedicated Resume Page with Interactive Timeline & Photo Upload */}
+        {/* Dedicated Resume Page (CV, PDF Download & Proficiencies) */}
         <ResumeSection
           profile={profile}
-          milestones={resumeMilestones}
           resumePdf={resumePdf}
           onDownloadResume={handleDownloadResume}
           onOpenResumeUploader={() => setIsResumeUploaderOpen(true)}
           isOwner={ownerCanEdit}
-          onUpdateMilestone={handleUpdateResumeMilestone}
-          onCreateMilestone={handleCreateResumeMilestone}
-          onDeleteMilestone={handleDeleteResumeMilestone}
           siteContent={siteContent}
           onUpdateSiteContent={handleUpdateSiteLine}
           customSections={customSections}
@@ -1541,89 +1438,17 @@ export default function App() {
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-6">
-            <a
-              href={`mailto:${siteContent.contactEmail}`}
-              className="hover:text-red-400 transition-colors"
-            >
-              {siteContent.contactEmail}
-            </a>
+          {/* Owner badge (Only visible when logged in) */}
+          {isOwner && (
             <button
-              onClick={() => {
-                setActiveTab('home');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className={`transition-colors cursor-pointer ${
-                activeTab === 'home' ? 'text-red-400 font-semibold' : 'hover:text-red-400'
-              }`}
+              onClick={() => setIsSiteContentEditorOpen(true)}
+              className="hover:text-red-400 transition-colors flex items-center gap-1.5 text-red-400 font-mono text-[11px] px-2 py-0.5 rounded bg-red-950/40 border border-red-900/60 cursor-pointer"
+              title="Owner Mode Active: Click to edit all text lines"
             >
-              Home
+              <Lock className="w-3 h-3 text-red-500" />
+              <span>Owner Mode Active</span>
             </button>
-            <button
-              onClick={() => {
-                setActiveTab('work');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className={`transition-colors cursor-pointer ${
-                activeTab === 'work' ? 'text-red-400 font-semibold' : 'hover:text-white'
-              }`}
-            >
-              Work
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('about');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className={`transition-colors cursor-pointer ${
-                activeTab === 'about' ? 'text-red-400 font-semibold' : 'hover:text-white'
-              }`}
-            >
-              About
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('resume');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className={`transition-colors cursor-pointer ${
-                activeTab === 'resume' ? 'text-red-400 font-semibold' : 'hover:text-white'
-              }`}
-            >
-              Resume
-            </button>
-            <button
-              onClick={() => {
-                setActiveTab('contact');
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className={`transition-colors cursor-pointer ${
-                activeTab === 'contact' ? 'text-red-400 font-semibold' : 'hover:text-white'
-              }`}
-            >
-              Contact
-            </button>
-            <button
-              onClick={handleDownloadResume}
-              className="hover:text-red-400 transition-colors flex items-center gap-1 cursor-pointer"
-              title="Download Resume PDF"
-            >
-              <Download className="w-3 h-3 text-red-500" />
-              <span>PDF</span>
-            </button>
-
-            {/* Owner badge (Only visible when logged in) */}
-            {isOwner && (
-              <button
-                onClick={() => setIsSiteContentEditorOpen(true)}
-                className="hover:text-red-400 transition-colors flex items-center gap-1.5 text-red-400 font-mono text-[11px] px-2 py-0.5 rounded bg-red-950/40 border border-red-900/60 cursor-pointer"
-                title="Owner Mode Active: Click to edit all text lines"
-              >
-                <Lock className="w-3 h-3 text-red-500" />
-                <span>Owner Mode Active</span>
-              </button>
-            )}
-          </div>
+          )}
 
           {/* Copyright with discrete double-click / triple-tap owner portal trigger (completely hidden from visitors) */}
           <div

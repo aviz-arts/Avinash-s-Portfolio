@@ -1,7 +1,9 @@
 import React from 'react';
 import { Zap, Mail } from 'lucide-react';
-import { OwnerProfile, SiteContent } from '../../utils/portfolioStorage';
+import { OwnerProfile, SiteContent, ResumeMilestone } from '../../utils/portfolioStorage';
+import { getAdaptiveGridClass } from '../../utils/layoutHelpers';
 import { EditableText } from '../common/EditableText';
+import { CareerTimeline } from './CareerTimeline';
 
 interface AboutSectionProps {
   onOpenContact: () => void;
@@ -9,6 +11,10 @@ interface AboutSectionProps {
   siteContent?: SiteContent;
   isOwner?: boolean;
   onUpdateSiteContent?: (key: keyof SiteContent, value: string) => void;
+  milestones?: ResumeMilestone[];
+  onUpdateMilestone?: (id: string, updated: Partial<ResumeMilestone>) => void;
+  onCreateMilestone?: (milestone: ResumeMilestone) => void;
+  onDeleteMilestone?: (id: string) => void;
 }
 
 export const AboutSection: React.FC<AboutSectionProps> = ({
@@ -17,6 +23,10 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
   siteContent,
   isOwner = false,
   onUpdateSiteContent,
+  milestones = [],
+  onUpdateMilestone,
+  onCreateMilestone,
+  onDeleteMilestone,
 }) => {
   const tools = profile?.tools || [
     { category: 'Game Design & Mechanics', items: ['Core Gameplay Loops & Mechanics', 'Combat & Traversal Systems', 'Player Psychology & Motivation', 'Systems Balancing & Economies', 'Encounter & Boss Design'] },
@@ -52,10 +62,10 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
   };
 
   return (
-    <section id="about" className="py-14 sm:py-20 border-t border-zinc-800/80">
-      <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14">
+    <section id="about" className="py-12 sm:py-16 border-t border-zinc-800/80">
+      <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 space-y-10">
         {/* Section Header */}
-        <div className="max-w-3xl mb-12">
+        <div className="max-w-3xl">
           <div className="text-xs font-mono text-red-500 tracking-wider uppercase mb-2">
             <EditableText
               value={kicker}
@@ -87,49 +97,38 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
           </p>
         </div>
 
-        {/* Studio Portrait & Philosophy & Capabilities */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-12">
-          {/* Column 1: Studio Portrait Card with Lighting Telemetry (lg:col-span-4) */}
-          <div className="lg:col-span-4 bg-zinc-900/60 border border-zinc-800 rounded-2xl overflow-hidden flex flex-col justify-between shadow-xl">
+        {/* Balanced Studio Portrait + Philosophy + Adaptive Capabilities Grid */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+          {/* Left Column: Clean Studio Portrait Card (zero negative space, no top badges) */}
+          <div className="lg:col-span-4 bg-zinc-900/60 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl">
             <div className="relative aspect-[4/5] w-full overflow-hidden bg-zinc-950">
               <img
                 src={siteContent?.avatarUrl || profile?.avatarUrl || '/assets/aistudio/pic_fe23a188.jpg'}
                 alt="Avinash - Game Designer & Lighting Artist"
                 className="w-full h-full object-cover object-top filter contrast-105"
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-transparent" />
-              
-              {/* Studio Telemetry Badges */}
-              <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
-                <span className="px-2.5 py-1 rounded-lg bg-zinc-950/80 backdrop-blur-md border border-zinc-800 text-[10px] font-mono text-zinc-300">
-                  UE5.4 · Real-Time
-                </span>
-                <span className="px-2.5 py-1 rounded-lg bg-red-950/80 backdrop-blur-md border border-red-500/40 text-[10px] font-mono text-red-400 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                  Available for Roles
-                </span>
-              </div>
+              <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/15 to-transparent" />
 
               {/* Portrait Caption */}
               <div className="absolute bottom-4 left-4 right-4 text-xs font-mono">
                 <div className="text-zinc-100 font-display font-bold text-base">
-                  Avinash
+                  {profile?.name || 'Avinash'}
                 </div>
                 <div className="text-red-400 text-[11px]">
-                  Game Designer | Lighting Artist
+                  {profile?.title || 'Game Designer | Lighting Artist'}
                 </div>
               </div>
             </div>
 
             <div className="p-5 border-t border-zinc-800 space-y-3 bg-zinc-950/40">
-              <div className="grid grid-cols-2 gap-2 text-[11px] font-mono text-zinc-400">
-                <div className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80">
+              <div className="grid grid-cols-2 gap-2.5 text-[11px] font-mono text-zinc-400">
+                <div className="p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800/80">
                   <div className="text-zinc-500 text-[9px] uppercase">Profession</div>
-                  <div className="text-zinc-200 font-semibold">Game Designer</div>
+                  <div className="text-zinc-200 font-semibold mt-0.5">Game Designer</div>
                 </div>
-                <div className="p-2 rounded-lg bg-zinc-900/60 border border-zinc-800/80">
+                <div className="p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800/80">
                   <div className="text-zinc-500 text-[9px] uppercase">Creative Passion</div>
-                  <div className="text-red-400 font-semibold">Lighting Artist</div>
+                  <div className="text-red-400 font-semibold mt-0.5">Lighting Artist</div>
                 </div>
               </div>
               <p className="text-xs text-zinc-400 leading-relaxed">
@@ -138,21 +137,25 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
             </div>
           </div>
 
-          {/* Column 2: Creative Philosophy Card (lg:col-span-4) */}
-          <div className="lg:col-span-4 p-6 bg-zinc-900/60 border border-zinc-800 rounded-2xl flex flex-col justify-between">
-            <div className="space-y-4">
-              <div className="w-10 h-10 rounded-xl bg-red-950/40 border border-red-800/60 flex items-center justify-center text-red-500">
-                <Zap className="w-5 h-5" />
+          {/* Right Column: Philosophy Card + Auto-Aligned Toolset Matrix */}
+          <div className="lg:col-span-8 flex flex-col gap-6">
+            {/* Creative Philosophy Card (tight natural height, no internal void) */}
+            <div className="p-6 bg-zinc-900/60 border border-zinc-800 rounded-2xl space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-red-950/40 border border-red-800/60 flex items-center justify-center text-red-500 shrink-0">
+                  <Zap className="w-5 h-5" />
+                </div>
+                <h3 className="text-lg font-display font-semibold text-zinc-100">
+                  <EditableText
+                    value={philosophyTitle}
+                    onChange={(v) => handleUpdate('philosophyCardTitle', v)}
+                    isOwner={isOwner}
+                    label="Philosophy Title"
+                    as="span"
+                  />
+                </h3>
               </div>
-              <h3 className="text-lg font-display font-semibold text-zinc-100">
-                <EditableText
-                  value={philosophyTitle}
-                  onChange={(v) => handleUpdate('philosophyCardTitle', v)}
-                  isOwner={isOwner}
-                  label="Philosophy Title"
-                  as="span"
-                />
-              </h3>
+
               <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
                 <EditableText
                   value={philosophyText}
@@ -163,52 +166,66 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
                   as="span"
                 />
               </p>
-            </div>
 
-            <div className="pt-6 mt-6 border-t border-zinc-800/80">
-              <div className="text-xs font-mono text-zinc-500">Primary Contact</div>
-              <a
-                href={`mailto:${email}`}
-                className="text-xs font-mono text-red-400 hover:text-red-300 transition-colors flex items-center gap-1.5 mt-1"
-              >
-                <Mail className="w-3.5 h-3.5" />
-                <EditableText
-                  value={email}
-                  onChange={(v) => handleUpdate('contactEmail', v)}
-                  isOwner={isOwner}
-                  label="Contact Email"
-                  as="span"
-                />
-              </a>
-            </div>
-          </div>
-
-          {/* Column 3: Engine Toolset Matrix (lg:col-span-4) */}
-          <div className="lg:col-span-4 flex flex-col gap-4">
-            {tools.map((group, idx) => (
-              <div
-                key={idx}
-                className="p-5 bg-zinc-900/40 border border-zinc-800/80 rounded-2xl space-y-3"
-              >
-                <div className="text-xs font-mono font-semibold text-zinc-200 pb-2 border-b border-zinc-800 flex items-center gap-2">
-                  <div className="w-2 h-2 rounded-full bg-red-500" />
-                  <span>{group.category}</span>
+              <div className="pt-4 border-t border-zinc-800/80 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">
+                    Primary Contact
+                  </div>
+                  <a
+                    href={`mailto:${email}`}
+                    className="text-xs font-mono text-red-400 hover:text-red-300 transition-colors flex items-center gap-1.5 mt-1"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    <EditableText
+                      value={email}
+                      onChange={(v) => handleUpdate('contactEmail', v)}
+                      isOwner={isOwner}
+                      label="Contact Email"
+                      as="span"
+                    />
+                  </a>
                 </div>
-                <ul className="space-y-2">
-                  {group.items.map((item, i) => (
-                    <li key={i} className="text-xs text-zinc-400 flex items-center gap-2">
-                      <span className="text-zinc-600">·</span>
-                      <span>{item}</span>
-                    </li>
-                  ))}
-                </ul>
+
+                <button
+                  type="button"
+                  onClick={onOpenContact}
+                  className="px-3.5 py-2 bg-zinc-950 hover:bg-zinc-800 text-zinc-200 border border-zinc-700/80 rounded-xl text-xs font-mono transition-colors cursor-pointer"
+                >
+                  Open Contact Form
+                </button>
               </div>
-            ))}
+            </div>
+
+            {/* Engine Toolset Matrix (Auto-aligns cleanly across 1 or 2 columns as groups are added/removed) */}
+            {tools.length > 0 && (
+              <div className={getAdaptiveGridClass(tools.length, 'tools')}>
+                {tools.map((group, idx) => (
+                  <div
+                    key={`${group.category}-${idx}`}
+                    className="p-5 bg-zinc-900/40 border border-zinc-800/80 rounded-2xl space-y-3 h-full"
+                  >
+                    <div className="text-xs font-mono font-semibold text-zinc-200 pb-2 border-b border-zinc-800 flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                      <span>{group.category}</span>
+                    </div>
+                    <ul className="space-y-1.5">
+                      {group.items.map((item, i) => (
+                        <li key={i} className="text-xs text-zinc-400 flex items-start gap-2 leading-relaxed">
+                          <span className="text-zinc-600 mt-0.5">·</span>
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Quantifiable Track Record Strip */}
-        <div className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-4 p-6 bg-zinc-900/30 border border-zinc-800/80 rounded-2xl">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 p-6 bg-zinc-900/30 border border-zinc-800/80 rounded-2xl">
           <div>
             <div className="text-2xl sm:text-3xl font-display font-bold text-white tabular-nums">
               <EditableText
@@ -297,6 +314,17 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
             <div className="text-[11px] text-zinc-500">Optimized virtual shadow pages</div>
           </div>
         </div>
+
+        {/* Interactive Career Timeline (Relocated from Resume tab to About tab) */}
+        {onUpdateMilestone && onCreateMilestone && onDeleteMilestone && (
+          <CareerTimeline
+            milestones={milestones}
+            isOwner={isOwner}
+            onUpdateMilestone={onUpdateMilestone}
+            onCreateMilestone={onCreateMilestone}
+            onDeleteMilestone={onDeleteMilestone}
+          />
+        )}
       </div>
     </section>
   );

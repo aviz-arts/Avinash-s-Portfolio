@@ -1,7 +1,8 @@
 import React from 'react';
 import { CustomSection, CustomSectionItem } from '../../utils/portfolioStorage';
+import { getAdaptiveGridClass } from '../../utils/layoutHelpers';
 import { EditableText } from '../common/EditableText';
-import { Plus, Trash2, Edit3, MoveUp, MoveDown, ExternalLink, Sparkles, Layers, Box } from 'lucide-react';
+import { Plus, Trash2, Edit3, ExternalLink, Sparkles } from 'lucide-react';
 
 interface CustomSectionRendererProps {
   sections: CustomSection[];
@@ -71,11 +72,11 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
   };
 
   return (
-    <div className="space-y-16 my-12">
+    <div className="space-y-8 mt-8">
       {tabSections.map((sec) => (
         <div
           key={sec.id}
-          className={`relative p-8 md:p-10 rounded-3xl border transition-all ${
+          className={`relative p-6 sm:p-8 rounded-3xl border transition-all ${
             sec.visible === false
               ? 'bg-zinc-950/40 border-dashed border-zinc-800 opacity-60'
               : 'bg-zinc-900/30 border-zinc-800/80 shadow-xl'
@@ -83,7 +84,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
         >
           {/* Owner Quick Controls Bar */}
           {isOwner && (
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-6 mb-8 border-b border-zinc-800/80 bg-zinc-900/60 -mx-8 -mt-8 md:-mx-10 md:-mt-10 p-4 rounded-t-3xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-6 border-b border-zinc-800/80 bg-zinc-900/60 -mx-6 -mt-6 sm:-mx-8 sm:-mt-8 p-4 rounded-t-3xl">
               <div className="flex items-center gap-2 text-xs font-mono">
                 <span className="px-2 py-0.5 rounded bg-red-950/40 text-red-400 border border-red-800/60">
                   Custom Section ({sec.tab.toUpperCase()} TAB)
@@ -99,7 +100,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
               <div className="flex items-center gap-2 text-xs font-mono">
                 <button
                   onClick={() => handleAddItem(sec.id)}
-                  className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium flex items-center gap-1 transition-colors shadow-sm shadow-red-600/30"
+                  className="px-2.5 py-1 bg-red-600 hover:bg-red-500 text-white rounded-lg font-medium flex items-center gap-1 transition-colors shadow-sm shadow-red-600/30 cursor-pointer"
                   title="Add another card or item to this section"
                 >
                   <Plus className="w-3.5 h-3.5" />
@@ -108,7 +109,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                 {onEditSectionClick && (
                   <button
                     onClick={() => onEditSectionClick(sec)}
-                    className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg flex items-center gap-1 transition-colors"
+                    className="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
                     title="Change section layout, tab, or settings"
                   >
                     <Edit3 className="w-3.5 h-3.5 text-red-400" />
@@ -121,7 +122,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                       onDeleteSection?.(sec.id);
                     }
                   }}
-                  className="px-2.5 py-1 bg-red-950/40 hover:bg-red-900/60 text-red-300 rounded-lg flex items-center gap-1 transition-colors"
+                  className="px-2.5 py-1 bg-red-950/40 hover:bg-red-900/60 text-red-300 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
                   title="Delete this entire section"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -132,7 +133,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
           )}
 
           {/* Section Header */}
-          <div className="max-w-3xl mb-10">
+          <div className="max-w-3xl mb-6">
             <div className="text-xs font-mono text-red-500 uppercase tracking-wider mb-2 flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5 text-red-500" />
               <EditableText
@@ -165,13 +166,30 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
             )}
           </div>
 
+          {/* Empty state if cards removed */}
+          {sec.items.length === 0 && sec.layout !== 'callout' && (
+            <div className="p-6 border border-dashed border-zinc-800 rounded-2xl text-center text-xs font-mono text-zinc-500 space-y-2">
+              <p>No cards in this section yet.</p>
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => handleAddItem(sec.id)}
+                  className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg inline-flex items-center gap-1 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Card</span>
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Content Layouts */}
-          {sec.layout === 'cards' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {sec.layout === 'cards' && sec.items.length > 0 && (
+            <div className={getAdaptiveGridClass(sec.items.length, 'cards')}>
               {sec.items.map((item) => (
                 <div
                   key={item.id}
-                  className="group relative p-6 bg-zinc-900/60 hover:bg-zinc-900/90 border border-zinc-800 rounded-2xl flex flex-col justify-between transition-all"
+                  className="group relative p-6 bg-zinc-900/60 hover:bg-zinc-900/90 border border-zinc-800 rounded-2xl flex flex-col transition-all h-full"
                 >
                   {isOwner && (
                     <button
@@ -229,7 +247,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                   </div>
 
                   {item.linkText && (
-                    <div className="pt-4 mt-4 border-t border-zinc-800/80">
+                    <div className="pt-4 mt-auto border-t border-zinc-800/80">
                       <span className="text-xs font-mono text-red-400 hover:text-red-300 transition-colors inline-flex items-center gap-1">
                         <EditableText
                           value={item.linkText}
@@ -246,12 +264,12 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
             </div>
           )}
 
-          {sec.layout === 'split' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {sec.layout === 'split' && sec.items.length > 0 && (
+            <div className={getAdaptiveGridClass(sec.items.length, 'split')}>
               {sec.items.map((item) => (
                 <div
                   key={item.id}
-                  className="group relative p-6 bg-zinc-900/60 border border-zinc-800 rounded-2xl flex flex-col justify-between"
+                  className="group relative p-6 bg-zinc-900/60 border border-zinc-800 rounded-2xl flex flex-col h-full"
                 >
                   {isOwner && (
                     <button
@@ -388,15 +406,16 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
             </div>
           )}
 
-          {/* Stats KPI Strip Layout (matches image_80bd2080.png) */}
+          {/* Stats KPI Strip Layout */}
           {sec.layout === 'stats' && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {sec.items.map((item, idx) => (
-                  <div
-                    key={item.id}
-                    className="group relative p-5 bg-zinc-950/80 border border-zinc-800 rounded-2xl space-y-1 transition-all hover:border-zinc-700"
-                  >
+              {sec.items.length > 0 && (
+                <div className={getAdaptiveGridClass(sec.items.length, 'stats')}>
+                  {sec.items.map((item, idx) => (
+                    <div
+                      key={item.id}
+                      className="group relative p-5 bg-zinc-950/80 border border-zinc-800 rounded-2xl space-y-1 transition-all hover:border-zinc-700"
+                    >
                     {isOwner && (
                       <button
                         onClick={() => handleDeleteItem(sec.id, item.id)}
@@ -431,8 +450,9 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                       />
                     </div>
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
               {isOwner && (
                 <button
                   type="button"
