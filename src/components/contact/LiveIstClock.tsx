@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 // Single rolling digit that smoothly animates downwards on change
 const RollingDigit: React.FC<{ value: string }> = ({ value }) => {
   return (
-    <div className="relative inline-block w-[0.62em] h-[1.15em] overflow-hidden leading-none align-middle select-none">
+    <div className="relative inline-flex items-center justify-center w-[0.62em] h-[1.15em] overflow-hidden leading-none select-none">
       <AnimatePresence mode="popLayout" initial={false}>
         <motion.span
           key={value}
@@ -12,7 +12,7 @@ const RollingDigit: React.FC<{ value: string }> = ({ value }) => {
           animate={{ y: '0%', opacity: 1 }}
           exit={{ y: '100%', opacity: 0 }}
           transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-          className="absolute inset-0 flex items-center justify-center font-mono font-bold"
+          className="absolute inset-0 flex items-center justify-center font-mono font-bold leading-none"
         >
           {value}
         </motion.span>
@@ -57,29 +57,33 @@ export const LiveIstClock: React.FC = () => {
         <div className="h-4 w-px bg-zinc-800 hidden sm:block" />
 
         {/* Number Going Down Animated Clock */}
-        <div className="flex items-center font-mono text-lg sm:text-2xl font-bold text-white tracking-tight">
+        <div className="flex items-center font-mono text-lg sm:text-2xl font-bold text-white tracking-tight leading-none">
           {/* Hours (2 digits) */}
-          <RollingDigit value={time.h1} />
-          <RollingDigit value={time.h2} />
+          <div className="inline-flex items-center">
+            <RollingDigit value={time.h1} />
+            <RollingDigit value={time.h2} />
+          </div>
 
           {/* Animated Blinking Colon */}
-          <span className="text-red-500 mx-0.5 animate-pulse select-none">:</span>
+          <span className="text-red-500 mx-0.5 inline-flex items-center leading-none animate-pulse select-none">:</span>
 
           {/* Minutes (2 digits) */}
-          <RollingDigit value={time.m1} />
-          <RollingDigit value={time.m2} />
+          <div className="inline-flex items-center">
+            <RollingDigit value={time.m1} />
+            <RollingDigit value={time.m2} />
+          </div>
 
           {/* Animated Blinking Colon */}
-          <span className="text-red-500 mx-0.5 animate-pulse select-none">:</span>
+          <span className="text-red-500 mx-0.5 inline-flex items-center leading-none animate-pulse select-none">:</span>
 
           {/* Seconds (2 digits) with red glowing emphasis */}
-          <div className="text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.4)]">
+          <div className="inline-flex items-center text-red-400 drop-shadow-[0_0_8px_rgba(239,68,68,0.4)]">
             <RollingDigit value={time.s1} />
             <RollingDigit value={time.s2} />
           </div>
 
           {/* AM / PM indicator */}
-          <span className="ml-2 text-xs sm:text-sm font-mono font-bold text-zinc-400 select-none">
+          <span className="ml-2 inline-flex items-center text-xs sm:text-sm font-mono font-bold text-zinc-400 leading-none select-none">
             {time.ampm}
           </span>
         </div>
