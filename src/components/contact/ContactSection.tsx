@@ -10,8 +10,10 @@ import {
   MessageSquare,
   Sparkles,
   Sliders,
+  Trash2,
 } from 'lucide-react';
 import { SiteContent, CustomSection, DEFAULT_CONTACT_OPTIONS } from '../../utils/portfolioStorage';
+import { getAdaptiveGridClass } from '../../utils/layoutHelpers';
 import { EditableText } from '../common/EditableText';
 import { CustomSectionRenderer } from '../portfolio/CustomSectionRenderer';
 import { LiveIstClock } from './LiveIstClock';
@@ -65,7 +67,14 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
   const email = siteContent.contactEmail || 'avinashr5904@gmail.com';
   const phone = siteContent.contactPhone || '+91 9361287193';
 
-  const handleUpdate = (key: keyof SiteContent, val: string) => {
+  const showEmailCard = siteContent.contactShowEmailCard !== false;
+  const showPhoneCard = siteContent.contactShowPhoneCard !== false;
+  const visibleContactCardsCount = (showEmailCard ? 1 : 0) + (showPhoneCard ? 1 : 0);
+  const showForm = siteContent.contactShowForm !== false;
+  const showSocials = siteContent.contactShowSocials !== false;
+  const showLocation = siteContent.contactShowLocation !== false;
+
+  const handleUpdate = (key: keyof SiteContent, val: any) => {
     if (onUpdateSiteContent) {
       onUpdateSiteContent(key, val);
     }
@@ -139,135 +148,179 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
         {/* 2. Real-Time Running Indian Standard Time (IST) Clock */}
         <LiveIstClock />
 
-        {/* 3. Two Primary Cards: Email & Phone (Matching user reference layout) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Card 1: EMAIL */}
-          <div className="relative group bg-zinc-950/80 hover:bg-zinc-900/80 border border-zinc-800/90 hover:border-red-500/60 rounded-3xl p-7 transition-all duration-300 shadow-xl backdrop-blur-xl flex flex-col justify-between">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-zinc-900/90 border border-zinc-800 flex items-center justify-center text-red-500 group-hover:scale-105 group-hover:border-red-500/40 transition-all duration-300">
-                  <Mail className="w-5 h-5 text-red-500" />
+        {/* 3. Primary Contact Cards: Email & Phone (Auto-aligns cleanly if either card is removed) */}
+        {visibleContactCardsCount > 0 && (
+          <div className={getAdaptiveGridClass(visibleContactCardsCount, 'split')}>
+            {/* Card 1: EMAIL */}
+            {showEmailCard && (
+              <div className="relative group bg-zinc-950/80 hover:bg-zinc-900/80 border border-zinc-800/90 hover:border-red-500/60 rounded-3xl p-7 transition-all duration-300 shadow-xl backdrop-blur-xl flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="w-12 h-12 rounded-2xl bg-zinc-900/90 border border-zinc-800 flex items-center justify-center text-red-500 group-hover:scale-105 group-hover:border-red-500/40 transition-all duration-300">
+                      <Mail className="w-5 h-5 text-red-500" />
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleCopyEmail}
+                        className="px-2.5 py-1 text-[11px] font-mono text-zinc-400 hover:text-white bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                        title="Copy email address"
+                      >
+                        {copiedEmail ? <Check className="w-3.5 h-3.5 text-red-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedEmail ? 'Copied' : 'Copy'}</span>
+                      </button>
+                      {isOwner && (
+                        <button
+                          type="button"
+                          onClick={() => handleUpdate('contactShowEmailCard', false)}
+                          className="p-1.5 text-zinc-500 hover:text-red-400 bg-zinc-900/90 border border-zinc-800 rounded-lg transition-colors cursor-pointer"
+                          title="Remove Email Card"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 font-semibold">
+                      EMAIL
+                    </div>
+                    <div className="text-lg sm:text-xl font-display font-bold text-white group-hover:text-red-400 transition-colors mt-0.5 break-all">
+                      <EditableText
+                        value={email}
+                        onChange={(v) => handleUpdate('contactEmail', v)}
+                        isOwner={isOwner}
+                        label="Contact Email"
+                      />
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-zinc-400 leading-relaxed font-light">
+                    <EditableText
+                      value={
+                        siteContent.contactEmailNote ||
+                        'Best for project inquiries and collaborations. I typically respond within 24-48 hours.'
+                      }
+                      onChange={(v) => handleUpdate('contactEmailNote', v)}
+                      isOwner={isOwner}
+                      label="Email Note"
+                      multiline={true}
+                      as="span"
+                    />
+                  </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleCopyEmail}
-                  className="px-2.5 py-1 text-[11px] font-mono text-zinc-400 hover:text-white bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-                  title="Copy email address"
-                >
-                  {copiedEmail ? <Check className="w-3.5 h-3.5 text-red-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedEmail ? 'Copied' : 'Copy'}</span>
-                </button>
+                <div className="pt-6 mt-4 border-t border-zinc-900 flex items-center justify-between">
+                  <a
+                    href={`mailto:${email}?subject=Game%20Design%20%2F%20Lighting%20Inquiry`}
+                    className="text-xs font-mono text-red-400 hover:text-red-300 flex items-center gap-1.5 transition-colors"
+                  >
+                    <span>Compose Mail</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                  <span className="text-[11px] font-mono text-zinc-500">Fast Turnaround</span>
+                </div>
               </div>
+            )}
 
-              <div>
-                <div className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 font-semibold">
-                  EMAIL
+            {/* Card 2: PHONE / WHATSAPP */}
+            {showPhoneCard && (
+              <div className="relative group bg-zinc-950/80 hover:bg-zinc-900/80 border border-zinc-800/90 hover:border-red-500/60 rounded-3xl p-7 transition-all duration-300 shadow-xl backdrop-blur-xl flex flex-col justify-between">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="w-12 h-12 rounded-2xl bg-zinc-900/90 border border-zinc-800 flex items-center justify-center text-red-500 group-hover:scale-105 group-hover:border-red-500/40 transition-all duration-300">
+                      <Phone className="w-5 h-5 text-red-500" />
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleCopyPhone}
+                        className="px-2.5 py-1 text-[11px] font-mono text-zinc-400 hover:text-white bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                        title="Copy phone number"
+                      >
+                        {copiedPhone ? <Check className="w-3.5 h-3.5 text-red-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedPhone ? 'Copied' : 'Copy'}</span>
+                      </button>
+                      {isOwner && (
+                        <button
+                          type="button"
+                          onClick={() => handleUpdate('contactShowPhoneCard', false)}
+                          className="p-1.5 text-zinc-500 hover:text-red-400 bg-zinc-900/90 border border-zinc-800 rounded-lg transition-colors cursor-pointer"
+                          title="Remove Phone Card"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 font-semibold">
+                      PHONE / WHATSAPP
+                    </div>
+                    <div className="text-lg sm:text-xl font-display font-bold text-white group-hover:text-red-400 transition-colors mt-0.5">
+                      <EditableText
+                        value={phone}
+                        onChange={(v) => handleUpdate('contactPhone', v)}
+                        isOwner={isOwner}
+                        label="Contact Phone"
+                      />
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-zinc-400 leading-relaxed font-light">
+                    <EditableText
+                      value={
+                        siteContent.contactPhoneNote ||
+                        'For urgent matters or quick calls. Available during IST business hours.'
+                      }
+                      onChange={(v) => handleUpdate('contactPhoneNote', v)}
+                      isOwner={isOwner}
+                      label="Phone Note"
+                      multiline={true}
+                      as="span"
+                    />
+                  </p>
                 </div>
-                <div className="text-lg sm:text-xl font-display font-bold text-white group-hover:text-red-400 transition-colors mt-0.5 break-all">
-                  <EditableText
-                    value={email}
-                    onChange={(v) => handleUpdate('contactEmail', v)}
-                    isOwner={isOwner}
-                    label="Contact Email"
-                  />
+
+                <div className="pt-6 mt-4 border-t border-zinc-900 flex items-center justify-between">
+                  <a
+                    href={`tel:${phone.replace(/\s+/g, '')}`}
+                    className="text-xs font-mono text-red-400 hover:text-red-300 flex items-center gap-1.5 transition-colors"
+                  >
+                    <span>Direct Dial / WhatsApp</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                  <span className="text-[11px] font-mono text-zinc-500">IST Business Hours</span>
                 </div>
               </div>
-
-              <p className="text-xs text-zinc-400 leading-relaxed font-light">
-                <EditableText
-                  value={
-                    siteContent.contactEmailNote ||
-                    'Best for project inquiries and collaborations. I typically respond within 24-48 hours.'
-                  }
-                  onChange={(v) => handleUpdate('contactEmailNote', v)}
-                  isOwner={isOwner}
-                  label="Email Note"
-                  multiline={true}
-                  as="span"
-                />
-              </p>
-            </div>
-
-            <div className="pt-6 mt-4 border-t border-zinc-900 flex items-center justify-between">
-              <a
-                href={`mailto:${email}?subject=Game%20Design%20%2F%20Lighting%20Inquiry`}
-                className="text-xs font-mono text-red-400 hover:text-red-300 flex items-center gap-1.5 transition-colors"
-              >
-                <span>Compose Mail</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-              <span className="text-[11px] font-mono text-zinc-500">Fast Turnaround</span>
-            </div>
+            )}
           </div>
-
-          {/* Card 2: PHONE / WHATSAPP */}
-          <div className="relative group bg-zinc-950/80 hover:bg-zinc-900/80 border border-zinc-800/90 hover:border-red-500/60 rounded-3xl p-7 transition-all duration-300 shadow-xl backdrop-blur-xl flex flex-col justify-between">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="w-12 h-12 rounded-2xl bg-zinc-900/90 border border-zinc-800 flex items-center justify-center text-red-500 group-hover:scale-105 group-hover:border-red-500/40 transition-all duration-300">
-                  <Phone className="w-5 h-5 text-red-500" />
-                </div>
-
-                <button
-                  type="button"
-                  onClick={handleCopyPhone}
-                  className="px-2.5 py-1 text-[11px] font-mono text-zinc-400 hover:text-white bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
-                  title="Copy phone number"
-                >
-                  {copiedPhone ? <Check className="w-3.5 h-3.5 text-red-400" /> : <Copy className="w-3.5 h-3.5" />}
-                  <span>{copiedPhone ? 'Copied' : 'Copy'}</span>
-                </button>
-              </div>
-
-              <div>
-                <div className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 font-semibold">
-                  PHONE / WHATSAPP
-                </div>
-                <div className="text-lg sm:text-xl font-display font-bold text-white group-hover:text-red-400 transition-colors mt-0.5">
-                  <EditableText
-                    value={phone}
-                    onChange={(v) => handleUpdate('contactPhone', v)}
-                    isOwner={isOwner}
-                    label="Contact Phone"
-                  />
-                </div>
-              </div>
-
-              <p className="text-xs text-zinc-400 leading-relaxed font-light">
-                <EditableText
-                  value={
-                    siteContent.contactPhoneNote ||
-                    'For urgent matters or quick calls. Available during IST business hours.'
-                  }
-                  onChange={(v) => handleUpdate('contactPhoneNote', v)}
-                  isOwner={isOwner}
-                  label="Phone Note"
-                  multiline={true}
-                  as="span"
-                />
-              </p>
-            </div>
-
-            <div className="pt-6 mt-4 border-t border-zinc-900 flex items-center justify-between">
-              <a
-                href={`tel:${phone.replace(/\s+/g, '')}`}
-                className="text-xs font-mono text-red-400 hover:text-red-300 flex items-center gap-1.5 transition-colors"
-              >
-                <span>Direct Dial / WhatsApp</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
-              <span className="text-[11px] font-mono text-zinc-500">IST Business Hours</span>
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* 3. Direct Message Inquiry Form */}
-        <div className="max-w-3xl mx-auto bg-zinc-950/90 border border-zinc-800/90 rounded-3xl p-5 sm:p-8 shadow-2xl backdrop-blur-xl">
-          <div className="flex items-center gap-2 mb-6">
-            <MessageSquare className="w-5 h-5 text-red-500" />
-            <h3 className="text-lg font-display font-bold text-white">Send Direct Message</h3>
-          </div>
+        {showForm && (
+          <div className="max-w-3xl mx-auto bg-zinc-950/90 border border-zinc-800/90 rounded-3xl p-5 sm:p-8 shadow-2xl backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-2 mb-6">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-red-500" />
+                <h3 className="text-lg font-display font-bold text-white">Send Direct Message</h3>
+              </div>
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={() => handleUpdate('contactShowForm', false)}
+                  className="px-2.5 py-1 text-[11px] font-mono text-zinc-400 hover:text-red-400 bg-zinc-900 border border-zinc-800 rounded-lg flex items-center gap-1 cursor-pointer"
+                  title="Remove Inquiry Form section"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Remove Form</span>
+                </button>
+              )}
+            </div>
 
           {isSubmitted ? (
             <div className="p-6 bg-zinc-900/80 border border-red-500/40 rounded-2xl text-center space-y-3 animate-in fade-in">
@@ -381,27 +434,43 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
               </button>
             </form>
           )}
-        </div>
+          </div>
+        )}
 
-        {/* 4. Featured & Editable Social Platforms (LinkedIn, ArtStation, Instagram) */}
-        <SocialShowcase
-          siteContent={siteContent}
-          isOwner={isOwner}
-          onUpdateSiteContent={handleUpdate}
-        />
+        {/* 4. Featured & Editable Social Platforms */}
+        {showSocials && (
+          <SocialShowcase
+            siteContent={siteContent}
+            isOwner={isOwner}
+            onUpdateSiteContent={handleUpdate}
+            onRemoveSection={isOwner ? () => handleUpdate('contactShowSocials', false) : undefined}
+          />
+        )}
 
-        {/* 5. Location Badge (Matching user reference) */}
-        <div className="flex items-center justify-center gap-2 text-xs font-mono text-zinc-400 pt-4">
-          <MapPin className="w-4 h-4 text-red-500 shrink-0" />
-          <span>
-            <EditableText
-              value={siteContent.contactLocationText || 'Based in India · Available Worldwide'}
-              onChange={(v) => handleUpdate('contactLocationText', v)}
-              isOwner={isOwner}
-              label="Location Text"
-            />
-          </span>
-        </div>
+        {/* 5. Location Badge */}
+        {showLocation && (
+          <div className="flex items-center justify-center gap-2 text-xs font-mono text-zinc-400 pt-2">
+            <MapPin className="w-4 h-4 text-red-500 shrink-0" />
+            <span>
+              <EditableText
+                value={siteContent.contactLocationText || 'Based in India · Available Worldwide'}
+                onChange={(v) => handleUpdate('contactLocationText', v)}
+                isOwner={isOwner}
+                label="Location Text"
+              />
+            </span>
+            {isOwner && (
+              <button
+                type="button"
+                onClick={() => handleUpdate('contactShowLocation', false)}
+                className="ml-2 p-1 text-zinc-600 hover:text-red-400 cursor-pointer"
+                title="Remove Location Badge"
+              >
+                <Trash2 className="w-3 h-3" />
+              </button>
+            )}
+          </div>
+        )}
 
         {/* 6. Custom Sections assigned to Contact tab */}
         <CustomSectionRenderer

@@ -162,7 +162,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose, opt
                 rows={4}
                 value={formData.message}
                 onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                placeholder="Briefly describe your game genre, target platform (PC, PS5), timeline, and engine (UE5/Unity)..."
+                placeholder="Briefly describe your game genre, target platform (PC, PS5), timeline, and engine (Unreal Engine 5)..."
                 className="w-full px-3 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-red-500 transition-colors resize-none"
               />
             </div>

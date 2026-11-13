@@ -47,6 +47,35 @@ export interface CustomSection {
   order: number;
 }
 
+export interface LevelDesignCardItem {
+  id: string;
+  title: string;
+  description: string;
+  tag: string;
+  icon?: 'compass' | 'layers' | 'sparkles';
+}
+
+export interface StatCardItem {
+  id: string;
+  value: string;
+  label: string;
+  detail?: string;
+  highlight?: boolean;
+}
+
+export interface ResumeSkillItem {
+  id: string;
+  category: string;
+  items: string;
+}
+
+export interface ResumeEducationItem {
+  id: string;
+  degree: string;
+  details: string;
+  badge: string;
+}
+
 export interface SiteContent {
   // Hero
   heroKickerName: string;
@@ -103,6 +132,7 @@ export interface SiteContent {
   levelCard3Title: string;
   levelCard3Desc: string;
   levelCard3Tag: string;
+  levelCards?: LevelDesignCardItem[];
 
   // About
   aboutKicker: string;
@@ -111,6 +141,7 @@ export interface SiteContent {
   philosophyCardTitle: string;
   philosophyCardText: string;
   contactEmail: string;
+  aboutStats?: StatCardItem[];
 
   // Contact (Dedicated Page based on reference)
   contactKicker: string;
@@ -127,11 +158,30 @@ export interface SiteContent {
   socialEducationUrl: string;
   socialGithubUrl: string;
   contactProjectOptions?: string[];
+  contactHiddenSocials?: string[];
 
-  // Section Visibility & Built-in Modules (Allow adding or removing sections)
+  // Section & Sub-Section Visibility Across All Tabs (Synchronized across Owner & Visitor Modes)
+  homeShowHeroText?: boolean;
+  homeShowPortrait?: boolean;
+  workShowStudio?: boolean;
+  workShowWorksGrid?: boolean;
+  workShowReels?: boolean;
+  workShowReelPlayer?: boolean;
+  workShowAbSlider?: boolean;
+  workShowLevelDesign?: boolean;
+  aboutShowPortrait?: boolean;
+  aboutShowPhilosophy?: boolean;
+  aboutShowTools?: boolean;
+  aboutShowStats?: boolean;
+  aboutShowTimeline?: boolean;
   heroShowStats?: boolean;
   resumeShowBenchmarks?: boolean;
   resumeShowExecutiveProfile?: boolean;
+  resumeShowSkills?: boolean;
+  resumeShowEducation?: boolean;
+  resumeBenchmarks?: StatCardItem[];
+  resumeSkills?: ResumeSkillItem[];
+  resumeEducation?: ResumeEducationItem[];
   resumeBenchmark1Value?: string;
   resumeBenchmark1Label?: string;
   resumeBenchmark2Value?: string;
@@ -142,6 +192,11 @@ export interface SiteContent {
   resumeBenchmark4Label?: string;
   resumeExecutiveKicker?: string;
   resumeExecutiveText?: string;
+  contactShowEmailCard?: boolean;
+  contactShowPhoneCard?: boolean;
+  contactShowForm?: boolean;
+  contactShowSocials?: boolean;
+  contactShowLocation?: boolean;
 
   // Footer
   footerName: string;
@@ -204,10 +259,10 @@ export const DEFAULT_RESUME_MILESTONES: ResumeMilestone[] = [
     description: 'Designed encounter spaces, player progression economies, and procedural dungeon lighting pipelines.',
     achievements: [
       'Structured 3D dungeon layouts and encounter zones using architectural landmarks, achieving 94% unassisted player wayfinding in playtests.',
-      'Prototyped player combat verbs, AI attack spacing state machines, and consumable resource economies in Blueprints and C#.',
+      'Prototyped player combat verbs, AI attack spacing state machines, and consumable resource economies in Unreal Engine Blueprints and C++.',
       'Crafted volumetric atmospheric scattering and real-time bounce rigs that elevated visual mood while remaining within GPU budgets.',
     ],
-    techStack: ['Unity HDRP', 'C# Prototyping', 'Encounter Pacing', 'Volumetric Fog', 'Combat AI', 'Level Design'],
+    techStack: ['Unreal Engine 5', 'C++ Prototyping', 'Encounter Pacing', 'Volumetric Fog', 'Combat AI', 'Level Design'],
     photoUrl: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=1200&q=80',
     photoCaption: 'Atmospheric subterranean dungeon lighting and encounter pacing layout',
   },
@@ -397,9 +452,24 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
   contactProjectOptions: DEFAULT_CONTACT_OPTIONS,
 
   // Section Visibility & Built-in Modules (Allow adding or removing sections)
+  homeShowHeroText: true,
+  homeShowPortrait: true,
+  workShowStudio: true,
+  workShowWorksGrid: true,
+  workShowReels: true,
+  workShowReelPlayer: true,
+  workShowAbSlider: true,
+  workShowLevelDesign: true,
+  aboutShowPortrait: true,
+  aboutShowPhilosophy: true,
+  aboutShowTools: true,
+  aboutShowStats: true,
+  aboutShowTimeline: true,
   heroShowStats: true,
   resumeShowBenchmarks: true,
   resumeShowExecutiveProfile: true,
+  resumeShowSkills: true,
+  resumeShowEducation: true,
   resumeBenchmark1Value: '4 Titles',
   resumeBenchmark1Label: 'Shipped Releases (PC/Console)',
   resumeBenchmark2Value: '100% Core',
@@ -411,6 +481,12 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
   resumeExecutiveKicker: 'EXECUTIVE DESIGN PROFILE',
   resumeExecutiveText:
     'Professional Game Designer specializing in core gameplay loops, mechanics, player pacing, and level architecture — powered by a lifelong hobby and passion as a Lighting Artist.',
+  contactShowEmailCard: true,
+  contactShowPhoneCard: true,
+  contactShowForm: true,
+  contactShowSocials: true,
+  contactShowLocation: true,
+  contactHiddenSocials: [],
 
   // Footer
   footerName: 'Avinash',
@@ -440,7 +516,7 @@ export const DEFAULT_PROFILE: OwnerProfile = {
     { category: 'Game Design & Mechanics', items: ['Core Gameplay Loops & Mechanics', 'Combat & Traversal Systems', 'Player Psychology & Motivation', 'Systems Balancing & Economies', 'Encounter & Boss Design'] },
     { category: 'Level Design & Architecture', items: ['3D Combat Blockouts & Greyboxing', 'Sightline & Chokepoint Theory', 'Pacing Curves & Tension Rhythms', 'Diegetic Navigation & Landmarks'] },
     { category: 'Lighting Art (Creative Passion)', items: ['Unreal Engine 5.4 Lumen & Nanite', 'Atmospheric & Volumetric Scattering', 'ACES Filmic Color Grading', 'Light-Driven Player Guidance'] },
-    { category: 'Engines & Prototyping', items: ['Unreal Engine Blueprints', 'Unity C# Prototyping', 'Maya & Blender Greybox', 'Perforce & Git LFS'] },
+    { category: 'Engines & Prototyping', items: ['Unreal Engine Blueprints & C++', 'Marmoset Toolbag 4 Look-Dev', 'Maya & Blender Greybox', 'Perforce & Git LFS'] },
   ],
 };
 
@@ -499,6 +575,170 @@ function removeStorageItem(key: string): void {
   memoryStorage.delete(key);
 }
 
+export function stripUnityReferences(text: string): string {
+  if (!text) return text;
+  return text
+    .replace(/Unity\s+HDRP/gi, 'Unreal Engine 5.4')
+    .replace(/Unity\s*\(C#\s*Prototyping\)/gi, 'Unreal Engine 5 (C++ & Blueprints)')
+    .replace(/Unity\s+C#\s*Prototyping/gi, 'Unreal Engine Blueprints & C++')
+    .replace(/\(UE5\/Unity\)/gi, '(Unreal Engine 5)')
+    .replace(/Blueprints\s+and\s+C#/gi, 'Unreal Engine Blueprints and C++')
+    .replace(/\bUnity\b/gi, 'Unreal Engine 5');
+}
+
+function sanitizeJsonStrings<T>(value: T): T {
+  if (typeof value === 'string') {
+    return stripUnityReferences(value) as unknown as T;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeJsonStrings(item)) as unknown as T;
+  }
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) {
+      out[k] = sanitizeJsonStrings(v);
+    }
+    return out as T;
+  }
+  return value;
+}
+
+export function resolveLevelCards(siteContent?: Partial<SiteContent>): LevelDesignCardItem[] {
+  if (siteContent && Array.isArray(siteContent.levelCards)) {
+    return siteContent.levelCards;
+  }
+  return [
+    {
+      id: 'level-card-1',
+      title: siteContent?.levelCard1Title || DEFAULT_SITE_CONTENT.levelCard1Title,
+      description: siteContent?.levelCard1Desc || DEFAULT_SITE_CONTENT.levelCard1Desc,
+      tag: siteContent?.levelCard1Tag || DEFAULT_SITE_CONTENT.levelCard1Tag,
+      icon: 'compass',
+    },
+    {
+      id: 'level-card-2',
+      title: siteContent?.levelCard2Title || DEFAULT_SITE_CONTENT.levelCard2Title,
+      description: siteContent?.levelCard2Desc || DEFAULT_SITE_CONTENT.levelCard2Desc,
+      tag: siteContent?.levelCard2Tag || DEFAULT_SITE_CONTENT.levelCard2Tag,
+      icon: 'layers',
+    },
+    {
+      id: 'level-card-3',
+      title: siteContent?.levelCard3Title || DEFAULT_SITE_CONTENT.levelCard3Title,
+      description: siteContent?.levelCard3Desc || DEFAULT_SITE_CONTENT.levelCard3Desc,
+      tag: siteContent?.levelCard3Tag || DEFAULT_SITE_CONTENT.levelCard3Tag,
+      icon: 'sparkles',
+    },
+  ];
+}
+
+export function resolveAboutStats(
+  siteContent?: Partial<SiteContent>,
+  profile?: OwnerProfile
+): StatCardItem[] {
+  if (siteContent && Array.isArray(siteContent.aboutStats)) {
+    return siteContent.aboutStats;
+  }
+  return [
+    {
+      id: 'about-stat-1',
+      value: siteContent?.stat1Value || profile?.stats.shippedTitles || '4 Titles',
+      label: siteContent?.stat1Label || 'Shipped Commercial Releases',
+      detail: 'PC, PS5, Xbox Series X',
+    },
+    {
+      id: 'about-stat-2',
+      value: siteContent?.stat2Value || profile?.stats.lumenFrametime || '100% Core',
+      label: siteContent?.stat2Label || 'Game Design & Mechanics Focus',
+      detail: 'Strict < 16.6ms console target',
+      highlight: true,
+    },
+    {
+      id: 'about-stat-3',
+      value: siteContent?.stat3Value || profile?.stats.experienceYears || '7+ Years',
+      label: siteContent?.stat3Label || 'Game Design & Systems Exp',
+      detail: 'AAA & Award-Winning Indie',
+    },
+    {
+      id: 'about-stat-4',
+      value: siteContent?.stat4Value || profile?.stats.shadowPasses || '60.0 FPS',
+      label: siteContent?.stat4Label || 'Lumen Console Target (Passion)',
+      detail: 'Optimized virtual shadow pages',
+    },
+  ];
+}
+
+export function resolveResumeBenchmarks(siteContent?: Partial<SiteContent>): StatCardItem[] {
+  if (siteContent && Array.isArray(siteContent.resumeBenchmarks)) {
+    return siteContent.resumeBenchmarks;
+  }
+  return [
+    {
+      id: 'bench-1',
+      value: siteContent?.resumeBenchmark1Value || '4 Titles',
+      label: siteContent?.resumeBenchmark1Label || 'Shipped Releases (PC/Console)',
+    },
+    {
+      id: 'bench-2',
+      value: siteContent?.resumeBenchmark2Value || '100% Core',
+      label: siteContent?.resumeBenchmark2Label || 'Game Design & Mechanics Focus',
+      highlight: true,
+    },
+    {
+      id: 'bench-3',
+      value: siteContent?.resumeBenchmark3Value || '7+ Years',
+      label: siteContent?.resumeBenchmark3Label || 'Game Industry Experience',
+    },
+    {
+      id: 'bench-4',
+      value: siteContent?.resumeBenchmark4Value || '60.0 FPS',
+      label: siteContent?.resumeBenchmark4Label || 'Lumen Console Frametime (Passion)',
+    },
+  ];
+}
+
+export function resolveResumeSkills(siteContent?: Partial<SiteContent>): ResumeSkillItem[] {
+  if (siteContent && Array.isArray(siteContent.resumeSkills)) {
+    return siteContent.resumeSkills;
+  }
+  return [
+    {
+      id: 'rskill-1',
+      category: 'Game Design & Mechanics',
+      items: 'Core Loops, Mechanics Prototyping, Player Psychology, Combat Pacing, System Economies, Risk/Reward Timing Windows',
+    },
+    {
+      id: 'rskill-2',
+      category: 'Lighting Art (Passion) & Engines',
+      items: 'Unreal Engine 5.4 Lumen & Nanite, Blueprints & C++, ACES Filmic Color Grading, Volumetric Atmospheric Fog, VSM',
+    },
+    {
+      id: 'rskill-3',
+      category: 'Level Design & Architecture',
+      items: 'Combat Greybox Blockouts, 3-Lane Topology, Sightline Calculation, Verticality Layers, Diegetic Lighting Guidance',
+    },
+    {
+      id: 'rskill-4',
+      category: 'DCC Tools & Source Control',
+      items: 'Maya, Blender, Substance 3D Painter, Marmoset Toolbag 4, Perforce, Git LFS',
+    },
+  ];
+}
+
+export function resolveResumeEducation(siteContent?: Partial<SiteContent>): ResumeEducationItem[] {
+  if (siteContent && Array.isArray(siteContent.resumeEducation)) {
+    return siteContent.resumeEducation;
+  }
+  return [
+    {
+      id: 'redu-1',
+      degree: 'Bachelor of Science in Game Design & Interactive Environments',
+      details: 'Honors Graduate · Focus on Spatial Pacing & Mechanics',
+      badge: 'Epic Games Unreal Engine 5 Specialist',
+    },
+  ];
+}
+
 /**
  * Projects CRUD
  */
@@ -508,7 +748,7 @@ export function getStoredProjects(): ProjectItem[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        return sanitizeJsonStrings(parsed);
       }
     }
   } catch (err) {
@@ -530,7 +770,7 @@ export function getStoredProfile(): OwnerProfile {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
-        return { ...DEFAULT_PROFILE, ...parsed };
+        return sanitizeJsonStrings({ ...DEFAULT_PROFILE, ...parsed });
       }
     }
   } catch (err) {
@@ -552,7 +792,7 @@ export function getStoredSiteContent(): SiteContent {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
-        return { ...DEFAULT_SITE_CONTENT, ...parsed };
+        return sanitizeJsonStrings({ ...DEFAULT_SITE_CONTENT, ...parsed });
       }
     }
   } catch (err) {
@@ -565,6 +805,32 @@ export function saveStoredSiteContent(content: SiteContent): void {
   setStorageItem(SITE_CONTENT_STORAGE_KEY, JSON.stringify(content));
 }
 
+const BOOLEAN_SITE_CONTENT_KEYS = new Set<string>([
+  'homeShowHeroText',
+  'homeShowPortrait',
+  'workShowStudio',
+  'workShowWorksGrid',
+  'workShowReels',
+  'workShowReelPlayer',
+  'workShowAbSlider',
+  'workShowLevelDesign',
+  'aboutShowPortrait',
+  'aboutShowPhilosophy',
+  'aboutShowTools',
+  'aboutShowStats',
+  'aboutShowTimeline',
+  'heroShowStats',
+  'resumeShowBenchmarks',
+  'resumeShowExecutiveProfile',
+  'resumeShowSkills',
+  'resumeShowEducation',
+  'contactShowEmailCard',
+  'contactShowPhoneCard',
+  'contactShowForm',
+  'contactShowSocials',
+  'contactShowLocation',
+]);
+
 export function updateSiteContentKey<K extends keyof SiteContent>(
   key: K,
   value: any,
@@ -572,7 +838,7 @@ export function updateSiteContentKey<K extends keyof SiteContent>(
 ): SiteContent {
   const base = currentContent || getStoredSiteContent();
   let parsedValue = value;
-  if (key === 'resumeShowBenchmarks' || key === 'resumeShowExecutiveProfile') {
+  if (BOOLEAN_SITE_CONTENT_KEYS.has(String(key))) {
     if (typeof value === 'string') {
       parsedValue = value === 'true';
     } else {
@@ -592,7 +858,7 @@ export function updateSiteContentKey<K extends keyof SiteContent>(
       }
     }
   }
-  const updated: SiteContent = { ...base, [key]: parsedValue };
+  const updated: SiteContent = sanitizeJsonStrings({ ...base, [key]: parsedValue });
   saveStoredSiteContent(updated);
   return updated;
 }
@@ -708,8 +974,8 @@ export function getStoredResumeMilestones(): ResumeMilestone[] {
     const raw = getStorageItem(RESUME_MILESTONES_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed as ResumeMilestone[];
+      if (Array.isArray(parsed)) {
+        return sanitizeJsonStrings(parsed as ResumeMilestone[]);
       }
     }
   } catch (err) {

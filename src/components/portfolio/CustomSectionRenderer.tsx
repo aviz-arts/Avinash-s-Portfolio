@@ -23,9 +23,9 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
   onAddSectionClick,
   onEditSectionClick,
 }) => {
-  // Filter sections assigned to this tab
+  // Filter sections assigned to this tab — synchronized so hidden/removed sections stay off-page in both Owner and Visitor modes
   const tabSections = sections
-    .filter((sec) => sec.tab === tab && (isOwner || sec.visible !== false))
+    .filter((sec) => sec.tab === tab && sec.visible !== false)
     .sort((a, b) => (a.order || 0) - (b.order || 0));
 
   if (tabSections.length === 0 && !isOwner) {
@@ -65,35 +65,24 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
   const handleDeleteItem = (sectionId: string, itemId: string) => {
     const sec = sections.find((s) => s.id === sectionId);
     if (!sec) return;
-    if (confirm('Delete this card from the section?')) {
-      const updatedItems = sec.items.filter((item) => item.id !== itemId);
-      onUpdateSection?.(sectionId, { items: updatedItems });
-    }
+    const updatedItems = sec.items.filter((item) => item.id !== itemId);
+    onUpdateSection?.(sectionId, { items: updatedItems });
   };
 
   return (
-    <div className="space-y-8 mt-8">
+    <div className="space-y-8 mt-8 print:mt-4 print:space-y-5">
       {tabSections.map((sec) => (
         <div
           key={sec.id}
-          className={`relative p-6 sm:p-8 rounded-3xl border transition-all ${
-            sec.visible === false
-              ? 'bg-zinc-950/40 border-dashed border-zinc-800 opacity-60'
-              : 'bg-zinc-900/30 border-zinc-800/80 shadow-xl'
-          }`}
+          className="relative p-6 sm:p-8 rounded-3xl border bg-zinc-900/30 border-zinc-800/80 shadow-xl transition-all print:p-5 print:rounded-xl print:bg-white print:border-zinc-300 print:shadow-none print:break-inside-avoid"
         >
           {/* Owner Quick Controls Bar */}
           {isOwner && (
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-6 border-b border-zinc-800/80 bg-zinc-900/60 -mx-6 -mt-6 sm:-mx-8 sm:-mt-8 p-4 rounded-t-3xl">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-4 mb-6 border-b border-zinc-800/80 bg-zinc-900/60 -mx-6 -mt-6 sm:-mx-8 sm:-mt-8 p-4 rounded-t-3xl print:hidden">
               <div className="flex items-center gap-2 text-xs font-mono">
                 <span className="px-2 py-0.5 rounded bg-red-950/40 text-red-400 border border-red-800/60">
                   Custom Section ({sec.tab.toUpperCase()} TAB)
                 </span>
-                {sec.visible === false && (
-                  <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[11px]">
-                    Hidden from Visitors
-                  </span>
-                )}
                 <span className="text-zinc-500">Layout: {sec.layout}</span>
               </div>
 
@@ -117,16 +106,12 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                   </button>
                 )}
                 <button
-                  onClick={() => {
-                    if (confirm(`Delete custom section "${sec.title}"?`)) {
-                      onDeleteSection?.(sec.id);
-                    }
-                  }}
+                  onClick={() => onDeleteSection?.(sec.id)}
                   className="px-2.5 py-1 bg-red-950/40 hover:bg-red-900/60 text-red-300 rounded-lg flex items-center gap-1 transition-colors cursor-pointer"
-                  title="Delete this entire section"
+                  title="Remove this section"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
-                  <span>Delete</span>
+                  <span>Remove</span>
                 </button>
               </div>
             </div>
@@ -134,8 +119,8 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
 
           {/* Section Header */}
           <div className="max-w-3xl mb-6">
-            <div className="text-xs font-mono text-red-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-              <Sparkles className="w-3.5 h-3.5 text-red-500" />
+            <div className="text-xs font-mono text-red-500 print:text-red-700 uppercase tracking-wider mb-2 flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-red-500 print:text-red-700" />
               <EditableText
                 value={sec.kicker}
                 onChange={(val) => onUpdateSection?.(sec.id, { kicker: val })}
@@ -143,7 +128,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                 label="Section Kicker"
               />
             </div>
-            <h3 className="text-2xl sm:text-3xl font-display font-bold text-zinc-100 tracking-tight">
+            <h3 className="text-2xl sm:text-3xl font-display font-bold text-zinc-100 print:text-zinc-950 tracking-tight">
               <EditableText
                 value={sec.title}
                 onChange={(val) => onUpdateSection?.(sec.id, { title: val })}
@@ -153,7 +138,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
               />
             </h3>
             {sec.description && (
-              <p className="text-sm text-zinc-400 leading-relaxed mt-2.5">
+              <p className="text-sm text-zinc-400 print:text-zinc-700 leading-relaxed mt-2.5">
                 <EditableText
                   value={sec.description}
                   onChange={(val) => onUpdateSection?.(sec.id, { description: val })}
@@ -189,12 +174,12 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
               {sec.items.map((item) => (
                 <div
                   key={item.id}
-                  className="group relative p-6 bg-zinc-900/60 hover:bg-zinc-900/90 border border-zinc-800 rounded-2xl flex flex-col transition-all h-full"
+                  className="group relative p-6 bg-zinc-900/60 hover:bg-zinc-900/90 border border-zinc-800 rounded-2xl flex flex-col transition-all h-full print:bg-zinc-50 print:border-zinc-300"
                 >
                   {isOwner && (
                     <button
                       onClick={() => handleDeleteItem(sec.id, item.id)}
-                      className="absolute top-3 right-3 p-1.5 text-zinc-500 hover:text-red-400 bg-zinc-950/80 rounded-lg border border-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                      className="absolute top-3 right-3 p-1.5 text-zinc-500 hover:text-red-400 bg-zinc-950/80 rounded-lg border border-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity print:hidden cursor-pointer"
                       title="Delete card"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -213,7 +198,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                       </div>
                     )}
 
-                    <h4 className="text-base sm:text-lg font-display font-semibold text-zinc-100 leading-snug">
+                    <h4 className="text-base sm:text-lg font-display font-semibold text-zinc-100 print:text-zinc-950 leading-snug">
                       <EditableText
                         value={item.title}
                         onChange={(v) => handleUpdateItem(sec.id, item.id, 'title', v)}
@@ -224,7 +209,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                     </h4>
 
                     {item.subtitle && (
-                      <div className="text-xs font-mono text-zinc-400">
+                      <div className="text-xs font-mono text-zinc-400 print:text-zinc-600">
                         <EditableText
                           value={item.subtitle}
                           onChange={(v) => handleUpdateItem(sec.id, item.id, 'subtitle', v)}
@@ -234,7 +219,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                       </div>
                     )}
 
-                    <p className="text-xs text-zinc-400 leading-relaxed pt-1">
+                    <p className="text-xs text-zinc-400 print:text-zinc-700 leading-relaxed pt-1">
                       <EditableText
                         value={item.description}
                         onChange={(v) => handleUpdateItem(sec.id, item.id, 'description', v)}
@@ -414,12 +399,12 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                   {sec.items.map((item, idx) => (
                     <div
                       key={item.id}
-                      className="group relative p-5 bg-zinc-950/80 border border-zinc-800 rounded-2xl space-y-1 transition-all hover:border-zinc-700"
+                      className="group relative p-5 bg-zinc-950/80 border border-zinc-800 rounded-2xl space-y-1 transition-all hover:border-zinc-700 print:bg-zinc-50 print:border-zinc-300"
                     >
                     {isOwner && (
                       <button
                         onClick={() => handleDeleteItem(sec.id, item.id)}
-                        className="absolute top-2.5 right-2.5 p-1 text-zinc-500 hover:text-red-400 bg-zinc-900 rounded border border-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className="absolute top-2.5 right-2.5 p-1 text-zinc-500 hover:text-red-400 bg-zinc-900 rounded border border-zinc-800 opacity-0 group-hover:opacity-100 transition-opacity print:hidden cursor-pointer"
                         title="Delete stat metric"
                       >
                         <Trash2 className="w-3 h-3" />
@@ -428,8 +413,8 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                     <div
                       className={`text-2xl font-display font-extrabold ${
                         idx === 1 || item.tag?.toLowerCase().includes('red')
-                          ? 'text-red-500'
-                          : 'text-white'
+                          ? 'text-red-500 print:text-red-700'
+                          : 'text-white print:text-zinc-950'
                       }`}
                     >
                       <EditableText
@@ -440,7 +425,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                         as="span"
                       />
                     </div>
-                    <div className="text-xs font-mono text-zinc-500 leading-snug">
+                    <div className="text-xs font-mono text-zinc-500 print:text-zinc-600 leading-snug">
                       <EditableText
                         value={item.subtitle || item.description}
                         onChange={(v) => handleUpdateItem(sec.id, item.id, 'subtitle', v)}
@@ -457,7 +442,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                 <button
                   type="button"
                   onClick={() => handleAddItem(sec.id)}
-                  className="text-[11px] font-mono text-red-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  className="text-[11px] font-mono text-red-400 hover:underline flex items-center gap-1 cursor-pointer print:hidden"
                 >
                   <Plus className="w-3 h-3" />
                   <span>+ Add Stat Card</span>
@@ -466,10 +451,10 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
             </div>
           )}
 
-          {/* Callout / Executive Profile Banner Layout (matches image_792dc1d3.png) */}
+          {/* Callout / Executive Profile Banner Layout */}
           {sec.layout === 'callout' && (
-            <div className="p-8 bg-zinc-950/80 border border-zinc-800 rounded-3xl space-y-3">
-              <div className="text-xs font-mono uppercase tracking-widest text-red-500 font-semibold">
+            <div className="p-8 bg-zinc-950/80 border border-zinc-800 rounded-3xl space-y-3 print:bg-zinc-50 print:border-zinc-300 print:p-5 print:rounded-xl">
+              <div className="text-xs font-mono uppercase tracking-widest text-red-500 print:text-red-700 font-semibold">
                 <EditableText
                   value={sec.kicker || 'EXECUTIVE PROFILE'}
                   onChange={(val) => onUpdateSection?.(sec.id, { kicker: val })}
@@ -477,7 +462,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                   label="Callout Kicker"
                 />
               </div>
-              <p className="text-sm sm:text-base text-zinc-300 font-light leading-relaxed">
+              <p className="text-sm sm:text-base text-zinc-300 print:text-zinc-800 font-light leading-relaxed">
                 <EditableText
                   value={sec.description || sec.title}
                   onChange={(val) => onUpdateSection?.(sec.id, { description: val })}
@@ -494,10 +479,10 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
 
       {/* Inline Owner Add Section prompt */}
       {isOwner && onAddSectionClick && (
-        <div className="text-center py-6 border-2 border-dashed border-zinc-800 hover:border-red-500/50 rounded-2xl transition-colors">
+        <div className="text-center py-6 border-2 border-dashed border-zinc-800 hover:border-red-500/50 rounded-2xl transition-colors print:hidden">
           <button
             onClick={() => onAddSectionClick(tab)}
-            className="px-5 py-2.5 bg-red-950/40 hover:bg-red-900/50 text-red-400 border border-red-800/60 rounded-xl text-xs font-mono inline-flex items-center gap-2 transition-all shadow-sm"
+            className="px-5 py-2.5 bg-red-950/40 hover:bg-red-900/50 text-red-400 border border-red-800/60 rounded-xl text-xs font-mono inline-flex items-center gap-2 transition-all shadow-sm cursor-pointer"
           >
             <Plus className="w-4 h-4 text-red-500" />
             <span>+ Add New Section in {tab.toUpperCase()} Tab</span>

@@ -52,7 +52,7 @@ test('filterProjects handles category and search queries accurately', () => {
       id: 'p2',
       title: 'Tactical Arena Blockout',
       category: 'game-design',
-      engine: 'Unity HDRP',
+      engine: 'Marmoset Toolbag 4',
       tags: ['Level Geometry', 'Choke Points'],
     },
     {
@@ -69,7 +69,6 @@ test('filterProjects handles category and search queries accurately', () => {
   assert.equal(filterProjects(mockProjects, 'lighting', '').length, 2); // p1 and p3 (both)
   assert.equal(filterProjects(mockProjects, 'game-design', '').length, 2); // p2 and p3 (both)
   assert.equal(filterProjects(mockProjects, 'unreal', '').length, 2);
-  assert.equal(filterProjects(mockProjects, 'unity', '').length, 1);
 
   // Search filter
   assert.equal(filterProjects(mockProjects, 'all', 'cyberpunk').length, 1);

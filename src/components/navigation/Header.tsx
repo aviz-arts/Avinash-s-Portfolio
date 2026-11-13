@@ -46,7 +46,7 @@ export const Header: React.FC<HeaderProps> = ({
   };
 
   return (
-    <header className="sticky top-0 z-40 bg-[#050505]/95 backdrop-blur-md border-b border-zinc-800/80">
+    <header className="print:hidden sticky top-0 z-40 bg-[#050505]/95 backdrop-blur-md border-b border-zinc-800/80">
       <div className="w-full max-w-[1680px] mx-auto flex items-center justify-between gap-4 sm:gap-6 px-4 sm:px-6 lg:px-10 xl:px-14 py-3.5">
         {/* Zone 1: Portrait avatar + AVINASH heading + faded subtitle: Game Designer | Lighting Artist */}
         <button
@@ -121,7 +121,7 @@ export const Header: React.FC<HeaderProps> = ({
             className={`relative py-1 transition-all duration-200 cursor-pointer ${
               activeTab === 'resume' ? 'text-white font-bold' : 'hover:text-zinc-200'
             }`}
-            title="Official Resume & Career Timeline"
+            title="Official Resume & Benchmarks"
           >
             <span>Resume</span>
             {activeTab === 'resume' && (

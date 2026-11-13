@@ -15,7 +15,8 @@ import { SiteContent } from '../../utils/portfolioStorage';
 interface SocialShowcaseProps {
   siteContent: SiteContent;
   isOwner?: boolean;
-  onUpdateSiteContent?: (key: keyof SiteContent, value: string) => void;
+  onUpdateSiteContent?: (key: keyof SiteContent, value: any) => void;
+  onRemoveSection?: () => void;
 }
 
 interface SocialItem {
@@ -31,6 +32,7 @@ export const SocialShowcase: React.FC<SocialShowcaseProps> = ({
   siteContent,
   isOwner = false,
   onUpdateSiteContent,
+  onRemoveSection,
 }) => {
   const [activeEditingId, setActiveEditingId] = useState<string | null>(null);
   const [draftUrl, setDraftUrl] = useState('');
@@ -121,16 +123,47 @@ export const SocialShowcase: React.FC<SocialShowcaseProps> = ({
     setActiveEditingId(null);
   };
 
+  const hiddenIds = new Set(siteContent.contactHiddenSocials || []);
+  const visibleSocials = socialItems.filter((item) => !hiddenIds.has(item.id));
+  const hiddenSocials = socialItems.filter((item) => hiddenIds.has(item.id));
+
+  const handleHideSocial = (id: string) => {
+    const next = Array.from(new Set([...(siteContent.contactHiddenSocials || []), id]));
+    onUpdateSiteContent?.('contactHiddenSocials', next);
+    setActiveEditingId(null);
+  };
+
+  const handleRestoreSocial = (id: string) => {
+    const next = (siteContent.contactHiddenSocials || []).filter((x) => x !== id);
+    onUpdateSiteContent?.('contactHiddenSocials', next);
+  };
+
+  if (visibleSocials.length === 0 && !isOwner) {
+    return null;
+  }
+
   return (
     <div className="flex flex-col items-center justify-center space-y-4 my-2">
-      {/* Subtle label */}
-      <div className="text-[11px] font-mono tracking-widest text-zinc-500 uppercase font-semibold">
-        CONNECT ON SOCIAL
+      {/* Subtle label with Owner Section Remove */}
+      <div className="flex items-center gap-3">
+        <div className="text-[11px] font-mono tracking-widest text-zinc-500 uppercase font-semibold">
+          CONNECT ON SOCIAL
+        </div>
+        {isOwner && onRemoveSection && (
+          <button
+            type="button"
+            onClick={onRemoveSection}
+            className="text-[10px] font-mono text-zinc-500 hover:text-red-400 px-2 py-0.5 rounded bg-zinc-900 border border-zinc-800 cursor-pointer"
+            title="Remove Social Links section"
+          >
+            Remove Section
+          </button>
+        )}
       </div>
 
-      {/* Clean Logos Row with On-Point Edit */}
-      <div className="flex items-center justify-center gap-3 relative">
-        {socialItems.map((item) => {
+      {/* Clean Logos Row with On-Point Edit & Individual Remove */}
+      <div className="flex flex-wrap items-center justify-center gap-3 relative">
+        {visibleSocials.map((item) => {
           const isEditing = activeEditingId === item.id;
 
           return (
@@ -223,6 +256,14 @@ export const SocialShowcase: React.FC<SocialShowcaseProps> = ({
                       <div className="flex items-center gap-1.5">
                         <button
                           type="button"
+                          onClick={() => handleHideSocial(item.id)}
+                          className="px-2 py-1 text-[11px] font-mono text-red-400 hover:text-red-300 bg-red-950/40 border border-red-900/50 rounded-lg transition-colors cursor-pointer"
+                          title={`Remove ${item.name} icon`}
+                        >
+                          Remove
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => setActiveEditingId(null)}
                           className="px-2.5 py-1 text-[11px] font-mono text-zinc-400 hover:text-zinc-200 bg-zinc-900 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
                         >
@@ -249,10 +290,27 @@ export const SocialShowcase: React.FC<SocialShowcaseProps> = ({
         })}
       </div>
 
+      {/* Owner quick restore for individually removed social icons */}
+      {isOwner && hiddenSocials.length > 0 && (
+        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+          <span className="text-[10px] font-mono text-zinc-500">Add back:</span>
+          {hiddenSocials.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => handleRestoreSocial(item.id)}
+              className="px-2 py-0.5 text-[10px] font-mono text-zinc-300 hover:text-white bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-lg cursor-pointer"
+            >
+              + {item.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Owner helper prompt */}
-      {isOwner && (
+      {isOwner && visibleSocials.length > 0 && (
         <p className="text-[10px] font-mono text-zinc-500">
-          Owner Mode: Click any logo above to edit and paste your account link directly
+          Owner Mode: Click any logo above to edit its link or remove it
         </p>
       )}
     </div>

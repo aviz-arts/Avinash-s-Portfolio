@@ -68,12 +68,12 @@ export const SiteContentEditorModal: React.FC<SiteContentEditorModalProps> = ({
         <div className="px-6 py-2.5 border-b border-zinc-800 bg-zinc-900/30 flex items-center justify-between gap-4 overflow-x-auto shrink-0 font-mono text-xs">
           <div className="flex items-center gap-1">
             {[
-              { id: 'hero', label: '01. Hero & KPIs' },
+              { id: 'hero', label: '01. Hero' },
               { id: 'studio', label: '02. 3D Studio' },
               { id: 'works', label: '03. Works Section' },
               { id: 'reels', label: '04. Reels & A/B' },
               { id: 'level', label: '05. Level Design' },
-              { id: 'about', label: '06. About & Bio' },
+              { id: 'about', label: '06. About & Stats' },
               { id: 'contact', label: '07. Contact Page' },
               { id: 'footer', label: '08. Footer' },
             ].map((tab) => (
@@ -99,7 +99,7 @@ export const SiteContentEditorModal: React.FC<SiteContentEditorModalProps> = ({
           {activeTab === 'hero' && (
             <div className="space-y-4">
               <h4 className="text-xs font-mono font-semibold text-red-500 uppercase tracking-wider pb-1 border-b border-zinc-800">
-                Hero Section Copy, Portrait Photo & KPIs
+                Hero Section Copy, Portrait Photo &amp; Ambient Background
               </h4>
 
               {/* Avatar Photo Upload */}
@@ -193,71 +193,6 @@ export const SiteContentEditorModal: React.FC<SiteContentEditorModalProps> = ({
                 </div>
               </div>
 
-              {/* 4 KPI Metrics */}
-              <div className="pt-2">
-                <label className="block text-xs font-mono text-red-500 mb-2">4 Production Benchmarks</label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div className="p-2.5 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-1.5">
-                    <input
-                      type="text"
-                      value={formData.stat1Value}
-                      onChange={(e) => updateField('stat1Value', e.target.value)}
-                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-white font-mono font-bold"
-                    />
-                    <input
-                      type="text"
-                      value={formData.stat1Label}
-                      onChange={(e) => updateField('stat1Label', e.target.value)}
-                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-zinc-400 text-[10px]"
-                    />
-                  </div>
-
-                  <div className="p-2.5 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-1.5">
-                    <input
-                      type="text"
-                      value={formData.stat2Value}
-                      onChange={(e) => updateField('stat2Value', e.target.value)}
-                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-white font-mono font-bold"
-                    />
-                    <input
-                      type="text"
-                      value={formData.stat2Label}
-                      onChange={(e) => updateField('stat2Label', e.target.value)}
-                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-zinc-400 text-[10px]"
-                    />
-                  </div>
-
-                  <div className="p-2.5 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-1.5">
-                    <input
-                      type="text"
-                      value={formData.stat3Value}
-                      onChange={(e) => updateField('stat3Value', e.target.value)}
-                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-white font-mono font-bold"
-                    />
-                    <input
-                      type="text"
-                      value={formData.stat3Label}
-                      onChange={(e) => updateField('stat3Label', e.target.value)}
-                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-zinc-400 text-[10px]"
-                    />
-                  </div>
-
-                  <div className="p-2.5 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-1.5">
-                    <input
-                      type="text"
-                      value={formData.stat4Value}
-                      onChange={(e) => updateField('stat4Value', e.target.value)}
-                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-white font-mono font-bold"
-                    />
-                    <input
-                      type="text"
-                      value={formData.stat4Label}
-                      onChange={(e) => updateField('stat4Label', e.target.value)}
-                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-zinc-400 text-[10px]"
-                    />
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 
@@ -639,6 +574,70 @@ export const SiteContentEditorModal: React.FC<SiteContentEditorModalProps> = ({
                     onChange={(e) => updateField('contactEmail', e.target.value)}
                     className="w-full px-3 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-xs text-white font-mono"
                   />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <label className="block text-xs font-mono text-red-500 mb-2">
+                  About Track Record Default Benchmarks (Individual cards can also be added/removed inline on About Tab)
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                  <div className="p-2.5 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-1.5">
+                    <input
+                      type="text"
+                      value={formData.stat1Value}
+                      onChange={(e) => updateField('stat1Value', e.target.value)}
+                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-white font-mono font-bold"
+                    />
+                    <input
+                      type="text"
+                      value={formData.stat1Label}
+                      onChange={(e) => updateField('stat1Label', e.target.value)}
+                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-zinc-400 text-[10px]"
+                    />
+                  </div>
+                  <div className="p-2.5 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-1.5">
+                    <input
+                      type="text"
+                      value={formData.stat2Value}
+                      onChange={(e) => updateField('stat2Value', e.target.value)}
+                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-white font-mono font-bold"
+                    />
+                    <input
+                      type="text"
+                      value={formData.stat2Label}
+                      onChange={(e) => updateField('stat2Label', e.target.value)}
+                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-zinc-400 text-[10px]"
+                    />
+                  </div>
+                  <div className="p-2.5 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-1.5">
+                    <input
+                      type="text"
+                      value={formData.stat3Value}
+                      onChange={(e) => updateField('stat3Value', e.target.value)}
+                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-white font-mono font-bold"
+                    />
+                    <input
+                      type="text"
+                      value={formData.stat3Label}
+                      onChange={(e) => updateField('stat3Label', e.target.value)}
+                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-zinc-400 text-[10px]"
+                    />
+                  </div>
+                  <div className="p-2.5 bg-zinc-900/60 border border-zinc-800 rounded-xl space-y-1.5">
+                    <input
+                      type="text"
+                      value={formData.stat4Value}
+                      onChange={(e) => updateField('stat4Value', e.target.value)}
+                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-white font-mono font-bold"
+                    />
+                    <input
+                      type="text"
+                      value={formData.stat4Label}
+                      onChange={(e) => updateField('stat4Label', e.target.value)}
+                      className="w-full px-2 py-1 bg-zinc-800 border border-zinc-700 rounded text-zinc-400 text-[10px]"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

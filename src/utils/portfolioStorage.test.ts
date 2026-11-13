@@ -437,3 +437,40 @@ test('custom TOTP secret rotation enforces private 2FA and custom passcode disab
   assert.equal(verifyOwnerCredentials('aviz.arts@gmail.com', '5904'), false);
 });
 
+test('stripUnityReferences and defaults contain zero Unity mentions', async () => {
+  const { stripUnityReferences } = await import('./portfolioStorage');
+  assert.equal(stripUnityReferences('Unity HDRP Lighting'), 'Unreal Engine 5.4 Lighting');
+  assert.equal(stripUnityReferences('Unity C# Prototyping'), 'Unreal Engine Blueprints & C++');
+  assert.equal(/\bunity\b/i.test(JSON.stringify(DEFAULT_SITE_CONTENT)), false);
+  assert.equal(/\bunity\b/i.test(JSON.stringify(DEFAULT_PROFILE)), false);
+  assert.equal(/\bunity\b/i.test(JSON.stringify(DEFAULT_RESUME_MILESTONES)), false);
+});
+
+test('dynamic resolvers and synchronized per-tab visibility flags work cleanly', async () => {
+  const {
+    resolveLevelCards,
+    resolveAboutStats,
+    resolveResumeBenchmarks,
+    resolveResumeSkills,
+    resolveResumeEducation,
+  } = await import('./portfolioStorage');
+
+  assert.equal(resolveLevelCards(DEFAULT_SITE_CONTENT).length, 3);
+  assert.equal(resolveAboutStats(DEFAULT_SITE_CONTENT, DEFAULT_PROFILE).length, 4);
+  assert.equal(resolveResumeBenchmarks(DEFAULT_SITE_CONTENT).length, 4);
+  assert.equal(resolveResumeSkills(DEFAULT_SITE_CONTENT).length, 4);
+  assert.equal(resolveResumeEducation(DEFAULT_SITE_CONTENT).length, 1);
+
+  const toggled = updateSiteContentKey('workShowReelPlayer', false, DEFAULT_SITE_CONTENT);
+  assert.equal(toggled.workShowReelPlayer, false);
+  const restored = updateSiteContentKey('workShowReelPlayer', 'true', toggled);
+  assert.equal(restored.workShowReelPlayer, true);
+
+  const customStats = updateSiteContentKey(
+    'aboutStats',
+    [{ id: 's1', value: '5 Titles', label: 'Shipped', detail: 'Console & PC' }],
+    restored
+  );
+  assert.equal(resolveAboutStats(customStats, DEFAULT_PROFILE).length, 1);
+});
+

@@ -1,12 +1,46 @@
-import React, { useState } from 'react';
-import { CustomSection, CustomSectionItem } from '../../utils/portfolioStorage';
-import { X, Plus, Trash2, MoveUp, MoveDown, Eye, EyeOff, Layers, Check, Sparkles } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { CustomSection, CustomSectionItem, SiteContent } from '../../utils/portfolioStorage';
+import { X, Plus, Trash2, MoveUp, MoveDown, Eye, EyeOff, Layers, Check, Sparkles, RotateCcw } from 'lucide-react';
+
+interface BuiltInSectionEntry {
+  tab: 'home' | 'work' | 'about' | 'resume' | 'contact';
+  key: keyof SiteContent;
+  label: string;
+  isSubSection?: boolean;
+}
+
+const BUILTIN_SECTION_ENTRIES: BuiltInSectionEntry[] = [
+  { tab: 'home', key: 'homeShowHeroText', label: 'Hero Headline & Primary Actions' },
+  { tab: 'home', key: 'homeShowPortrait', label: 'Hero Portrait Card & Direct Inquiry' },
+  { tab: 'work', key: 'workShowStudio', label: '3D Interactive Lighting Studio' },
+  { tab: 'work', key: 'workShowWorksGrid', label: 'Featured Works Portfolio Grid' },
+  { tab: 'work', key: 'workShowReels', label: 'Cinematic Reels & A/B Comparison Section' },
+  { tab: 'work', key: 'workShowReelPlayer', label: 'Video Reel Player', isSubSection: true },
+  { tab: 'work', key: 'workShowAbSlider', label: 'A/B Lighting Comparison Slider', isSubSection: true },
+  { tab: 'work', key: 'workShowLevelDesign', label: 'Level Design Blockout & Focus Cards' },
+  { tab: 'about', key: 'aboutShowPortrait', label: 'About Portrait & Profile Card' },
+  { tab: 'about', key: 'aboutShowPhilosophy', label: 'Core Philosophy Statement Card' },
+  { tab: 'about', key: 'aboutShowTools', label: 'Toolset & Core Competencies Matrix' },
+  { tab: 'about', key: 'aboutShowStats', label: 'Production Track Record KPI Strip' },
+  { tab: 'about', key: 'aboutShowTimeline', label: 'Interactive Career Timeline & Photos' },
+  { tab: 'resume', key: 'resumeShowBenchmarks', label: 'Production Benchmarks KPI Grid' },
+  { tab: 'resume', key: 'resumeShowExecutiveProfile', label: 'Executive Design Profile Summary' },
+  { tab: 'resume', key: 'resumeShowSkills', label: 'Core Technical Competencies Matrix' },
+  { tab: 'resume', key: 'resumeShowEducation', label: 'Education & Certifications' },
+  { tab: 'contact', key: 'contactShowEmailCard', label: 'Primary Email Card' },
+  { tab: 'contact', key: 'contactShowPhoneCard', label: 'Phone / WhatsApp Card' },
+  { tab: 'contact', key: 'contactShowForm', label: 'Direct Inquiry Form' },
+  { tab: 'contact', key: 'contactShowSocials', label: 'Social Platforms Grid' },
+  { tab: 'contact', key: 'contactShowLocation', label: 'Location & Availability Strip' },
+];
 
 interface SectionManagerModalProps {
   isOpen: boolean;
   onClose: () => void;
   sections: CustomSection[];
   onSaveSections: (sections: CustomSection[]) => void;
+  siteContent?: SiteContent;
+  onUpdateSiteContent?: (key: keyof SiteContent, value: any) => void;
   initialTab?: 'home' | 'work' | 'about' | 'resume' | 'contact';
   initialSectionToEdit?: CustomSection | null;
 }
@@ -16,12 +50,15 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
   onClose,
   sections,
   onSaveSections,
+  siteContent,
+  onUpdateSiteContent,
   initialTab = 'work',
   initialSectionToEdit = null,
 }) => {
   const [activeTabFilter, setActiveTabFilter] = useState<'all' | 'home' | 'work' | 'about' | 'resume' | 'contact'>('all');
   const [editingSection, setEditingSection] = useState<CustomSection | null>(initialSectionToEdit);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Form state for creating/editing a single section
   const [formData, setFormData] = useState<Partial<CustomSection>>({
@@ -33,6 +70,17 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
     visible: true,
     items: [],
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      setEditingSection(initialSectionToEdit);
+      setIsCreatingNew(false);
+      setFormError(null);
+      if (initialSectionToEdit) {
+        setFormData({ ...initialSectionToEdit, items: [...initialSectionToEdit.items] });
+      }
+    }
+  }, [isOpen, initialSectionToEdit]);
 
   if (!isOpen) return null;
 
@@ -133,9 +181,10 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
   const handleSaveForm = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.title?.trim()) {
-      alert('Section title is required.');
+      setFormError('Section title is required.');
       return;
     }
+    setFormError(null);
 
     let updated: CustomSection[];
     if (isCreatingNew) {
@@ -251,10 +300,10 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
             </div>
             <div>
               <h2 className="text-lg font-display font-bold text-zinc-100">
-                Tab Sections Manager
+                Tab Sections &amp; Sub-Sections Manager
               </h2>
               <p className="text-xs font-mono text-zinc-400">
-                Add, arrange, or edit custom showcase sections in Home, Work, and About tabs
+                Show, restore, add, or arrange built-in and custom sections across all 5 tabs
               </p>
             </div>
           </div>
@@ -307,8 +356,8 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
                     <span>+ Add Callout Box</span>
                   </button>
                   <button
-                    onClick={() => handleStartNewSection('work', 'cards')}
-                    className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-xl text-xs font-mono flex items-center gap-1.5 transition-colors"
+                    onClick={() => handleStartNewSection(activeTabFilter !== 'all' ? activeTabFilter : 'work', 'cards')}
+                    className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-xl text-xs font-mono flex items-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <Plus className="w-4 h-4 text-red-400" />
                     <span>+ Add Cards Grid</span>
@@ -316,11 +365,94 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
                 </div>
               </div>
 
-              {/* Sections List */}
+              {/* Built-In Sections & Sub-Sections Control (Show / Restore Removed Sections) */}
+              {siteContent && onUpdateSiteContent && (
+                <div className="p-4 bg-zinc-900/40 border border-zinc-800/90 rounded-2xl space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-xs font-mono font-semibold text-zinc-200 uppercase tracking-wider">
+                        Built-In Page Sections &amp; Sub-Sections
+                      </h3>
+                      <p className="text-[11px] font-mono text-zinc-500">
+                        Removed blocks disappear cleanly from both Owner View and Visitor View. Restore or toggle them here.
+                      </p>
+                    </div>
+                    {BUILTIN_SECTION_ENTRIES.some((entry) => siteContent[entry.key] === false) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          BUILTIN_SECTION_ENTRIES.forEach((entry) => {
+                            if (siteContent[entry.key] === false) {
+                              onUpdateSiteContent(entry.key, true);
+                            }
+                          });
+                        }}
+                        className="px-2.5 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-300 border border-red-700/50 rounded-lg text-[11px] font-mono flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <RotateCcw className="w-3 h-3" />
+                        <span>Restore All Built-In Sections</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {BUILTIN_SECTION_ENTRIES.filter(
+                      (entry) => activeTabFilter === 'all' || entry.tab === activeTabFilter
+                    ).map((entry) => {
+                      const isVisible = siteContent[entry.key] !== false;
+                      return (
+                        <div
+                          key={String(entry.key)}
+                          className={`px-3 py-2 rounded-xl border flex items-center justify-between gap-2 text-xs transition-colors ${
+                            isVisible
+                              ? 'bg-zinc-950/70 border-zinc-800 text-zinc-200'
+                              : 'bg-zinc-950/40 border-dashed border-zinc-700 text-zinc-500'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-[9px] font-mono uppercase text-zinc-400 shrink-0">
+                              {entry.tab}
+                            </span>
+                            <span className={`truncate ${entry.isSubSection ? 'pl-2 text-[11px] font-mono' : 'text-xs font-medium'}`}>
+                              {entry.isSubSection ? `↳ ${entry.label}` : entry.label}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => onUpdateSiteContent(entry.key, !isVisible)}
+                            className={`px-2 py-1 rounded-lg border text-[10px] font-mono flex items-center gap-1 shrink-0 cursor-pointer transition-colors ${
+                              isVisible
+                                ? 'bg-zinc-900 border-zinc-700 text-zinc-300 hover:border-red-500/60 hover:text-red-300'
+                                : 'bg-red-600 hover:bg-red-500 border-red-500 text-white font-semibold'
+                            }`}
+                          >
+                            {isVisible ? (
+                              <>
+                                <Eye className="w-3 h-3 text-red-400" />
+                                <span>Active</span>
+                              </>
+                            ) : (
+                              <>
+                                <EyeOff className="w-3 h-3" />
+                                <span>Restore</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Custom Sections List */}
               <div className="space-y-3">
+                <div className="text-xs font-mono font-semibold text-zinc-300 uppercase tracking-wider">
+                  Custom Showcase Sections ({displayedSections.length})
+                </div>
                 {displayedSections.length === 0 ? (
-                  <div className="py-12 text-center text-zinc-500 font-mono text-xs border border-dashed border-zinc-800 rounded-2xl">
-                    No custom sections found in this tab. Click "+ Add Section" above to create one.
+                  <div className="py-10 text-center text-zinc-500 font-mono text-xs border border-dashed border-zinc-800 rounded-2xl">
+                    No custom sections found in this tab. Click one of the "+ Add" buttons above to create one.
                   </div>
                 ) : (
                   displayedSections.map((sec, idx) => (
@@ -329,7 +461,7 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
                       className="p-5 bg-zinc-900/50 border border-zinc-800/80 hover:border-zinc-700 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all"
                     >
                       <div className="space-y-1.5 max-w-xl">
-                        <div className="flex items-center gap-2 text-xs font-mono">
+                        <div className="flex items-center gap-2 text-xs font-mono flex-wrap">
                           <span className="px-2 py-0.5 rounded bg-red-950/40 text-red-400 border border-red-800/60 uppercase text-[10px]">
                             {sec.tab} TAB
                           </span>
@@ -339,6 +471,11 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
                           <span className="text-zinc-500 capitalize">{sec.layout} Layout</span>
                           <span className="text-zinc-500">·</span>
                           <span className="text-zinc-500">{sec.items.length} Cards</span>
+                          {sec.visible === false && (
+                            <span className="px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px]">
+                              Hidden
+                            </span>
+                          )}
                         </div>
                         <h4 className="text-base font-display font-semibold text-zinc-100">
                           {sec.title}
@@ -371,12 +508,12 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
                         {/* Visibility Toggle */}
                         <button
                           onClick={() => handleToggleVisibility(sec.id)}
-                          className={`p-2 rounded-lg border transition-colors ${
+                          className={`p-2 rounded-lg border transition-colors cursor-pointer ${
                             sec.visible !== false
                               ? 'bg-zinc-800 border-zinc-700 text-zinc-300 hover:text-red-400'
-                              : 'bg-zinc-900 border-dashed border-zinc-700 text-zinc-500'
+                              : 'bg-zinc-900 border-dashed border-zinc-700 text-zinc-500 hover:text-white'
                           }`}
-                          title={sec.visible !== false ? 'Visible to visitors (click to hide)' : 'Hidden (click to show)'}
+                          title={sec.visible !== false ? 'Visible on page (click to hide)' : 'Hidden from page (click to restore)'}
                         >
                           {sec.visible !== false ? (
                             <Eye className="w-4 h-4 text-red-400" />
@@ -388,7 +525,7 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
                         {/* Edit Section */}
                         <button
                           onClick={() => handleStartEdit(sec)}
-                          className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg text-xs font-mono transition-colors shadow-sm"
+                          className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg text-xs font-mono transition-colors shadow-sm cursor-pointer"
                         >
                           Edit Content
                         </button>
@@ -396,7 +533,7 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
                         {/* Delete Section */}
                         <button
                           onClick={() => handleDeleteSection(sec.id)}
-                          className="p-2 bg-red-950/30 hover:bg-red-900/50 text-red-400 border border-red-900/50 rounded-lg transition-colors"
+                          className="p-2 bg-red-950/30 hover:bg-red-900/50 text-red-400 border border-red-900/50 rounded-lg transition-colors cursor-pointer"
                           title="Delete section"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -422,12 +559,18 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
                   onClick={() => {
                     setEditingSection(null);
                     setIsCreatingNew(false);
+                    setFormError(null);
                   }}
                   className="text-xs font-mono text-zinc-400 hover:text-zinc-200"
                 >
                   ← Back to Sections List
                 </button>
               </div>
+              {formError && (
+                <div className="px-3 py-2 rounded-xl bg-red-950/40 border border-red-800/60 text-xs font-mono text-red-300">
+                  {formError}
+                </div>
+              )}
 
               {/* Tab & Layout Selection */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -444,9 +587,9 @@ export const SectionManagerModal: React.FC<SectionManagerModalProps> = ({
                   >
                     <option value="home">Home Tab (Main Feed)</option>
                     <option value="work">Work Tab (Portfolio & Case Studies)</option>
-                    <option value="about">About Tab (Experience & Philosophy)</option>
-                    <option value="resume">Resume Tab (Career Timeline & Benchmarks)</option>
-                    <option value="contact">Contact Tab (Inquiries & Connect)</option>
+                    <option value="about">About Tab (Philosophy, Stats &amp; Career Timeline)</option>
+                    <option value="resume">Resume Tab (CV, Benchmarks &amp; Skills)</option>
+                    <option value="contact">Contact Tab (Inquiries &amp; Connect)</option>
                   </select>
                 </div>
 

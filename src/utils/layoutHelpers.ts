@@ -10,13 +10,20 @@ export function getAdaptiveGridClass(
     return 'grid grid-cols-1 gap-6';
   }
 
-  if (variant === 'split' || variant === 'tools') {
+  if (variant === 'split') {
+    return 'grid grid-cols-1 md:grid-cols-2 gap-5';
+  }
+
+  if (variant === 'tools') {
+    if (itemCount === 3) return 'grid grid-cols-1 md:grid-cols-3 gap-5';
     return 'grid grid-cols-1 md:grid-cols-2 gap-5';
   }
 
   if (variant === 'stats') {
     if (itemCount === 2) return 'grid grid-cols-1 sm:grid-cols-2 gap-4';
     if (itemCount === 3) return 'grid grid-cols-1 sm:grid-cols-3 gap-4';
+    if (itemCount === 5) return 'grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4';
+    if (itemCount === 6) return 'grid grid-cols-2 sm:grid-cols-3 gap-4';
     return 'grid grid-cols-2 md:grid-cols-4 gap-4';
   }
 

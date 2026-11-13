@@ -352,9 +352,6 @@ export function filterProjects<T extends FilterableProject>(
       if (categoryFilter === 'unreal' && !project.engine.toLowerCase().includes('unreal')) {
         return false;
       }
-      if (categoryFilter === 'unity' && !project.engine.toLowerCase().includes('unity')) {
-        return false;
-      }
     }
 
     // Search query match

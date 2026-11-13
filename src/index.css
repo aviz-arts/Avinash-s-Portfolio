@@ -43,4 +43,24 @@ body {
   overflow-x: hidden;
 }
 
+@media print {
+  @page {
+    size: auto;
+    margin: 12mm 14mm;
+  }
 
+  html,
+  body {
+    background: #ffffff !important;
+    color: #18181b !important;
+    font-size: 12px !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+}

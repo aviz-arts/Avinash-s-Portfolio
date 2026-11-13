@@ -41,7 +41,7 @@ export const ResumeModal: React.FC<ResumeModalProps> = ({
 AVINASH
 Game Designer | Lighting Artist
 Email: ${profile?.email || 'aviz.arts@gmail.com'}
-Specialization: Gameplay Systems, Core Mechanics Loops, Level Architecture, UE5 Lumen / Unity HDRP
+Specialization: Gameplay Systems, Core Mechanics Loops, Level Architecture, UE5 Lumen & Nanite
 
 SUMMARY:
 ${profile?.leadCopy || 'Professional Game Designer specializing in core gameplay loops, mechanics, player pacing, and level architecture — powered by a lifelong hobby and passion for real-time lighting and cinematic atmosphere.'}
@@ -69,7 +69,7 @@ CORE TECHNICAL SKILLS:
 - Game Design: Core Loops, Mechanics Prototyping, Player Psychology, Combat Pacing, System Economies
 - Level Design: 3D Combat Blockouts, Sightline Calculation, Verticality Layers, Flow Topology
 - Lighting (Passion): Unreal Engine 5.4 Lumen, VSM, Exponential Fog, Physical Camera Exposure, ACES
-- Engines & Tools: Unreal Engine 5 (Blueprints/Sequencer), Unity (C# Prototyping), Maya, Blender, Perforce
+- Engines & Tools: Unreal Engine 5 (Blueprints/C++/Sequencer), Maya, Blender, Marmoset Toolbag 4, Perforce
 `.trim();
 
     navigator.clipboard.writeText(resumeText).then(() => {
@@ -139,7 +139,7 @@ CORE TECHNICAL SKILLS:
                 {profile?.title || 'Game Designer | Lighting Artist'}
               </div>
               <div className="text-xs font-mono text-zinc-400 print:text-zinc-600 mt-2 flex flex-wrap items-center gap-3">
-                <span>Specialization: Unreal Engine 5 (Lumen/Nanite) & Unity HDRP</span>
+                <span>Specialization: Unreal Engine 5.4 (Lumen/Nanite) &amp; C++ Systems</span>
                 <span>·</span>
                 <span>Location: Remote / Open to Relocation</span>
               </div>
@@ -261,7 +261,7 @@ CORE TECHNICAL SKILLS:
                 </div>
                 <ul className="list-disc list-inside text-xs text-zinc-400 print:text-zinc-700 space-y-1 pt-1">
                   <li>Structured 3D dungeon layouts and encounter zones using architectural landmarks for 94% unassisted player orientation.</li>
-                  <li>Prototyped player combat verbs, AI spacing state machines, and consumable resource economies in Blueprints and C#.</li>
+                  <li>Prototyped player combat verbs, AI spacing state machines, and consumable resource economies in Blueprints and C++.</li>
                 </ul>
               </div>
             </div>
@@ -284,7 +284,7 @@ CORE TECHNICAL SKILLS:
               <div className="p-3.5 bg-zinc-900/40 print:bg-zinc-50 border border-zinc-800 print:border-zinc-300 rounded-xl space-y-1.5">
                 <div className="font-mono font-semibold text-zinc-200 print:text-black">Lighting Art (Passion) & Engines</div>
                 <div className="text-zinc-400 print:text-zinc-700">
-                  Unreal Engine 5.4 (Lumen, Nanite, Blueprints, Sequencer), Unity HDRP, VSM, ACES Color Grading
+                  Unreal Engine 5.4 (Lumen, Nanite, Blueprints, Sequencer, C++), VSM, ACES Color Grading
                 </div>
               </div>
 
