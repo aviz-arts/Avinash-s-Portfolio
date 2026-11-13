@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
+import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+
+export type SupportedModelFormat = 'fbx' | 'glb';
 
 export interface ModelStats {
   meshes: number;
@@ -17,24 +19,33 @@ export interface PreparedModelResult {
 }
 
 /**
- * Loads a model from an in-memory ArrayBuffer (.glb, .gltf, or .obj)
+ * Extracts and validates the 3D model format from a filename or URL (.fbx or .glb only)
+ */
+export function getSupportedModelFormat(fileNameOrUrl: string): SupportedModelFormat | null {
+  const clean = fileNameOrUrl.split('?')[0].split('#')[0].trim().toLowerCase();
+  const ext = clean.split('.').pop();
+  if (ext === 'fbx') return 'fbx';
+  if (ext === 'glb') return 'glb';
+  return null;
+}
+
+/**
+ * Loads a model from an in-memory ArrayBuffer (.fbx or .glb only)
  */
 export function loadModelFromArrayBuffer(
   buffer: ArrayBuffer,
-  format: 'glb' | 'gltf' | 'obj'
+  format: SupportedModelFormat
 ): Promise<THREE.Object3D> {
   return new Promise((resolve, reject) => {
-    if (format === 'obj') {
+    if (format === 'fbx') {
       try {
-        const text = new TextDecoder().decode(buffer);
-        const objLoader = new OBJLoader();
-        const obj = objLoader.parse(text);
-        resolve(obj);
+        const fbxLoader = new FBXLoader();
+        const group = fbxLoader.parse(buffer, '');
+        resolve(group);
       } catch (err) {
-        reject(new Error(`Failed to parse OBJ file: ${err instanceof Error ? err.message : String(err)}`));
+        reject(new Error(`Failed to parse FBX file: ${err instanceof Error ? err.message : String(err)}`));
       }
-    } else {
-      // GLTF / GLB binary loader
+    } else if (format === 'glb') {
       const gltfLoader = new GLTFLoader();
       gltfLoader.parse(
         buffer,
@@ -43,21 +54,28 @@ export function loadModelFromArrayBuffer(
           resolve(gltf.scene || gltf.scenes[0]);
         },
         (error) => {
-          reject(new Error(`Failed to parse GLTF/GLB: ${error instanceof Error ? error.message : String(error)}`));
+          reject(new Error(`Failed to parse GLB file: ${error instanceof Error ? error.message : String(error)}`));
         }
       );
+    } else {
+      reject(new Error('Unsupported format. Only .fbx and .glb files are allowed.'));
     }
   });
 }
 
 /**
- * Loads a model from a remote URL (.glb, .gltf, or .obj)
+ * Loads a model from a remote URL (.fbx or .glb only)
  */
 export function loadModelFromUrl(url: string): Promise<THREE.Object3D> {
   return new Promise((resolve, reject) => {
-    const isObj = url.toLowerCase().endsWith('.obj');
-    if (isObj) {
-      const loader = new OBJLoader();
+    const format = getSupportedModelFormat(url);
+    if (!format) {
+      reject(new Error('Only .fbx and .glb 3D model URLs are supported.'));
+      return;
+    }
+
+    if (format === 'fbx') {
+      const loader = new FBXLoader();
       loader.load(url, resolve, undefined, reject);
     } else {
       const loader = new GLTFLoader();
@@ -109,13 +127,22 @@ export function prepareModelForLightingStudio(
         }
       }
 
+      // Ensure at least a default standard material exists if FBX/GLB mesh lacks one
+      if (!child.material) {
+        child.material = new THREE.MeshStandardMaterial({
+          color: 0xb0b7c3,
+          roughness: 0.5,
+          metalness: 0.2,
+        });
+      }
+
       // Preserve original materials and configure color spaces
       const mats = Array.isArray(child.material) ? child.material : [child.material];
       mats.forEach((mat) => {
         if (mat) {
           materialsSet.add(mat.uuid);
-          if (mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
-          if (mat.emissiveMap) mat.emissiveMap.colorSpace = THREE.SRGBColorSpace;
+          if ('map' in mat && mat.map) mat.map.colorSpace = THREE.SRGBColorSpace;
+          if ('emissiveMap' in mat && mat.emissiveMap) mat.emissiveMap.colorSpace = THREE.SRGBColorSpace;
           // Ensure environment map reflections respond
           if ('envMapIntensity' in mat) {
             mat.envMapIntensity = 1.0;

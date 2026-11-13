@@ -22,12 +22,15 @@ test('polarToCartesian converts angles to proper 3D coordinates', () => {
   assert.ok(Math.abs(z3) < 0.0001);
 });
 
-test('lighting presets contain all required fields and valid ranges', () => {
+test('lighting presets contain all required fields, valid ranges, and no duplicates', () => {
   const presets = Object.values(LIGHTING_PRESETS);
-  assert.ok(presets.length >= 4);
+  assert.equal(presets.length, 4);
 
+  const names = new Set<string>();
   for (const preset of presets) {
     assert.ok(preset.name.length > 0);
+    assert.ok(!names.has(preset.name), `Duplicate preset name: ${preset.name}`);
+    names.add(preset.name);
     assert.ok(preset.keyLight.intensity > 0);
     assert.ok(preset.keyLight.elevation >= 0 && preset.keyLight.elevation <= 90);
     assert.ok(preset.fillLight.intensity >= 0);

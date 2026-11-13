@@ -5,7 +5,22 @@ import {
   prepareModelForLightingStudio,
   buildStudioPedestal,
   buildDefaultLookdevAsset,
+  getSupportedModelFormat,
 } from '../components/studio/modelLoaders';
+
+test('getSupportedModelFormat accepts .fbx and .glb only', () => {
+  assert.equal(getSupportedModelFormat('character.fbx'), 'fbx');
+  assert.equal(getSupportedModelFormat('PROP_HERO.FBX'), 'fbx');
+  assert.equal(getSupportedModelFormat('weapon.glb'), 'glb');
+  assert.equal(getSupportedModelFormat('https://cdn.example.com/assets/mech.glb?v=2'), 'glb');
+  assert.equal(getSupportedModelFormat('https://cdn.example.com/assets/rig.fbx#mesh'), 'fbx');
+
+  // Rejected formats
+  assert.equal(getSupportedModelFormat('scene.obj'), null);
+  assert.equal(getSupportedModelFormat('scene.gltf'), null);
+  assert.equal(getSupportedModelFormat('model.stl'), null);
+  assert.equal(getSupportedModelFormat('texture.png'), null);
+});
 
 test('buildStudioPedestal creates a valid studio stage with floor and contact shadow', () => {
   const pedestal = buildStudioPedestal(8.0);

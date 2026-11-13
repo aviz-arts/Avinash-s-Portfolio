@@ -9,6 +9,8 @@ import {
   buildDefaultLookdevAsset,
   loadModelFromArrayBuffer,
   loadModelFromUrl,
+  getSupportedModelFormat,
+  SupportedModelFormat,
   ModelStats,
 } from './modelLoaders';
 import {
@@ -66,7 +68,7 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
 
   // Active lighting settings
   const [lighting, setLighting] = useState<LightSettings>(() => {
-    return LIGHTING_PRESETS.cleanStudio || LIGHTING_PRESETS.studio || Object.values(LIGHTING_PRESETS)[0];
+    return LIGHTING_PRESETS.studio || Object.values(LIGHTING_PRESETS)[0];
   });
 
   // Model & Studio UI state
@@ -164,11 +166,11 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
     }
   }, []);
 
-  // Load custom 3D model from raw ArrayBuffer
+  // Load custom 3D model from raw ArrayBuffer (.fbx or .glb only)
   const handleModelBufferLoad = useCallback(async (
     buffer: ArrayBuffer,
     fileName: string,
-    format: 'glb' | 'gltf' | 'obj'
+    format: SupportedModelFormat
   ) => {
     setIsLoadingModel(true);
     setModelError(null);
@@ -213,13 +215,17 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
     await clearUploadedModel();
   };
 
-  // File picker handler
+  // File picker handler (.fbx or .glb only)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const ext = file.name.split('.').pop()?.toLowerCase();
-    const format: 'glb' | 'gltf' | 'obj' = ext === 'obj' ? 'obj' : 'glb';
+    const format = getSupportedModelFormat(file.name);
+    if (!format) {
+      setModelError('Unsupported file format. Please upload a .fbx or .glb 3D model file.');
+      e.target.value = '';
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {
@@ -256,13 +262,12 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
     const file = e.dataTransfer.files?.[0];
     if (!file) return;
 
-    const ext = file.name.split('.').pop()?.toLowerCase();
-    if (ext !== 'glb' && ext !== 'gltf' && ext !== 'obj') {
-      setModelError('Please drop a .glb, .gltf, or .obj 3D model file.');
+    const format = getSupportedModelFormat(file.name);
+    if (!format) {
+      setModelError('Unsupported file format. Please drop a .fbx or .glb 3D model file.');
       return;
     }
 
-    const format: 'glb' | 'gltf' | 'obj' = ext === 'obj' ? 'obj' : 'glb';
     const reader = new FileReader();
     reader.onload = (event) => {
       const buffer = event.target?.result as ArrayBuffer;
@@ -295,7 +300,7 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
       }
     })();
     stateRef.current.isSoftwareGl = isSoftwareGl;
-    const activeLighting = lighting || LIGHTING_PRESETS.cleanStudio || LIGHTING_PRESETS.studio || Object.values(LIGHTING_PRESETS)[0];
+    const activeLighting = lighting || LIGHTING_PRESETS.studio || Object.values(LIGHTING_PRESETS)[0];
 
     // 1. Scene
     const scene = new THREE.Scene();
@@ -416,7 +421,7 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
     (async () => {
       try {
         const stored = await loadUploadedModel();
-        if (stored && stored.buffer) {
+        if (stored && stored.buffer && (stored.format === 'fbx' || stored.format === 'glb')) {
           const rawModel = await loadModelFromArrayBuffer(stored.buffer, stored.format);
           const { container, stats } = prepareModelForLightingStudio(rawModel);
           replaceSceneModel(container, stats, stored.name, true);
@@ -642,11 +647,11 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
 
   return (
     <div className={`relative w-full ${className}`}>
-      {/* Hidden file input for 3D model upload */}
+      {/* Hidden file input for 3D model upload (.fbx and .glb only) */}
       <input
         ref={fileInputRef}
         type="file"
-        accept=".glb,.gltf,.obj"
+        accept=".fbx,.glb"
         className="hidden"
         onChange={handleFileChange}
       />
@@ -675,7 +680,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
               Drop 3D Model to Inspect in Real-Time
             </h3>
             <p className="text-xs font-mono text-zinc-400 max-w-sm">
-              Release to auto-center, auto-ground, and light your real <code className="text-red-400">.glb</code>, <code className="text-red-400">.gltf</code>, or <code className="text-red-400">.obj</code> file.
+              Release to auto-center, auto-ground, and light your real <code className="text-red-400">.fbx</code> or <code className="text-red-400">.glb</code> file.
             </p>
           </div>
         )}
@@ -738,7 +743,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
           <button
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold bg-red-600 hover:bg-red-500 text-white rounded-xl shadow-lg shadow-red-600/30 transition-all cursor-pointer"
-            title="Upload your own 3D model (.glb, .gltf, .obj)"
+            title="Upload your own 3D model (.fbx or .glb)"
           >
             <Upload className="w-3.5 h-3.5" />
             <span>Upload 3D Model</span>
@@ -809,7 +814,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
               </button>
             </div>
             <p className="text-[11px] text-zinc-400 mb-2 leading-relaxed">
-              Enter a direct link to any <code className="text-red-400">.glb</code>, <code className="text-red-400">.gltf</code>, or <code className="text-red-400">.obj</code> file:
+              Enter a direct link to any <code className="text-red-400">.fbx</code> or <code className="text-red-400">.glb</code> file:
             </p>
             <input
               type="url"
@@ -945,10 +950,10 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
             <button
               onClick={() => fileInputRef.current?.click()}
               className="px-3 py-1 text-xs font-medium bg-red-600 hover:bg-red-500 text-white rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm shadow-red-600/30"
-              title="Upload your own 3D model (.glb, .gltf, .obj)"
+              title="Upload your own 3D model (.fbx or .glb)"
             >
               <Upload className="w-3.5 h-3.5" />
-              <span>Upload Model</span>
+              <span>Upload Model (.fbx / .glb)</span>
             </button>
 
             {/* Model Name and stats badge */}
@@ -1092,27 +1097,34 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
         <div className="pt-1">
           {/* TAB: PRESETS */}
           {activeTab === 'presets' && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-5 gap-2">
-              {Object.entries(LIGHTING_PRESETS).map(([key, p]) => (
-                <button
-                  key={key}
-                  onClick={() => handleSelectPreset(key as keyof typeof LIGHTING_PRESETS)}
-                  className="p-2.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800/90 hover:border-red-500/50 text-left transition-all cursor-pointer group"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-semibold text-zinc-200 group-hover:text-white">
-                      {p.name}
-                    </span>
-                    <span
-                      className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
-                      style={{ backgroundColor: p.keyLight.color }}
-                    />
-                  </div>
-                  <div className="text-[10px] font-mono text-zinc-500 truncate">
-                    Key: {p.keyLight.intensity}x · Exp {p.toneMapping?.exposure ?? 1}
-                  </div>
-                </button>
-              ))}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {Object.entries(LIGHTING_PRESETS).map(([key, p]) => {
+                const isSelected = lighting.name === p.name;
+                return (
+                  <button
+                    key={key}
+                    onClick={() => handleSelectPreset(key as keyof typeof LIGHTING_PRESETS)}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer group ${
+                      isSelected
+                        ? 'bg-zinc-800 border-red-500/80 shadow-sm'
+                        : 'bg-zinc-900/90 hover:bg-zinc-800 border-zinc-800/90 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`text-xs font-semibold ${isSelected ? 'text-white' : 'text-zinc-200 group-hover:text-white'}`}>
+                        {p.name}
+                      </span>
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm"
+                        style={{ backgroundColor: p.keyLight.color }}
+                      />
+                    </div>
+                    <div className="text-[10px] font-mono text-zinc-500 truncate">
+                      {p.keyLight.kelvin ?? 5600}K · {p.keyLight.intensity}x
+                    </div>
+                  </button>
+                );
+              })}
             </div>
           )}
 

@@ -1,5 +1,5 @@
 /**
- * IndexedDB helper for persisting uploaded 3D models (.glb, .gltf, .obj)
+ * IndexedDB helper for persisting uploaded 3D models (.fbx, .glb)
  * Large binary files (up to 100MB+) persist across page reloads without localStorage quotas.
  */
 
@@ -11,7 +11,7 @@ export interface StoredModelRecord {
   name: string;
   size: number;
   buffer: ArrayBuffer;
-  format: 'glb' | 'gltf' | 'obj';
+  format: 'fbx' | 'glb';
   updatedAt: number;
 }
 
@@ -39,7 +39,7 @@ function openDB(): Promise<IDBDatabase> {
 export async function saveUploadedModel(
   name: string,
   buffer: ArrayBuffer,
-  format: 'glb' | 'gltf' | 'obj'
+  format: 'fbx' | 'glb'
 ): Promise<void> {
   try {
     const db = await openDB();
