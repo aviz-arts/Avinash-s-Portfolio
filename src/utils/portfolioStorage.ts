@@ -1,5 +1,6 @@
 import { ProjectItem } from '../types/portfolio';
 import { PORTFOLIO_PROJECTS } from '../data/portfolioData';
+import { PUBLISHED_PORTFOLIO, PublishedPortfolioData } from '../data/publishedPortfolio';
 
 export const DEFAULT_AVATAR_URL = '/assets/aistudio/pic_fe23a188.jpg';
 
@@ -526,12 +527,22 @@ const SITE_CONTENT_STORAGE_KEY = 'avinash_portfolio_site_content_v2';
 const CUSTOM_SECTIONS_STORAGE_KEY = 'avinash_portfolio_custom_sections_v2';
 const RESUME_PDF_STORAGE_KEY = 'avinash_portfolio_resume_pdf_v2';
 const RESUME_MILESTONES_STORAGE_KEY = 'avinash_portfolio_resume_milestones_v2';
+const LOCAL_UPDATED_AT_KEY = 'avinash_portfolio_local_updated_at_v2';
 const OWNER_AUTH_KEY = 'avinash_portfolio_owner_session_v1';
 const OWNER_BASELINE_KEY = 'avinash_portfolio_owner_baseline_v1';
 const OWNER_PIN_KEY = 'avinash_portfolio_owner_pin_v1';
 const TWO_FACTOR_CODE_KEY = 'avinash_portfolio_2fa_code_v1';
 const TWO_FACTOR_EXPIRY_KEY = 'avinash_portfolio_2fa_expiry_v1';
 const TOTP_SECRET_STORAGE_KEY = 'avinash_portfolio_totp_secret_v1';
+
+const PORTFOLIO_SLICE_KEYS = [
+  PROJECTS_STORAGE_KEY,
+  PROFILE_STORAGE_KEY,
+  SITE_CONTENT_STORAGE_KEY,
+  CUSTOM_SECTIONS_STORAGE_KEY,
+  RESUME_MILESTONES_STORAGE_KEY,
+  RESUME_PDF_STORAGE_KEY,
+] as const;
 
 export const DEFAULT_OWNER_PIN = '5904';
 export const OWNER_EMAIL = 'aviz.arts@gmail.com';
@@ -573,6 +584,10 @@ function removeStorageItem(key: string): void {
     }
   }
   memoryStorage.delete(key);
+}
+
+function touchLocalPortfolioTimestamp(ts: number = Date.now()): void {
+  setStorageItem(LOCAL_UPDATED_AT_KEY, String(ts));
 }
 
 export function stripUnityReferences(text: string): string {
@@ -740,6 +755,54 @@ export function resolveResumeEducation(siteContent?: Partial<SiteContent>): Resu
 }
 
 /**
+ * Published Bundle Fallbacks (bundled in static/Vercel builds)
+ */
+export function getPublishedProjects(): ProjectItem[] {
+  if (Array.isArray(PUBLISHED_PORTFOLIO.projects) && PUBLISHED_PORTFOLIO.projects.length > 0) {
+    return sanitizeJsonStrings(PUBLISHED_PORTFOLIO.projects as ProjectItem[]);
+  }
+  return PORTFOLIO_PROJECTS;
+}
+
+export function getPublishedProfile(): OwnerProfile {
+  if (PUBLISHED_PORTFOLIO.profile && typeof PUBLISHED_PORTFOLIO.profile === 'object') {
+    return sanitizeJsonStrings({ ...DEFAULT_PROFILE, ...(PUBLISHED_PORTFOLIO.profile as Partial<OwnerProfile>) });
+  }
+  return DEFAULT_PROFILE;
+}
+
+export function getPublishedSiteContent(): SiteContent {
+  if (PUBLISHED_PORTFOLIO.siteContent && typeof PUBLISHED_PORTFOLIO.siteContent === 'object') {
+    return sanitizeJsonStrings({
+      ...DEFAULT_SITE_CONTENT,
+      ...(PUBLISHED_PORTFOLIO.siteContent as Partial<SiteContent>),
+    });
+  }
+  return DEFAULT_SITE_CONTENT;
+}
+
+export function getPublishedCustomSections(): CustomSection[] {
+  if (Array.isArray(PUBLISHED_PORTFOLIO.customSections)) {
+    return sanitizeJsonStrings(PUBLISHED_PORTFOLIO.customSections as CustomSection[]);
+  }
+  return DEFAULT_CUSTOM_SECTIONS;
+}
+
+export function getPublishedResumeMilestones(): ResumeMilestone[] {
+  if (Array.isArray(PUBLISHED_PORTFOLIO.resumeMilestones)) {
+    return sanitizeJsonStrings(PUBLISHED_PORTFOLIO.resumeMilestones as ResumeMilestone[]);
+  }
+  return DEFAULT_RESUME_MILESTONES;
+}
+
+export function getPublishedResumePdf(): StoredResumePdf | null {
+  if (PUBLISHED_PORTFOLIO.resumePdf && PUBLISHED_PORTFOLIO.resumePdf.dataUrl) {
+    return PUBLISHED_PORTFOLIO.resumePdf as StoredResumePdf;
+  }
+  return null;
+}
+
+/**
  * Projects CRUD
  */
 export function getStoredProjects(): ProjectItem[] {
@@ -752,13 +815,14 @@ export function getStoredProjects(): ProjectItem[] {
       }
     }
   } catch (err) {
-    console.warn('Failed to parse stored projects, using defaults', err);
+    console.warn('Failed to parse stored projects, using published defaults', err);
   }
-  return PORTFOLIO_PROJECTS;
+  return getPublishedProjects();
 }
 
 export function saveStoredProjects(projects: ProjectItem[]): void {
   setStorageItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
+  touchLocalPortfolioTimestamp();
 }
 
 /**
@@ -770,17 +834,18 @@ export function getStoredProfile(): OwnerProfile {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
-        return sanitizeJsonStrings({ ...DEFAULT_PROFILE, ...parsed });
+        return sanitizeJsonStrings({ ...getPublishedProfile(), ...parsed });
       }
     }
   } catch (err) {
-    console.warn('Failed to parse stored profile, using defaults', err);
+    console.warn('Failed to parse stored profile, using published defaults', err);
   }
-  return DEFAULT_PROFILE;
+  return getPublishedProfile();
 }
 
 export function saveStoredProfile(profile: OwnerProfile): void {
   setStorageItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+  touchLocalPortfolioTimestamp();
 }
 
 /**
@@ -792,17 +857,18 @@ export function getStoredSiteContent(): SiteContent {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
-        return sanitizeJsonStrings({ ...DEFAULT_SITE_CONTENT, ...parsed });
+        return sanitizeJsonStrings({ ...getPublishedSiteContent(), ...parsed });
       }
     }
   } catch (err) {
-    console.warn('Failed to parse stored site content, using defaults', err);
+    console.warn('Failed to parse stored site content, using published defaults', err);
   }
-  return DEFAULT_SITE_CONTENT;
+  return getPublishedSiteContent();
 }
 
 export function saveStoredSiteContent(content: SiteContent): void {
   setStorageItem(SITE_CONTENT_STORAGE_KEY, JSON.stringify(content));
+  touchLocalPortfolioTimestamp();
 }
 
 const BOOLEAN_SITE_CONTENT_KEYS = new Set<string>([
@@ -876,13 +942,14 @@ export function getStoredCustomSections(): CustomSection[] {
       }
     }
   } catch (err) {
-    console.warn('Failed to parse stored custom sections, using defaults', err);
+    console.warn('Failed to parse stored custom sections, using published defaults', err);
   }
-  return DEFAULT_CUSTOM_SECTIONS;
+  return getPublishedCustomSections();
 }
 
 export function saveStoredCustomSections(sections: CustomSection[]): void {
   setStorageItem(CUSTOM_SECTIONS_STORAGE_KEY, JSON.stringify(sections));
+  touchLocalPortfolioTimestamp();
 }
 
 export function createCustomSection(
@@ -931,16 +998,18 @@ export interface StoredResumePdf {
 export function getStoredResumePdf(): StoredResumePdf | null {
   try {
     const raw = getStorageItem(RESUME_PDF_STORAGE_KEY);
-    if (raw) {
+    if (raw !== null) {
+      if (raw === 'null') return null;
       const parsed = JSON.parse(raw);
       if (parsed && parsed.dataUrl) {
         return parsed as StoredResumePdf;
       }
+      return null;
     }
   } catch (err) {
     console.warn('Failed to parse stored resume PDF', err);
   }
-  return null;
+  return getPublishedResumePdf();
 }
 
 export function saveStoredResumePdf(dataUrl: string, filename: string, sizeBytes?: number): StoredResumePdf {
@@ -951,16 +1020,23 @@ export function saveStoredResumePdf(dataUrl: string, filename: string, sizeBytes
     sizeBytes,
   };
   setStorageItem(RESUME_PDF_STORAGE_KEY, JSON.stringify(item));
+  touchLocalPortfolioTimestamp();
   return item;
 }
 
 export function deleteStoredResumePdf(): void {
-  removeStorageItem(RESUME_PDF_STORAGE_KEY);
+  if (getPublishedResumePdf()) {
+    setStorageItem(RESUME_PDF_STORAGE_KEY, 'null');
+  } else {
+    removeStorageItem(RESUME_PDF_STORAGE_KEY);
+  }
+  touchLocalPortfolioTimestamp();
 }
 
 export function restoreStoredResumePdf(pdf: StoredResumePdf | null): void {
   if (pdf && pdf.dataUrl) {
     setStorageItem(RESUME_PDF_STORAGE_KEY, JSON.stringify(pdf));
+    touchLocalPortfolioTimestamp();
   } else {
     deleteStoredResumePdf();
   }
@@ -979,13 +1055,14 @@ export function getStoredResumeMilestones(): ResumeMilestone[] {
       }
     }
   } catch (err) {
-    console.warn('Failed to parse stored resume milestones, using defaults', err);
+    console.warn('Failed to parse stored resume milestones, using published defaults', err);
   }
-  return DEFAULT_RESUME_MILESTONES;
+  return getPublishedResumeMilestones();
 }
 
 export function saveStoredResumeMilestones(milestones: ResumeMilestone[]): void {
   setStorageItem(RESUME_MILESTONES_STORAGE_KEY, JSON.stringify(milestones));
+  touchLocalPortfolioTimestamp();
 }
 
 export function createResumeMilestone(
@@ -1571,4 +1648,146 @@ export function clearStoredOwnerSessionBaseline(): void {
     }
   }
 }
+
+/**
+ * Deployment Synchronization: Keeps preview localStorage, bundled publishedPortfolio.ts,
+ * and static Vercel builds aligned cleanly without Firebase.
+ */
+export function clearLocalPortfolioOverrides(): void {
+  for (const key of PORTFOLIO_SLICE_KEYS) {
+    removeStorageItem(key);
+  }
+}
+
+export function syncLocalStorageWithPublishedBundle(
+  publishedData: PublishedPortfolioData = PUBLISHED_PORTFOLIO
+): 'refreshed_from_deploy' | 'has_pending_local_edits' | 'in_sync' {
+  const publishedAt = Number(publishedData?.publishedAt) || 0;
+  const localUpdatedAtRaw = getStorageItem(LOCAL_UPDATED_AT_KEY);
+  const localUpdatedAt = localUpdatedAtRaw ? Number(localUpdatedAtRaw) || 0 : 0;
+  const hasAnyLocalSlice = PORTFOLIO_SLICE_KEYS.some((key) => getStorageItem(key) !== null);
+
+  if (publishedAt > 0 && publishedAt > localUpdatedAt) {
+    clearLocalPortfolioOverrides();
+    setStorageItem(LOCAL_UPDATED_AT_KEY, String(publishedAt));
+    return 'refreshed_from_deploy';
+  }
+
+  if ((publishedAt === 0 && hasAnyLocalSlice) || localUpdatedAt > publishedAt) {
+    return 'has_pending_local_edits';
+  }
+
+  return 'in_sync';
+}
+
+export function generatePublishedPortfolioTsSource(
+  snapshot: OwnerSessionSnapshot,
+  publishedAt: number = Date.now()
+): string {
+  const safePayload = {
+    publishedAt,
+    projects: snapshot.projects ?? null,
+    profile: snapshot.profile ?? null,
+    siteContent: snapshot.siteContent ?? null,
+    customSections: snapshot.customSections ?? null,
+    resumeMilestones: snapshot.resumeMilestones ?? null,
+    resumePdf: snapshot.resumePdf?.dataUrl ? snapshot.resumePdf : null,
+  };
+
+  return `import { ProjectItem } from '../types/portfolio';
+
+export interface PublishedPortfolioData {
+  publishedAt: number;
+  projects: ProjectItem[] | null;
+  profile: Record<string, any> | null;
+  siteContent: Record<string, any> | null;
+  customSections: any[] | null;
+  resumeMilestones: any[] | null;
+  resumePdf: {
+    dataUrl: string;
+    filename: string;
+    uploadedAt: string;
+    sizeBytes?: number;
+  } | null;
+}
+
+/**
+ * Bundled Owner Mode snapshot written automatically by the preview dev server
+ * so Vercel / production static builds always ship with your latest Owner edits.
+ */
+export const PUBLISHED_PORTFOLIO: PublishedPortfolioData = ${JSON.stringify(safePayload, null, 2)};
+`;
+}
+
+export async function checkServerPublishStatus(): Promise<{
+  canWriteToSource: boolean;
+  publishedAt: number;
+}> {
+  try {
+    const res = await fetch('/api/publish-status', { method: 'GET', cache: 'no-store' });
+    const contentType = res.headers.get('content-type') || '';
+    if (!res.ok || !contentType.includes('application/json')) {
+      return { canWriteToSource: false, publishedAt: 0 };
+    }
+    const data = await res.json();
+    return {
+      canWriteToSource: Boolean(data?.canWriteToSource),
+      publishedAt: Number(data?.publishedAt) || 0,
+    };
+  } catch {
+    return { canWriteToSource: false, publishedAt: 0 };
+  }
+}
+
+export async function publishPortfolioToServer(
+  snapshot: OwnerSessionSnapshot,
+  options?: { reset?: boolean }
+): Promise<{
+  ok: boolean;
+  publishedAt?: number;
+  readOnly?: boolean;
+  error?: string;
+}> {
+  try {
+    const publishedAt = Date.now();
+    const res = await fetch('/api/publish-portfolio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        publishedAt,
+        reset: Boolean(options?.reset),
+        projects: snapshot.projects,
+        profile: snapshot.profile,
+        siteContent: snapshot.siteContent,
+        customSections: snapshot.customSections,
+        resumeMilestones: snapshot.resumeMilestones,
+        resumePdf: snapshot.resumePdf ?? null,
+      }),
+    });
+
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return { ok: false, readOnly: true, error: 'Static host environment' };
+    }
+
+    const data = await res.json();
+    if (res.ok && data?.ok) {
+      const serverTs = Number(data.publishedAt) || publishedAt;
+      setStorageItem(LOCAL_UPDATED_AT_KEY, String(serverTs));
+      return { ok: true, publishedAt: serverTs };
+    }
+
+    return {
+      ok: false,
+      readOnly: Boolean(data?.readOnly) || res.status === 403,
+      error: data?.error || 'Failed to sync changes to source bundle',
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Network error during deploy sync',
+    };
+  }
+}
+
 

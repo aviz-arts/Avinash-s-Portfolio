@@ -13,7 +13,7 @@ import { AboutSection } from './components/about/AboutSection';
 import { ContactSection } from './components/contact/ContactSection';
 import { ResumeSection } from './components/resume/ResumeSection';
 import { ContactModal } from './components/contact/ContactModal';
-import { OwnerBar } from './components/owner/OwnerBar';
+import { OwnerBar, DeploySyncState } from './components/owner/OwnerBar';
 import { OwnerLoginModal } from './components/owner/OwnerLoginModal';
 import { ProjectEditorModal } from './components/owner/ProjectEditorModal';
 import { ProfileEditorModal } from './components/owner/ProfileEditorModal';
@@ -70,6 +70,10 @@ import {
   getStoredOwnerSessionBaseline,
   saveStoredOwnerSessionBaseline,
   clearStoredOwnerSessionBaseline,
+  syncLocalStorageWithPublishedBundle,
+  checkServerPublishStatus,
+  publishPortfolioToServer,
+  generatePublishedPortfolioTsSource,
   DEFAULT_AVATAR_URL,
 } from './utils/portfolioStorage';
 import {
@@ -100,6 +104,12 @@ export default function App() {
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [siteContentEditorTab, setSiteContentEditorTab] = useState<'hero' | 'studio' | 'works' | 'reels' | 'level' | 'about' | 'contact' | 'footer'>('hero');
 
+  // Synchronize any newer deployed bundle with stale browser localStorage BEFORE initial reads
+  const bundleSyncStatusRef = useRef<'refreshed_from_deploy' | 'has_pending_local_edits' | 'in_sync' | null>(null);
+  if (bundleSyncStatusRef.current === null) {
+    bundleSyncStatusRef.current = syncLocalStorageWithPublishedBundle();
+  }
+
   // Persistent State
   const [projects, setProjects] = useState<ProjectItem[]>(() => getStoredProjects());
   const [profile, setProfile] = useState<OwnerProfile>(() => getStoredProfile());
@@ -107,6 +117,9 @@ export default function App() {
   const [resumePdf, setResumePdf] = useState<StoredResumePdf | null>(() => getStoredResumePdf());
   const [customSections, setCustomSections] = useState<CustomSection[]>(() => getStoredCustomSections());
   const [resumeMilestones, setResumeMilestones] = useState<ResumeMilestone[]>(() => getStoredResumeMilestones());
+  const [deploySyncState, setDeploySyncState] = useState<DeploySyncState>('checking');
+  const canWriteToSourceRef = useRef(false);
+  const lastPublishedHashRef = useRef<string | null>(null);
 
   // Owner Mode State (Private: Only visible to Owner Avinash)
   const [isOwner, setIsOwner] = useState<boolean>(() => isOwnerSessionActive());
@@ -193,6 +206,97 @@ export default function App() {
     }),
     [projects, profile, siteContent, customSections, resumeMilestones, resumePdf]
   );
+
+  const currentOwnerSnapshotRef = useRef<OwnerSessionSnapshot>(currentOwnerSnapshot);
+  currentOwnerSnapshotRef.current = currentOwnerSnapshot;
+
+  const flushPublishToServer = async (
+    snapshot: OwnerSessionSnapshot,
+    options?: { reset?: boolean }
+  ): Promise<boolean> => {
+    if (!canWriteToSourceRef.current) return false;
+    const hash = JSON.stringify(snapshot);
+    setDeploySyncState('saving');
+    const result = await publishPortfolioToServer(snapshot, options);
+    if (result.ok) {
+      lastPublishedHashRef.current = hash;
+      setDeploySyncState('synced');
+      return true;
+    }
+    if (result.readOnly) {
+      canWriteToSourceRef.current = false;
+      setDeploySyncState('readonly');
+    } else {
+      setDeploySyncState('error');
+    }
+    return false;
+  };
+
+  // Detect whether preview dev server can persist changes directly to source bundle
+  // and immediately rescue any pre-existing preview localStorage edits into publishedPortfolio.ts
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const status = await checkServerPublishStatus();
+      if (cancelled) return;
+      canWriteToSourceRef.current = status.canWriteToSource;
+      if (!status.canWriteToSource) {
+        setDeploySyncState('readonly');
+        return;
+      }
+
+      const initialSnapshot = currentOwnerSnapshotRef.current;
+      const initialHash = JSON.stringify(initialSnapshot);
+
+      if (bundleSyncStatusRef.current === 'has_pending_local_edits') {
+        setDeploySyncState('saving');
+        const res = await publishPortfolioToServer(initialSnapshot);
+        if (cancelled) return;
+        if (res.ok) {
+          lastPublishedHashRef.current = initialHash;
+          setDeploySyncState('synced');
+        } else {
+          setDeploySyncState(res.readOnly ? 'readonly' : 'error');
+        }
+      } else {
+        lastPublishedHashRef.current = initialHash;
+        setDeploySyncState('synced');
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Automatically sync any Owner Mode changes to src/data/publishedPortfolio.ts in preview
+  useEffect(() => {
+    if (!canWriteToSourceRef.current) return;
+    const nextHash = JSON.stringify(currentOwnerSnapshot);
+    if (lastPublishedHashRef.current === null || nextHash === lastPublishedHashRef.current) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void flushPublishToServer(currentOwnerSnapshot);
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [currentOwnerSnapshot]);
+
+  const handleDownloadPublishedModule = () => {
+    const tsSource = generatePublishedPortfolioTsSource(currentOwnerSnapshot, Date.now());
+    const blob = new Blob([tsSource], { type: 'text/typescript;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'publishedPortfolio.ts';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showBanner('Downloaded publishedPortfolio.ts — place it in src/data/ before deploying.');
+  };
 
   const changedOwnerSections = useMemo(
     () => (isOwner ? getChangedOwnerSections(ownerSessionBaseline, currentOwnerSnapshot) : []),
@@ -406,6 +510,17 @@ export default function App() {
       setCustomSections(res.customSections);
       setResumeMilestones(res.resumeMilestones);
       setResumePdf(null);
+      void flushPublishToServer(
+        {
+          projects: res.projects,
+          profile: res.profile,
+          siteContent: res.siteContent,
+          customSections: res.customSections,
+          resumeMilestones: res.resumeMilestones,
+          resumePdf: null,
+        },
+        { reset: true }
+      );
       showBanner('Portfolio reset to default showcase data.');
     }
   };
@@ -434,7 +549,12 @@ export default function App() {
     const freshBaseline = createOwnerSessionSnapshot(currentOwnerSnapshot);
     setOwnerSessionBaseline(freshBaseline);
     saveStoredOwnerSessionBaseline(freshBaseline);
-    showBanner('All Owner Mode changes saved.');
+    void flushPublishToServer(currentOwnerSnapshot);
+    showBanner(
+      canWriteToSourceRef.current
+        ? 'All Owner Mode changes saved & synced for deployment.'
+        : 'All Owner Mode changes saved.'
+    );
   };
 
   const handleLogout = () => {
@@ -459,6 +579,7 @@ export default function App() {
   const handleSaveAndCloseOwnerMode = () => {
     const action = pendingOwnerCloseAction || 'logout';
     saveOwnerSessionSnapshot(currentOwnerSnapshot);
+    void flushPublishToServer(currentOwnerSnapshot);
     executeCloseOwnerMode(
       action,
       action === 'forgetDevice'
@@ -478,6 +599,7 @@ export default function App() {
       setResumeMilestones(restored.resumeMilestones);
       setResumePdf(restored.resumePdf);
       saveOwnerSessionSnapshot(restored);
+      void flushPublishToServer(restored);
     }
     executeCloseOwnerMode(
       action,
@@ -578,6 +700,8 @@ export default function App() {
           hasUnsavedChanges={hasUnsavedOwnerEdits}
           onSaveChanges={handleSaveAllOwnerChanges}
           onOpenSecurity={() => setIsSecurityModalOpen(true)}
+          deploySyncState={deploySyncState}
+          onDownloadPublishedModule={handleDownloadPublishedModule}
         />
       )}
 

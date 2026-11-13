@@ -474,3 +474,75 @@ test('dynamic resolvers and synchronized per-tab visibility flags work cleanly',
   assert.equal(resolveAboutStats(customStats, DEFAULT_PROFILE).length, 1);
 });
 
+test('syncLocalStorageWithPublishedBundle detects pending local edits and refreshes from newer deployed builds', async () => {
+  const {
+    syncLocalStorageWithPublishedBundle,
+    clearLocalPortfolioOverrides,
+    generatePublishedPortfolioTsSource,
+    DEFAULT_OWNER_PIN,
+    DEFAULT_TOTP_SECRET,
+  } = await import('./portfolioStorage');
+
+  // Ensure local edits present from prior saves trigger pending publish
+  updateSiteContentKey('heroHeadline', 'Preview Owner Edit', DEFAULT_SITE_CONTENT);
+  assert.equal(
+    syncLocalStorageWithPublishedBundle({
+      publishedAt: 0,
+      projects: null,
+      profile: null,
+      siteContent: null,
+      customSections: null,
+      resumeMilestones: null,
+      resumePdf: null,
+    }),
+    'has_pending_local_edits'
+  );
+
+  // Newer deployed bundle timestamp overrides stale cached localStorage edits
+  const futureDeployTs = Date.now() + 60_000;
+  assert.equal(
+    syncLocalStorageWithPublishedBundle({
+      publishedAt: futureDeployTs,
+      projects: null,
+      profile: null,
+      siteContent: null,
+      customSections: null,
+      resumeMilestones: null,
+      resumePdf: null,
+    }),
+    'refreshed_from_deploy'
+  );
+
+  // Subsequent check with same timestamp and no newer local edits is cleanly in sync
+  assert.equal(
+    syncLocalStorageWithPublishedBundle({
+      publishedAt: futureDeployTs,
+      projects: null,
+      profile: null,
+      siteContent: null,
+      customSections: null,
+      resumeMilestones: null,
+      resumePdf: null,
+    }),
+    'in_sync'
+  );
+
+  // Verify generated TypeScript module contains snapshot data without exposing private credentials
+  const snapshot = createOwnerSessionSnapshot({
+    projects: [mockProject],
+    profile: DEFAULT_PROFILE,
+    siteContent: { ...DEFAULT_SITE_CONTENT, heroHeadline: 'Deployed Custom Headline' },
+    customSections: DEFAULT_CUSTOM_SECTIONS,
+    resumeMilestones: DEFAULT_RESUME_MILESTONES,
+    resumePdf: null,
+  });
+  const tsCode = generatePublishedPortfolioTsSource(snapshot, futureDeployTs);
+  assert.ok(tsCode.includes('export const PUBLISHED_PORTFOLIO: PublishedPortfolioData ='));
+  assert.ok(tsCode.includes('Deployed Custom Headline'));
+  assert.equal(tsCode.includes(DEFAULT_TOTP_SECRET), false);
+  assert.equal(tsCode.includes(`"${DEFAULT_OWNER_PIN}"`), false);
+
+  clearLocalPortfolioOverrides();
+});
+
+

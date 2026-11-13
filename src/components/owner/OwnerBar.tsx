@@ -14,7 +14,12 @@ import {
   Layers,
   Save,
   QrCode,
+  Check,
+  Loader2,
+  FileCode2,
 } from 'lucide-react';
+
+export type DeploySyncState = 'checking' | 'synced' | 'saving' | 'readonly' | 'error';
 
 interface OwnerBarProps {
   onAddNewProject: () => void;
@@ -35,6 +40,8 @@ interface OwnerBarProps {
   hasUnsavedChanges?: boolean;
   onSaveChanges?: () => void;
   onOpenSecurity?: () => void;
+  deploySyncState?: DeploySyncState;
+  onDownloadPublishedModule?: () => void;
 }
 
 export const OwnerBar: React.FC<OwnerBarProps> = ({
@@ -56,6 +63,8 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
   hasUnsavedChanges = false,
   onSaveChanges,
   onOpenSecurity,
+  deploySyncState = 'checking',
+  onDownloadPublishedModule,
 }) => {
   return (
     <div className="print:hidden bg-zinc-950/95 border-b border-red-950/80 text-zinc-200 py-2 text-xs font-mono sticky top-0 z-50 backdrop-blur-md">
@@ -69,6 +78,42 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
             <span className="inline-flex items-center gap-1.5 text-amber-300 border-l border-zinc-800 pl-2.5 text-[11px]">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
               <span>Unsaved changes</span>
+            </span>
+          )}
+          {deploySyncState === 'saving' && (
+            <span
+              className="inline-flex items-center gap-1.5 text-amber-300 border-l border-zinc-800 pl-2.5 text-[11px]"
+              title="Writing edits to source bundle for Vercel / production deployments..."
+            >
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Syncing for Deploy...</span>
+            </span>
+          )}
+          {deploySyncState === 'synced' && (
+            <span
+              className="inline-flex items-center gap-1 text-emerald-400 border-l border-zinc-800 pl-2.5 text-[11px]"
+              title="All Owner edits are synced to src/data/publishedPortfolio.ts so Vercel and shared builds include them automatically."
+            >
+              <Check className="w-3 h-3" />
+              <span>Synced to Deploy Source</span>
+            </span>
+          )}
+          {deploySyncState === 'readonly' && onDownloadPublishedModule && (
+            <button
+              onClick={onDownloadPublishedModule}
+              className="inline-flex items-center gap-1.5 text-zinc-300 hover:text-white border-l border-zinc-800 pl-2.5 text-[11px] underline decoration-zinc-700 hover:decoration-red-500 underline-offset-2 cursor-pointer transition-colors"
+              title="Static Vercel build detected. Edit in AI Studio Preview to auto-sync, or click to download publishedPortfolio.ts for your repo."
+            >
+              <FileCode2 className="w-3 h-3 text-red-400" />
+              <span>Static Host · Export Deploy File</span>
+            </button>
+          )}
+          {deploySyncState === 'error' && (
+            <span
+              className="inline-flex items-center gap-1 text-red-400 border-l border-zinc-800 pl-2.5 text-[11px]"
+              title="Could not reach deploy source sync endpoint; edits remain saved locally."
+            >
+              <span>Local-Only Sync</span>
             </span>
           )}
           {isPreviewMode && (
