@@ -508,7 +508,7 @@ export default function App() {
           <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-red-600/10 blur-[130px] rounded-full pointer-events-none z-0" />
           <div className="absolute top-1/3 left-1/4 w-[400px] h-[250px] bg-zinc-700/10 blur-[100px] rounded-full pointer-events-none z-0" />
 
-          <div className="max-w-7xl mx-auto px-6 relative z-10">
+          <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 relative z-10">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
               {/* Left Column: Headlines & Actions (lg:col-span-7) */}
               <div className="lg:col-span-7">
@@ -830,8 +830,8 @@ export default function App() {
         transition={{ duration: 0.3, ease: 'easeOut' }}
       >
         {/* 3. Interactive 3D Scene Lighting Studio */}
-        <section id="studio" className="py-20 bg-zinc-950/60 border-b border-zinc-800/80">
-          <div className="max-w-7xl mx-auto px-6">
+        <section id="studio" className="py-12 sm:py-16 lg:py-20 bg-zinc-950/60 border-b border-zinc-800/80">
+          <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14">
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
               <div>
                 <div className="text-xs font-mono text-red-500 uppercase tracking-wider mb-2">
@@ -879,9 +879,9 @@ export default function App() {
         </section>
 
         {/* 4. Filterable Featured Works Portfolio (Work) */}
-        <section id="work" className="py-20 border-b border-zinc-800/80 scroll-mt-6">
+        <section id="work" className="py-14 sm:py-20 border-b border-zinc-800/80 scroll-mt-6">
           <div id="featured" className="scroll-mt-16" />
-          <div className="max-w-7xl mx-auto px-6">
+          <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14">
             {/* Section Header & Filter Controls */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10">
               <div>
@@ -986,8 +986,8 @@ export default function App() {
         </section>
 
         {/* 5. Cinematic Video Reels & A/B Lighting Comparison Section */}
-        <section id="reels" className="py-20 bg-zinc-950/60 border-b border-zinc-800/80">
-          <div className="max-w-7xl mx-auto px-6">
+        <section id="reels" className="py-14 sm:py-20 bg-zinc-950/60 border-b border-zinc-800/80">
+          <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14">
             <div className="max-w-2xl mb-12">
               <div className="text-xs font-mono text-red-500 uppercase tracking-wider mb-2">
                 <EditableText
@@ -1169,8 +1169,8 @@ export default function App() {
         </section>
 
         {/* 6. Level Design Blockout Showcase */}
-        <section id="level-design" className="py-20 border-b border-zinc-800/80">
-          <div className="max-w-7xl mx-auto px-6">
+        <section id="level-design" className="py-14 sm:py-20 border-b border-zinc-800/80">
+          <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14">
             <div className="max-w-2xl mb-12">
               <div className="text-xs font-mono text-red-500 uppercase tracking-wider mb-2">
                 <EditableText
@@ -1328,7 +1328,7 @@ export default function App() {
         />
 
         {/* Custom Sections assigned to ABOUT tab (e.g. Hardware Rig, Look-dev Pipeline) */}
-        <div className="max-w-7xl mx-auto px-6 pb-20">
+        <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 pb-20">
           <CustomSectionRenderer
             sections={customSections}
             tab="about"
@@ -1398,7 +1398,7 @@ export default function App() {
 
       {/* 8. Quiet Footer */}
       <footer className="py-12 border-t border-zinc-800/80 bg-[#000000] text-zinc-500 text-xs font-mono">
-        <div className="max-w-7xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-6">
+        <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 flex flex-col sm:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
             <span className="text-zinc-300 font-semibold font-display">
               <EditableText

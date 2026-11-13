@@ -219,9 +219,9 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({
         </div>
       )}
 
-      <div className="max-w-5xl mx-auto px-6 relative z-10 space-y-12">
+      <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 relative z-10 space-y-12">
         {/* Top Action Bar & Header Banner */}
-        <div className="p-8 bg-zinc-950/90 border border-zinc-800 rounded-3xl shadow-2xl backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-6 print:border-none print:p-0">
+        <div className="p-5 sm:p-8 bg-zinc-950/90 border border-zinc-800 rounded-3xl shadow-2xl backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-6 print:border-none print:p-0">
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs font-mono text-red-500 uppercase tracking-widest font-semibold">
               <FileText className="w-4 h-4" />
@@ -534,11 +534,11 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({
           </div>
 
           {/* Timeline Nodes */}
-          <div className="relative border-l-2 border-zinc-800 ml-4 sm:ml-6 pl-6 sm:pl-10 space-y-12">
+          <div className="relative border-l-2 border-zinc-800 ml-2 sm:ml-6 pl-5 sm:pl-10 space-y-10 sm:space-y-12">
             {milestones.map((milestone, idx) => (
               <div key={milestone.id} className="relative group">
                 {/* Node marker with crimson red accent */}
-                <div className="absolute -left-[31px] sm:-left-[47px] top-1.5 w-5 h-5 rounded-full bg-zinc-950 border-2 border-red-500 flex items-center justify-center group-hover:scale-125 transition-transform duration-300 shadow-[0_0_10px_rgba(239,68,68,0.5)]">
+                <div className="absolute -left-[31px] sm:-left-[51px] top-1.5 w-5 h-5 rounded-full bg-zinc-950 border-2 border-red-500 flex items-center justify-center group-hover:scale-125 transition-transform duration-300 shadow-[0_0_10px_rgba(239,68,68,0.5)]">
                   <div className="w-1.5 h-1.5 rounded-full bg-white" />
                 </div>
 

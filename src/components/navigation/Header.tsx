@@ -47,7 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-[#050505]/95 backdrop-blur-md border-b border-zinc-800/80">
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-6 px-6 py-3.5">
+      <div className="w-full max-w-[1680px] mx-auto flex items-center justify-between gap-4 sm:gap-6 px-4 sm:px-6 lg:px-10 xl:px-14 py-3.5">
         {/* Zone 1: Portrait avatar + AVINASH heading + faded subtitle: Game Designer | Lighting Artist */}
         <button
           onClick={handleAvatarClick}

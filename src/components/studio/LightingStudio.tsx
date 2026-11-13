@@ -7,16 +7,26 @@ import {
   prepareModelForLightingStudio,
   buildStudioPedestal,
   buildDefaultLookdevAsset,
-  loadModelFromArrayBuffer,
-  loadModelFromUrl,
+  loadModelPayloadFromArrayBuffer,
+  loadModelPayloadFromUrl,
+  loadEnvironmentTextureFromArrayBuffer,
+  createProceduralSkyTexture,
   getSupportedModelFormat,
+  getSupportedEnvFormat,
   SupportedModelFormat,
+  SupportedEnvFormat,
+  AssetStageMode,
+  ProceduralSkyPreset,
+  PreparedModelResult,
   ModelStats,
 } from './modelLoaders';
 import {
   saveUploadedModel,
   loadUploadedModel,
   clearUploadedModel,
+  saveUploadedEnvMap,
+  loadUploadedEnvMap,
+  clearUploadedEnvMap,
 } from '../../utils/modelStorage';
 import {
   LIGHTING_PRESETS,
@@ -56,6 +66,7 @@ import {
   Link as LinkIcon,
   X,
   AlertCircle,
+  Globe,
 } from 'lucide-react';
 
 interface LightingStudioProps {
@@ -65,16 +76,18 @@ interface LightingStudioProps {
 export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }) => {
   const mountRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const envInputRef = useRef<HTMLInputElement>(null);
 
   // Active lighting settings
   const [lighting, setLighting] = useState<LightSettings>(() => {
     return LIGHTING_PRESETS.studio || Object.values(LIGHTING_PRESETS)[0];
   });
 
-  // Model & Studio UI state
+  // Model & 3D Environment UI state
   const [modelName, setModelName] = useState<string>('Studio Lookdev Model');
   const [isCustomModel, setIsCustomModel] = useState<boolean>(false);
   const [modelStats, setModelStats] = useState<ModelStats | null>(null);
+  const [stageMode, setStageMode] = useState<AssetStageMode>('object');
   const [isLoadingModel, setIsLoadingModel] = useState<boolean>(false);
   const [modelError, setModelError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState<boolean>(false);
@@ -82,12 +95,19 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
   const [showUrlModal, setShowUrlModal] = useState<boolean>(false);
   const [urlInput, setUrlInput] = useState<string>('');
 
+  // HDRI / 3D Skybox Environment state
+  const [skyPreset, setSkyPreset] = useState<ProceduralSkyPreset | 'custom'>('studio');
+  const [customEnvName, setCustomEnvName] = useState<string | null>(null);
+  const [showSkybox, setShowSkybox] = useState<boolean>(false);
+  const [envIntensity, setEnvIntensity] = useState<number>(1.0);
+  const [showBase, setShowBase] = useState<boolean>(true);
+
   // Studio UI layout state
   const [activeTab, setActiveTab] = useState<
     'presets' | 'key' | 'fill' | 'rim' | 'point' | 'atmosphere' | 'post' | 'passes' | 'camera'
   >('presets');
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [layoutMode, setLayoutMode] = useState<'overlay' | 'below'>('overlay');
+  const [layoutMode, setLayoutMode] = useState<'overlay' | 'below'>('below');
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [copiedFormat, setCopiedFormat] = useState<string | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
@@ -103,6 +123,14 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
   const controlsRef = useRef<OrbitControls | null>(null);
   const modelContainerRef = useRef<THREE.Group | null>(null);
   const activeMeshGroupRef = useRef<THREE.Group | null>(null);
+  const rawModelRef = useRef<{ object: THREE.Object3D; animations: THREE.AnimationClip[]; name: string; isCustom: boolean; format?: SupportedModelFormat; buffer?: ArrayBuffer } | null>(null);
+  const pedestalRef = useRef<THREE.Group | null>(null);
+  const mixerRef = useRef<THREE.AnimationMixer | null>(null);
+  const pmremGeneratorRef = useRef<THREE.PMREMGenerator | null>(null);
+  const envRenderTargetRef = useRef<THREE.WebGLRenderTarget | null>(null);
+  const envTextureRef = useRef<THREE.Texture | null>(null);
+  const scaledRadiusRef = useRef<number>(4.0);
+  const baseRadiusRef = useRef<number>(6.0);
 
   // Light objects refs
   const keyLightRef = useRef<THREE.DirectionalLight | null>(null);
@@ -123,6 +151,9 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
     autoRotate,
     turntableSpeed,
     pulseDiegeticLight,
+    showSkybox,
+    envIntensity,
+    showBase,
     isSoftwareGl: false,
   });
 
@@ -133,85 +164,286 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
       autoRotate,
       turntableSpeed,
       pulseDiegeticLight,
+      showSkybox,
+      envIntensity,
+      showBase,
       isSoftwareGl: stateRef.current.isSoftwareGl,
     };
-  }, [lighting, renderPass, autoRotate, turntableSpeed, pulseDiegeticLight]);
+    if (pedestalRef.current) {
+      pedestalRef.current.visible = showBase;
+    }
+  }, [lighting, renderPass, autoRotate, turntableSpeed, pulseDiegeticLight, showSkybox, envIntensity, showBase]);
 
-  // Replace active model in the scene
-  const replaceSceneModel = useCallback((preparedGroup: THREE.Group, stats: ModelStats, name: string, isCustom: boolean) => {
+  // Apply adaptive camera, OrbitControls, studio base scale, and shadow frustum for Object vs 3D Environment
+  const applyStageFraming = useCallback((
+    mode: AssetStageMode,
+    bounds: PreparedModelResult['scaledBounds']
+  ) => {
+    scaledRadiusRef.current = bounds.radius;
+
+    const horizontalRadius = Math.max(bounds.width, bounds.depth) * 0.5;
+    const desiredBaseRadius =
+      mode === 'environment'
+        ? Math.max(16, horizontalRadius * 1.25)
+        : Math.max(5.2, horizontalRadius * 1.65);
+    baseRadiusRef.current = desiredBaseRadius;
+
+    if (pedestalRef.current) {
+      const baseScale = desiredBaseRadius / 8.0;
+      pedestalRef.current.scale.set(
+        baseScale,
+        mode === 'environment' ? Math.max(1, baseScale * 0.45) : 1,
+        baseScale
+      );
+      pedestalRef.current.position.y = mode === 'environment' ? -0.02 : 0;
+      pedestalRef.current.visible = stateRef.current.showBase;
+    }
+
+    if (keyLightRef.current) {
+      const shadowHalf = mode === 'environment' ? Math.max(14, bounds.radius * 1.15) : 9;
+      keyLightRef.current.shadow.camera.left = -shadowHalf;
+      keyLightRef.current.shadow.camera.right = shadowHalf;
+      keyLightRef.current.shadow.camera.top = shadowHalf;
+      keyLightRef.current.shadow.camera.bottom = -shadowHalf;
+      keyLightRef.current.shadow.camera.near = 0.5;
+      keyLightRef.current.shadow.camera.far = Math.max(40, shadowHalf * 5);
+      keyLightRef.current.shadow.camera.updateProjectionMatrix();
+
+      const keyRadius = mode === 'environment' ? Math.max(18, bounds.radius * 1.45) : 12;
+      const [kx, ky, kz] = polarToCartesian(
+        stateRef.current.lighting.keyLight.azimuth,
+        stateRef.current.lighting.keyLight.elevation,
+        keyRadius
+      );
+      keyLightRef.current.position.set(kx, ky, kz);
+    }
+
+    if (cameraRef.current && controlsRef.current) {
+      const cam = cameraRef.current;
+      const ctrl = controlsRef.current;
+
+      cam.far = mode === 'environment' ? Math.max(300, bounds.radius * 16) : 120;
+      cam.near = mode === 'environment' ? 0.15 : 0.1;
+      cam.updateProjectionMatrix();
+
+      ctrl.screenSpacePanning = true;
+      ctrl.minDistance = mode === 'environment' ? 0.2 : 1.5;
+      ctrl.maxDistance = mode === 'environment' ? Math.max(45, bounds.radius * 4.5) : 25;
+      ctrl.maxPolarAngle = mode === 'environment' ? Math.PI * 0.65 : Math.PI / 2 - 0.02;
+
+      const targetY = mode === 'environment' ? Math.max(1.2, bounds.height * 0.35) : (bounds.centerY || 2.0);
+      ctrl.target.set(0, targetY, 0);
+
+      if (mode === 'environment') {
+        // Place camera at an elevated panoramic overlook inside/facing the 3D environment
+        const dist = Math.max(6, bounds.radius * 0.78);
+        cam.position.set(dist * 0.65, targetY + bounds.height * 0.45 + 1.5, dist * 0.85);
+      } else {
+        const dist = Math.max(5.5, bounds.radius * 2.2);
+        cam.position.set(0, targetY + 1.2, dist);
+      }
+      ctrl.update();
+    }
+  }, []);
+
+  // Replace active model or 3D environment in the scene
+  const replaceSceneModel = useCallback((
+    prepared: PreparedModelResult,
+    name: string,
+    isCustom: boolean,
+    animations: THREE.AnimationClip[] = []
+  ) => {
     const scene = sceneRef.current;
     if (!scene) return;
+
+    if (mixerRef.current) {
+      mixerRef.current.stopAllAction();
+      mixerRef.current = null;
+    }
 
     if (activeMeshGroupRef.current) {
       scene.remove(activeMeshGroupRef.current);
     }
 
-    scene.add(preparedGroup);
-    activeMeshGroupRef.current = preparedGroup;
-    modelContainerRef.current = preparedGroup;
+    scene.add(prepared.container);
+    activeMeshGroupRef.current = prepared.container;
+    modelContainerRef.current = prepared.container;
 
-    setModelStats(stats);
+    setModelStats(prepared.stats);
+    setStageMode(prepared.stageMode);
     setModelName(name);
     setIsCustomModel(isCustom);
     setModelError(null);
+    setModelScale(1.0);
 
-    // Apply surface wetness and current render pass
-    applyRenderPassMode(preparedGroup, stateRef.current.renderPass, clayMatRef.current, normalMatRef.current);
-
-    // Re-frame camera and controls target
-    if (controlsRef.current && cameraRef.current) {
-      const targetY = (stats.dimensions.y * 0.45) || 2.2;
-      controlsRef.current.target.set(0, targetY, 0);
-      controlsRef.current.update();
+    // Play embedded animations if present
+    if (animations.length > 0) {
+      const mixer = new THREE.AnimationMixer(prepared.innerModel);
+      animations.forEach((clip) => {
+        mixer.clipAction(clip).play();
+      });
+      mixerRef.current = mixer;
     }
-  }, []);
 
-  // Load custom 3D model from raw ArrayBuffer (.fbx or .glb only)
+    applyRenderPassMode(prepared.container, stateRef.current.renderPass, clayMatRef.current, normalMatRef.current);
+    applyStageFraming(prepared.stageMode, prepared.scaledBounds);
+  }, [applyStageFraming]);
+
+  // Toggle manually between Object Stage (pedestal) and 3D Environment (full scene scale)
+  const handleToggleStageMode = () => {
+    if (!rawModelRef.current) return;
+    const nextMode: AssetStageMode = stageMode === 'object' ? 'environment' : 'object';
+    const rawEntry = rawModelRef.current;
+    const prepared = prepareModelForLightingStudio(
+      rawEntry.object,
+      { stageMode: nextMode },
+      rawEntry.animations.length
+    );
+    replaceSceneModel(prepared, rawEntry.name, rawEntry.isCustom, rawEntry.animations);
+    if (rawEntry.isCustom && rawEntry.buffer && rawEntry.format) {
+      saveUploadedModel(rawEntry.name, rawEntry.buffer, rawEntry.format, nextMode);
+    }
+  };
+
+  // Load custom 3D model or 3D environment from raw ArrayBuffer (.fbx or .glb only)
   const handleModelBufferLoad = useCallback(async (
     buffer: ArrayBuffer,
     fileName: string,
-    format: SupportedModelFormat
+    format: SupportedModelFormat,
+    savedStageMode?: AssetStageMode
   ) => {
     setIsLoadingModel(true);
     setModelError(null);
     try {
-      const rawModel = await loadModelFromArrayBuffer(buffer, format);
-      const { container, stats } = prepareModelForLightingStudio(rawModel);
-      replaceSceneModel(container, stats, fileName, true);
+      const payload = await loadModelPayloadFromArrayBuffer(buffer, format);
+      const prepared = prepareModelForLightingStudio(
+        payload.scene,
+        savedStageMode ? { stageMode: savedStageMode } : { stageMode: 'auto' },
+        payload.animations.length
+      );
+      rawModelRef.current = {
+        object: payload.scene,
+        animations: payload.animations,
+        name: fileName,
+        isCustom: true,
+        format,
+        buffer,
+      };
+      replaceSceneModel(prepared, fileName, true, payload.animations);
       // Persist in IndexedDB for session persistence
-      await saveUploadedModel(fileName, buffer, format);
+      await saveUploadedModel(fileName, buffer, format, prepared.stageMode);
     } catch (err) {
-      console.error('Failed to load 3D model:', err);
+      console.error('Failed to load 3D asset:', err);
       setModelError(`Failed to load ${fileName}: ${err instanceof Error ? err.message : 'Invalid 3D format'}`);
     } finally {
       setIsLoadingModel(false);
     }
   }, [replaceSceneModel]);
 
-  // Load model from direct URL
+  // Load model or 3D environment from direct URL
   const handleUrlLoad = async (url: string) => {
     if (!url.trim()) return;
     setIsLoadingModel(true);
     setModelError(null);
     setShowUrlModal(false);
     try {
-      const rawModel = await loadModelFromUrl(url);
-      const fileName = url.split('/').pop()?.split('?')[0] || 'Remote 3D Model';
-      const { container, stats } = prepareModelForLightingStudio(rawModel);
-      replaceSceneModel(container, stats, fileName, true);
+      const payload = await loadModelPayloadFromUrl(url);
+      const fileName = url.split('/').pop()?.split('?')[0] || 'Remote 3D Asset';
+      const prepared = prepareModelForLightingStudio(
+        payload.scene,
+        { stageMode: 'auto' },
+        payload.animations.length
+      );
+      rawModelRef.current = {
+        object: payload.scene,
+        animations: payload.animations,
+        name: fileName,
+        isCustom: true,
+      };
+      replaceSceneModel(prepared, fileName, true, payload.animations);
     } catch (err) {
-      console.error('Failed to load model from URL:', err);
-      setModelError(`Failed to load model from URL: ${err instanceof Error ? err.message : 'Network/CORS or invalid model'}`);
+      console.error('Failed to load 3D asset from URL:', err);
+      setModelError(`Failed to load asset from URL: ${err instanceof Error ? err.message : 'Network/CORS or invalid format'}`);
     } finally {
       setIsLoadingModel(false);
+    }
+  };
+
+  // Apply procedural or HDR/EXR environment lighting
+  const applyEnvironmentMapTexture = useCallback((
+    equirectTexture: THREE.Texture,
+    displayAsSkybox: boolean
+  ) => {
+    const scene = sceneRef.current;
+    const pmrem = pmremGeneratorRef.current;
+    if (!scene || !pmrem) return;
+
+    if (envRenderTargetRef.current) {
+      envRenderTargetRef.current.dispose();
+    }
+    if (envTextureRef.current && envTextureRef.current !== equirectTexture) {
+      envTextureRef.current.dispose();
+    }
+
+    const rt = pmrem.fromEquirectangular(equirectTexture);
+    envRenderTargetRef.current = rt;
+    envTextureRef.current = equirectTexture;
+
+    scene.environment = rt.texture;
+    scene.environmentIntensity = stateRef.current.envIntensity;
+    if (displayAsSkybox) {
+      scene.background = rt.texture;
+      scene.backgroundBlurriness = 0.04;
+    } else {
+      scene.background = new THREE.Color(stateRef.current.lighting.fog.color);
+    }
+  }, []);
+
+  const handleSelectProceduralSky = (preset: ProceduralSkyPreset) => {
+    setSkyPreset(preset);
+    setCustomEnvName(null);
+    clearUploadedEnvMap();
+    const tex = createProceduralSkyTexture(preset);
+    applyEnvironmentMapTexture(tex, showSkybox);
+  };
+
+  const handleEnvFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const format: SupportedEnvFormat | null = getSupportedEnvFormat(file.name);
+    if (!format) {
+      setModelError('Unsupported HDRI environment format. Please upload a .hdr or .exr file.');
+      e.target.value = '';
+      return;
+    }
+    setIsLoadingModel(true);
+    try {
+      const buffer = await file.arrayBuffer();
+      const tex = await loadEnvironmentTextureFromArrayBuffer(buffer, format);
+      setSkyPreset('custom');
+      setCustomEnvName(file.name);
+      setShowSkybox(true);
+      applyEnvironmentMapTexture(tex, true);
+      await saveUploadedEnvMap(file.name, buffer, format);
+    } catch (err) {
+      setModelError(`Failed to load HDRI environment: ${err instanceof Error ? err.message : 'Invalid file'}`);
+    } finally {
+      setIsLoadingModel(false);
+      e.target.value = '';
     }
   };
 
   // Reset to default lookdev calibration asset
   const handleResetToDefaultModel = async () => {
     const defaultRaw = buildDefaultLookdevAsset();
-    const { container, stats } = prepareModelForLightingStudio(defaultRaw, 3.8);
-    replaceSceneModel(container, stats, 'Studio Lookdev Model', false);
+    const prepared = prepareModelForLightingStudio(defaultRaw, { stageMode: 'object', targetSpan: 3.8 });
+    rawModelRef.current = {
+      object: defaultRaw,
+      animations: [],
+      name: 'Studio Lookdev Model',
+      isCustom: false,
+    };
+    replaceSceneModel(prepared, 'Studio Lookdev Model', false, []);
     await clearUploadedModel();
   };
 
@@ -336,19 +568,22 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
     container.replaceChildren(renderer.domElement);
     rendererRef.current = renderer;
 
-    // 4. Studio Environment Lighting
+    // 4. Studio Environment Lighting (PMREM)
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     pmremGenerator.compileEquirectangularShader();
+    pmremGeneratorRef.current = pmremGenerator;
     const neutralEnv = new RoomEnvironment();
     scene.environment = pmremGenerator.fromScene(neutralEnv).texture;
+    scene.environmentIntensity = stateRef.current.envIntensity;
 
     // 5. Controls
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
-    controls.maxPolarAngle = Math.PI / 2 - 0.02; // Prevent camera dipping below floor
-    controls.minDistance = 2.0;
-    controls.maxDistance = 25.0;
+    controls.screenSpacePanning = true;
+    controls.maxPolarAngle = Math.PI / 2 - 0.02;
+    controls.minDistance = 1.5;
+    controls.maxDistance = 30.0;
     controls.target.set(0, 2.0, 0);
     controlsRef.current = controls;
 
@@ -413,18 +648,44 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
       activeLighting.fog?.far ?? 60
     );
 
-    // 7. Add Permanent Studio Pedestal Lookdev Stage
+    // 7. Add Permanent Studio Pedestal Lookdev Stage (auto-hidden when loading a 3D Environment)
     const pedestal = buildStudioPedestal(8.0);
+    pedestalRef.current = pedestal;
     scene.add(pedestal);
 
-    // 8. Initial Model Loading (Restore from IndexedDB if exists, otherwise load default lookdev model)
+    // 8. Initial Model/Environment + HDRI Loading (Restore from IndexedDB if exists)
     (async () => {
+      try {
+        const storedEnv = await loadUploadedEnvMap();
+        if (storedEnv && storedEnv.buffer && (storedEnv.format === 'hdr' || storedEnv.format === 'exr')) {
+          const envTex = await loadEnvironmentTextureFromArrayBuffer(storedEnv.buffer, storedEnv.format);
+          setSkyPreset('custom');
+          setCustomEnvName(storedEnv.name);
+          setShowSkybox(true);
+          applyEnvironmentMapTexture(envTex, true);
+        }
+      } catch {
+        // Ignore HDRI restore errors
+      }
+
       try {
         const stored = await loadUploadedModel();
         if (stored && stored.buffer && (stored.format === 'fbx' || stored.format === 'glb')) {
-          const rawModel = await loadModelFromArrayBuffer(stored.buffer, stored.format);
-          const { container, stats } = prepareModelForLightingStudio(rawModel);
-          replaceSceneModel(container, stats, stored.name, true);
+          const payload = await loadModelPayloadFromArrayBuffer(stored.buffer, stored.format);
+          const prepared = prepareModelForLightingStudio(
+            payload.scene,
+            stored.stageMode ? { stageMode: stored.stageMode } : { stageMode: 'auto' },
+            payload.animations.length
+          );
+          rawModelRef.current = {
+            object: payload.scene,
+            animations: payload.animations,
+            name: stored.name,
+            isCustom: true,
+            format: stored.format,
+            buffer: stored.buffer,
+          };
+          replaceSceneModel(prepared, stored.name, true, payload.animations);
           return;
         }
       } catch {
@@ -432,8 +693,14 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
       }
       // Fallback to default lookdev calibration asset
       const defaultRaw = buildDefaultLookdevAsset();
-      const { container, stats } = prepareModelForLightingStudio(defaultRaw, 3.8);
-      replaceSceneModel(container, stats, 'Studio Lookdev Model', false);
+      const prepared = prepareModelForLightingStudio(defaultRaw, { stageMode: 'object', targetSpan: 3.8 });
+      rawModelRef.current = {
+        object: defaultRaw,
+        animations: [],
+        name: 'Studio Lookdev Model',
+        isCustom: false,
+      };
+      replaceSceneModel(prepared, 'Studio Lookdev Model', false, []);
     })();
 
     // 9. Render Loop
@@ -448,6 +715,10 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
       const delta = Math.min((now - lastTime) / 1000, 0.1);
       lastTime = now;
       elapsedTime += delta;
+
+      if (mixerRef.current) {
+        mixerRef.current.update(delta);
+      }
 
       if (controlsRef.current) {
         if (stateRef.current.autoRotate && !isSoftwareGl) {
@@ -472,37 +743,49 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
 
     frameId = requestAnimationFrame(tick);
 
-    // Resize observer
+    // Responsive ResizeObserver so fullscreen, mobile, and wide layouts always match WebGL size
     const handleResize = () => {
       if (!container || !renderer || !camera) return;
-      camera.aspect = container.clientWidth / container.clientHeight;
+      const w = Math.max(container.clientWidth, 1);
+      const h = Math.max(container.clientHeight, 1);
+      camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setSize(w, h);
     };
 
+    const resizeObserver =
+      typeof ResizeObserver !== 'undefined' ? new ResizeObserver(handleResize) : null;
+    if (resizeObserver) {
+      resizeObserver.observe(container);
+    }
     window.addEventListener('resize', handleResize);
 
     return () => {
       isDisposed = true;
       cancelAnimationFrame(frameId);
+      if (resizeObserver) resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
+      if (mixerRef.current) mixerRef.current.stopAllAction();
+      if (envRenderTargetRef.current) envRenderTargetRef.current.dispose();
+      if (envTextureRef.current) envTextureRef.current.dispose();
       renderer.dispose();
       pmremGenerator.dispose();
       neutralEnv.dispose();
     };
-  }, [replaceSceneModel]);
+  }, [replaceSceneModel, applyEnvironmentMapTexture]);
 
   // Synchronize dynamic light parameters without reloading the scene
   useEffect(() => {
     if (!lighting || !keyLightRef.current || !fillLightRef.current || !rimLightRef.current || !localLightRef.current) return;
 
-    // Key Light
+    // Key Light (position radius adapts to Object vs 3D Environment scale)
     const keyColorHex = lighting.keyLight.kelvin
       ? kelvinToHex(lighting.keyLight.kelvin)
       : lighting.keyLight.color;
     keyLightRef.current.color.set(keyColorHex);
     keyLightRef.current.intensity = lighting.keyLight.intensity;
-    const [kx, ky, kz] = polarToCartesian(lighting.keyLight.azimuth, lighting.keyLight.elevation, 12);
+    const keyRadius = stageMode === 'environment' ? Math.max(18, scaledRadiusRef.current * 1.45) : 12;
+    const [kx, ky, kz] = polarToCartesian(lighting.keyLight.azimuth, lighting.keyLight.elevation, keyRadius);
     keyLightRef.current.position.set(kx, ky, kz);
     keyLightRef.current.shadow.bias = lighting.keyLight.shadowBias ?? -0.0005;
     keyLightRef.current.shadow.radius = lighting.keyLight.softness ?? 1.0;
@@ -516,18 +799,27 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
     // Rim Light
     rimLightRef.current.color.set(lighting.rimLight.color);
     rimLightRef.current.intensity = lighting.rimLight.intensity;
-    const [rx, ry, rz] = polarToCartesian(lighting.rimLight.angle, lighting.rimLight.elevation ?? 30, 10);
+    const rimRadius = stageMode === 'environment' ? Math.max(16, scaledRadiusRef.current * 1.35) : 10;
+    const [rx, ry, rz] = polarToCartesian(lighting.rimLight.angle, lighting.rimLight.elevation ?? 30, rimRadius);
     rimLightRef.current.position.set(rx, ry, rz);
 
     // Local Point Light
     localLightRef.current.color.set(lighting.localLight.color);
     localLightRef.current.intensity = lighting.localLight.intensity;
-    localLightRef.current.distance = lighting.localLight.distance;
+    localLightRef.current.distance = stageMode === 'environment'
+      ? Math.max(lighting.localLight.distance, scaledRadiusRef.current * 1.2)
+      : lighting.localLight.distance;
     localLightRef.current.position.set(lighting.localLight.x, lighting.localLight.y, lighting.localLight.z);
 
-    // Fog & Background
+    // Fog, Skybox Background & Environment IBL Intensity
     if (sceneRef.current) {
-      sceneRef.current.background = new THREE.Color(lighting.fog.color);
+      sceneRef.current.environmentIntensity = envIntensity;
+      if (showSkybox && envRenderTargetRef.current) {
+        sceneRef.current.background = envRenderTargetRef.current.texture;
+        sceneRef.current.backgroundBlurriness = 0.04;
+      } else {
+        sceneRef.current.background = new THREE.Color(lighting.fog.color);
+      }
       if (sceneRef.current.fog instanceof THREE.Fog) {
         sceneRef.current.fog.color.set(lighting.fog.color);
         sceneRef.current.fog.near = lighting.fog.near;
@@ -546,12 +838,22 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
       rendererRef.current.toneMappingExposure = lighting.toneMapping?.exposure ?? 1.1;
     }
 
+    // Surface wetness feedback on Studio Base deck
+    if (pedestalRef.current) {
+      const studioFloor = pedestalRef.current.getObjectByName('StudioFloor') as THREE.Mesh | undefined;
+      if (studioFloor && studioFloor.material instanceof THREE.MeshStandardMaterial) {
+        const wetness = lighting.surface?.wetness ?? 0.2;
+        studioFloor.material.roughness = THREE.MathUtils.clamp(0.66 - wetness * 0.54, 0.08, 0.85);
+        studioFloor.material.metalness = THREE.MathUtils.clamp(0.18 + wetness * 0.34, 0.12, 0.6);
+      }
+    }
+
     // Camera FOV
     if (cameraRef.current && lighting.camera?.fov) {
       cameraRef.current.fov = lighting.camera.fov;
       cameraRef.current.updateProjectionMatrix();
     }
-  }, [lighting]);
+  }, [lighting, stageMode, showSkybox, envIntensity]);
 
   // Synchronize Render Pass (PBR Lit, Clay, Normals, Wireframe)
   useEffect(() => {
@@ -560,20 +862,33 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
     }
   }, [renderPass]);
 
-  // Synchronize Model Scale
+  // Synchronize Model Scale & proportionally scale Studio Base
   useEffect(() => {
     if (activeMeshGroupRef.current) {
       activeMeshGroupRef.current.scale.setScalar(modelScale);
     }
-  }, [modelScale]);
+    if (pedestalRef.current) {
+      const scaledBase = (baseRadiusRef.current / 8.0) * Math.max(0.85, modelScale);
+      pedestalRef.current.scale.set(
+        scaledBase,
+        stageMode === 'environment' ? Math.max(1, scaledBase * 0.45) : 1,
+        scaledBase
+      );
+    }
+  }, [modelScale, stageMode]);
 
-  // Center camera focus on the model
+  // Center camera focus on the active model or 3D environment
   const handleFrameModel = () => {
-    if (!controlsRef.current || !modelStats) return;
-    const targetY = (modelStats.dimensions.y * 0.45 * modelScale) || 2.0;
+    if (!controlsRef.current || !modelStats || !cameraRef.current) return;
+    const height = (modelStats.dimensions.y * modelScale) || 2.0;
+    const targetY = stageMode === 'environment' ? Math.max(1.2, height * 0.35) : height * 0.45;
     controlsRef.current.target.set(0, targetY, 0);
-    if (cameraRef.current) {
-      cameraRef.current.position.set(0, targetY + 1.2, 9.5);
+    if (stageMode === 'environment') {
+      const dist = Math.max(6, scaledRadiusRef.current * modelScale * 0.78);
+      cameraRef.current.position.set(dist * 0.65, targetY + height * 0.45 + 1.5, dist * 0.85);
+    } else {
+      const dist = Math.max(5.5, scaledRadiusRef.current * modelScale * 2.2);
+      cameraRef.current.position.set(0, targetY + 1.2, dist);
     }
     controlsRef.current.update();
   };
@@ -647,7 +962,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
 
   return (
     <div className={`relative w-full ${className}`}>
-      {/* Hidden file input for 3D model upload (.fbx and .glb only) */}
+      {/* Hidden file input for 3D model / environment upload (.fbx and .glb only) */}
       <input
         ref={fileInputRef}
         type="file"
@@ -655,13 +970,21 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
         className="hidden"
         onChange={handleFileChange}
       />
+      {/* Hidden file input for 360° HDRI sky environment (.hdr and .exr) */}
+      <input
+        ref={envInputRef}
+        type="file"
+        accept=".hdr,.exr"
+        className="hidden"
+        onChange={handleEnvFileChange}
+      />
 
       {/* Main 3D Canvas Box */}
       <div
         className={`relative w-full overflow-hidden bg-[#07090e] border border-zinc-800/80 rounded-2xl transition-all duration-300 ${
           isFullscreen
             ? 'fixed inset-0 z-50 rounded-none border-none h-screen'
-            : 'h-[620px] sm:h-[680px] lg:h-[760px]'
+            : 'h-[54vh] min-h-[380px] sm:min-h-[480px] max-h-[760px]'
         }`}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -695,200 +1018,212 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
           </div>
         )}
 
-        {/* Top Left: Active Model Info & Pass Status */}
-        <div className="absolute top-4 left-4 z-10 pointer-events-none flex flex-col gap-1.5 max-w-[80%]">
-          <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-zinc-300 bg-zinc-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-zinc-800 shadow-xl pointer-events-auto">
-            <span className="text-red-500 font-bold tracking-wider">3D LIGHTING LAB</span>
-            <span className="text-zinc-600">/</span>
-
-            {/* Current Active Model */}
-            <span className="text-white font-semibold truncate max-w-[180px] sm:max-w-[260px]" title={modelName}>
-              {modelName}
-            </span>
-
-            {isCustomModel && (
-              <span className="px-1.5 py-0.5 text-[10px] bg-red-950/60 border border-red-800/80 text-red-300 rounded">
-                Custom Model
+        {/* Unified Non-Overlapping Top Bar */}
+        <div className="absolute top-0 left-0 right-0 z-10 p-3 sm:p-4 flex flex-wrap items-start justify-between gap-2.5 pointer-events-none">
+          {/* Top Left: Clean Active Model Pill + Subtle Orbit Hint */}
+          <div className="min-w-0 max-w-full sm:max-w-[52%] flex flex-col gap-1 pointer-events-auto">
+            <div className="inline-flex items-center gap-2 text-xs font-mono text-zinc-200 bg-zinc-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-zinc-800/90 shadow-lg min-w-0">
+              <Box className="w-3.5 h-3.5 text-red-500 shrink-0" />
+              <span className="text-white font-semibold truncate" title={modelName}>
+                {modelName}
               </span>
-            )}
+              {modelStats && (
+                <span className="text-[10px] text-zinc-400 shrink-0 hidden sm:inline">
+                  · {modelStats.triangles > 0 ? `${(modelStats.triangles / 1000).toFixed(1)}k tris` : `${modelStats.vertices} verts`}
+                </span>
+              )}
+              {isCustomModel && (
+                <button
+                  onClick={handleResetToDefaultModel}
+                  className="ml-1 p-0.5 text-zinc-400 hover:text-red-400 rounded transition-colors cursor-pointer shrink-0"
+                  title="Reset to default studio calibration asset"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
 
-            <span className="text-zinc-600">/</span>
-            <span className="text-red-400 font-medium">
-              {renderPass === 'final' ? 'PBR Lit' : renderPass === 'clay' ? 'Clay Pass' : renderPass}
-            </span>
+            <p className="hidden sm:block text-[11px] text-zinc-400/90 font-sans pl-1 drop-shadow pointer-events-none">
+              Drag to orbit · Right-drag to pan · Scroll to zoom
+            </p>
+
+            {modelError && (
+              <div className="flex items-center gap-2 p-2 bg-red-950/90 border border-red-800 rounded-xl text-xs font-mono text-red-300 shadow-xl mt-1">
+                <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+                <span className="truncate">{modelError}</span>
+                <button
+                  onClick={() => setModelError(null)}
+                  className="ml-auto text-red-400 hover:text-white shrink-0"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
           </div>
 
-          <p className="text-[11px] text-zinc-400 font-sans tracking-tight pl-1 drop-shadow pointer-events-none">
-            Left click + drag to orbit · Right click to pan · Scroll to zoom
-          </p>
+          {/* Top Right: Clean Viewport Toolbar (No Duplicate Buttons) */}
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0 pointer-events-auto">
+            <button
+              onClick={() => setShowBase(!showBase)}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono rounded-xl border backdrop-blur-md transition-all cursor-pointer ${
+                showBase
+                  ? 'bg-zinc-900/90 text-white border-zinc-700'
+                  : 'bg-zinc-950/75 hover:bg-zinc-900 text-zinc-400 border-zinc-800'
+              }`}
+              title={showBase ? 'Hide studio turntable base' : 'Show studio turntable base'}
+            >
+              <Layers className={`w-3.5 h-3.5 ${showBase ? 'text-red-400' : 'text-zinc-500'}`} />
+              <span className="hidden md:inline">Base</span>
+            </button>
 
-          {/* Model error alert */}
-          {modelError && (
-            <div className="flex items-center gap-2 p-2 bg-red-950/90 border border-red-800 rounded-xl text-xs font-mono text-red-300 shadow-xl pointer-events-auto mt-1">
-              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
-              <span>{modelError}</span>
-              <button
-                onClick={() => setModelError(null)}
-                className="ml-auto text-red-400 hover:text-white"
-              >
-                ✕
-              </button>
-            </div>
-          )}
-        </div>
+            <button
+              onClick={handleToggleStageMode}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono rounded-xl border backdrop-blur-md transition-all cursor-pointer ${
+                stageMode === 'environment'
+                  ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/80'
+                  : 'bg-zinc-950/85 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+              }`}
+              title="Switch between Object Turntable Stage and Full 3D Environment Scale"
+            >
+              {stageMode === 'environment' ? (
+                <>
+                  <Globe className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden md:inline">3D Env</span>
+                </>
+              ) : (
+                <>
+                  <Box className="w-3.5 h-3.5 text-zinc-400" />
+                  <span className="hidden md:inline">Stage</span>
+                </>
+              )}
+            </button>
 
-        {/* Top Right: Upload 3D Model, Fullscreen, Layout Switcher & Code Export */}
-        <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-          {/* Primary Upload 3D Model Button */}
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold bg-red-600 hover:bg-red-500 text-white rounded-xl shadow-lg shadow-red-600/30 transition-all cursor-pointer"
-            title="Upload your own 3D model (.fbx or .glb)"
-          >
-            <Upload className="w-3.5 h-3.5" />
-            <span>Upload 3D Model</span>
-          </button>
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono font-semibold bg-red-600 hover:bg-red-500 text-white rounded-xl shadow-lg shadow-red-600/25 transition-all cursor-pointer"
+              title="Upload a 3D model or 3D environment (.fbx or .glb)"
+            >
+              <Upload className="w-3.5 h-3.5" />
+              <span>Upload .FBX / .GLB</span>
+            </button>
 
-          {/* Link URL input */}
-          <button
-            onClick={() => setShowUrlModal(true)}
-            className="p-1.5 bg-zinc-950/80 hover:bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 backdrop-blur-md transition-colors cursor-pointer"
-            title="Load model from URL"
-          >
-            <LinkIcon className="w-4 h-4 text-zinc-400" />
-          </button>
+            <button
+              onClick={() => setShowUrlModal(true)}
+              className="p-1.5 bg-zinc-950/85 hover:bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 backdrop-blur-md transition-colors cursor-pointer"
+              title="Load 3D asset from URL"
+            >
+              <LinkIcon className="w-4 h-4 text-zinc-400" />
+            </button>
 
-          {/* Frame Camera */}
-          <button
-            onClick={handleFrameModel}
-            className="p-1.5 bg-zinc-950/80 hover:bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 backdrop-blur-md transition-colors cursor-pointer"
-            title="Frame Camera on Model"
-          >
-            <Target className="w-4 h-4 text-zinc-400" />
-          </button>
+            <button
+              onClick={handleFrameModel}
+              className="p-1.5 bg-zinc-950/85 hover:bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 backdrop-blur-md transition-colors cursor-pointer"
+              title="Re-center camera"
+            >
+              <Target className="w-4 h-4 text-zinc-400" />
+            </button>
 
-          {/* Layout Toggle (Overlay vs Below) */}
-          <button
-            onClick={() => setLayoutMode(layoutMode === 'overlay' ? 'below' : 'overlay')}
-            className={`hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono rounded-xl border backdrop-blur-md transition-all cursor-pointer ${
-              layoutMode === 'below'
-                ? 'bg-red-950/60 text-red-300 border-red-800 shadow-md'
-                : 'bg-zinc-950/80 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
-            }`}
-            title={layoutMode === 'below' ? 'Docked Below Canvas' : 'Overlay Dock'}
-          >
-            <Layout className="w-3.5 h-3.5 text-red-500" />
-            <span>{layoutMode === 'below' ? 'Below Canvas' : 'Overlay Dock'}</span>
-          </button>
-
-          {/* Code Export Button */}
-          <button
-            onClick={() => setShowExportModal(!showExportModal)}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-mono bg-zinc-950/80 hover:bg-zinc-900 text-zinc-200 rounded-xl border border-zinc-800 backdrop-blur-md transition-colors cursor-pointer"
-            title="Export light rig to UE5 or Three.js"
-          >
-            <Code className="w-3.5 h-3.5 text-red-500" />
-            <span className="hidden sm:inline">Export Code</span>
-          </button>
-
-          {/* Fullscreen Button */}
-          <button
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-2 bg-zinc-950/80 hover:bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 backdrop-blur-md transition-colors cursor-pointer"
-            title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-          </button>
+            <button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="p-1.5 bg-zinc-950/85 hover:bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 backdrop-blur-md transition-colors cursor-pointer"
+              title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+          </div>
         </div>
 
         {/* Remote URL Modal */}
         {showUrlModal && (
-          <div className="absolute top-16 right-4 z-40 w-80 bg-zinc-950/95 border border-zinc-800 rounded-2xl shadow-2xl p-4 text-xs font-mono text-zinc-200 animate-in fade-in duration-150">
-            <div className="flex items-center justify-between pb-2 mb-3 border-b border-zinc-800">
-              <span className="font-semibold text-white flex items-center gap-1.5">
-                <LinkIcon className="w-3.5 h-3.5 text-red-500" />
-                <span>Load 3D Model from URL</span>
-              </span>
-              <button onClick={() => setShowUrlModal(false)} className="text-zinc-500 hover:text-white">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <p className="text-[11px] text-zinc-400 mb-2 leading-relaxed">
-              Enter a direct link to any <code className="text-red-400">.fbx</code> or <code className="text-red-400">.glb</code> file:
-            </p>
-            <input
-              type="url"
-              autoFocus
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              placeholder="https://example.com/model.glb"
-              className="w-full px-3 py-2 bg-black border border-zinc-700 rounded-xl text-xs font-mono text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-red-500 mb-3"
-            />
-            <div className="flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setShowUrlModal(false)}
-                className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 rounded-lg text-xs"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => handleUrlLoad(urlInput)}
-                className="px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg text-xs shadow-md shadow-red-600/30"
-              >
-                Load Model
-              </button>
+          <div className="absolute inset-0 z-40 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="w-full max-w-sm bg-zinc-950/95 border border-zinc-800 rounded-2xl shadow-2xl p-4 text-xs font-mono text-zinc-200 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between pb-2 mb-3 border-b border-zinc-800">
+                <span className="font-semibold text-white flex items-center gap-1.5">
+                  <LinkIcon className="w-3.5 h-3.5 text-red-500" />
+                  <span>Load 3D Asset from URL</span>
+                </span>
+                <button onClick={() => setShowUrlModal(false)} className="text-zinc-500 hover:text-white cursor-pointer">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <p className="text-[11px] text-zinc-400 mb-2 leading-relaxed">
+                Enter a direct link to any <code className="text-red-400">.fbx</code> or <code className="text-red-400">.glb</code> file:
+              </p>
+              <input
+                type="url"
+                autoFocus
+                value={urlInput}
+                onChange={(e) => setUrlInput(e.target.value)}
+                placeholder="https://example.com/model.glb"
+                className="w-full px-3 py-2 bg-black border border-zinc-700 rounded-xl text-xs font-mono text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-red-500 mb-3"
+              />
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUrlModal(false)}
+                  className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 rounded-lg text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleUrlLoad(urlInput)}
+                  className="px-4 py-1.5 bg-red-600 hover:bg-red-500 text-white font-medium rounded-lg text-xs shadow-md shadow-red-600/30 cursor-pointer"
+                >
+                  Load Asset
+                </button>
+              </div>
             </div>
           </div>
         )}
 
-        {/* Code Export Dropdown Modal */}
+        {/* Code Export Modal */}
         {showExportModal && (
-          <div className="absolute top-16 right-4 z-30 w-72 bg-zinc-950/95 border border-zinc-800 rounded-2xl shadow-2xl p-3 text-xs font-mono text-zinc-300 animate-in fade-in duration-150">
-            <div className="flex items-center justify-between pb-2 mb-2 border-b border-zinc-800">
-              <span className="font-semibold text-zinc-100 flex items-center gap-1.5">
-                <Code className="w-3.5 h-3.5 text-red-500" />
-                <span>Export Light Rig</span>
-              </span>
-              <button onClick={() => setShowExportModal(false)} className="text-zinc-500 hover:text-white">
-                ✕
-              </button>
-            </div>
-            <div className="space-y-1.5">
-              <button
-                onClick={() => handleCopyCode('ue5')}
-                className="w-full text-left px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 transition-colors flex items-center justify-between cursor-pointer"
-              >
-                <span>Unreal Engine 5 (Lumen)</span>
-                {copiedFormat === 'ue5' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-zinc-500" />}
-              </button>
-              <button
-                onClick={() => handleCopyCode('threejs')}
-                className="w-full text-left px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 transition-colors flex items-center justify-between cursor-pointer"
-              >
-                <span>Three.js / WebGL Code</span>
-                {copiedFormat === 'threejs' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-zinc-500" />}
-              </button>
-              <button
-                onClick={() => handleCopyCode('json')}
-                className="w-full text-left px-2.5 py-1.5 rounded-lg bg-zinc-900 hover:bg-zinc-800 transition-colors flex items-center justify-between cursor-pointer"
-              >
-                <span>Studio JSON Settings</span>
-                {copiedFormat === 'json' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3 text-zinc-500" />}
-              </button>
+          <div className="absolute inset-0 z-40 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="w-full max-w-xs bg-zinc-950/95 border border-zinc-800 rounded-2xl shadow-2xl p-3.5 text-xs font-mono text-zinc-300 animate-in fade-in duration-150">
+              <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-zinc-800">
+                <span className="font-semibold text-zinc-100 flex items-center gap-1.5">
+                  <Code className="w-3.5 h-3.5 text-red-500" />
+                  <span>Export Light Rig</span>
+                </span>
+                <button onClick={() => setShowExportModal(false)} className="text-zinc-500 hover:text-white cursor-pointer">
+                  ✕
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                <button
+                  onClick={() => handleCopyCode('ue5')}
+                  className="w-full text-left px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 transition-colors flex items-center justify-between cursor-pointer"
+                >
+                  <span>Unreal Engine 5 (Lumen)</span>
+                  {copiedFormat === 'ue5' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-zinc-500" />}
+                </button>
+                <button
+                  onClick={() => handleCopyCode('threejs')}
+                  className="w-full text-left px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 transition-colors flex items-center justify-between cursor-pointer"
+                >
+                  <span>Three.js / WebGL Code</span>
+                  {copiedFormat === 'threejs' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-zinc-500" />}
+                </button>
+                <button
+                  onClick={() => handleCopyCode('json')}
+                  className="w-full text-left px-3 py-2 rounded-lg bg-zinc-900 hover:bg-zinc-800 transition-colors flex items-center justify-between cursor-pointer"
+                >
+                  <span>Studio JSON Settings</span>
+                  {copiedFormat === 'json' ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5 text-zinc-500" />}
+                </button>
+              </div>
             </div>
           </div>
         )}
 
-        {/* OVERLAY DOCK (Flush at the bottom) */}
-        {layoutMode === 'overlay' && (
+        {/* OVERLAY DOCK (Flush at the bottom inside fullscreen or when overlay mode selected) */}
+        {(layoutMode === 'overlay' || isFullscreen) && (
           <div
             className={`absolute bottom-0 left-0 right-0 z-20 transition-all duration-300 ease-out ${
               isCollapsed ? 'translate-y-[calc(100%-34px)]' : 'translate-y-0'
             }`}
           >
-            {/* Minimalist Zen View / Collapse Toggle Pill */}
             <div className="flex justify-center">
               <button
                 onClick={() => setIsCollapsed(!isCollapsed)}
@@ -897,18 +1232,17 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
                 {isCollapsed ? (
                   <>
                     <ChevronUp className="w-3.5 h-3.5 text-red-500" />
-                    <span>Open Live Lighting Tools</span>
+                    <span>Show Lighting Controls</span>
                   </>
                 ) : (
                   <>
                     <ChevronDown className="w-3.5 h-3.5 text-red-500" />
-                    <span>Zen View (Hide Controls · 100% Clear Scene)</span>
+                    <span>Hide Controls</span>
                   </>
                 )}
               </button>
             </div>
 
-            {/* Bottom Controls Bar Container */}
             <div className="bg-zinc-950/95 border-t border-zinc-800/90 shadow-2xl backdrop-blur-xl p-3 sm:p-4 text-zinc-200">
               {renderControlPanelContent()}
             </div>
@@ -916,73 +1250,23 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
         )}
       </div>
 
-      {/* EXTERNAL CONSOLE (When in 'below' mode) */}
-      {layoutMode === 'below' && (
-        <div className="w-full mt-3 bg-zinc-950 border border-zinc-800 rounded-2xl p-4 shadow-xl text-zinc-200">
-          <div className="flex items-center justify-between pb-3 mb-3 border-b border-zinc-800">
-            <div className="flex items-center gap-2">
-              <Sliders className="w-4 h-4 text-red-500" />
-              <span className="text-xs font-mono font-bold tracking-wider uppercase text-white">
-                Live Lighting Console · 100% Unobstructed Scene View
-              </span>
-            </div>
-            <button
-              onClick={() => setLayoutMode('overlay')}
-              className="text-xs font-mono text-zinc-400 hover:text-white underline cursor-pointer"
-            >
-              Switch to Overlay Dock
-            </button>
-          </div>
+      {/* NEAT BELOW-CANVAS LIGHTING CONSOLE (Default unobstructed view) */}
+      {layoutMode === 'below' && !isFullscreen && (
+        <div className="w-full mt-3 bg-zinc-950 border border-zinc-800/90 rounded-2xl p-3.5 sm:p-4 shadow-xl text-zinc-200">
           {renderControlPanelContent()}
         </div>
       )}
     </div>
   );
 
-  // Modular renderer for the entire advanced lighting toolset
+  // Modular renderer for the neat, simple lighting toolset
   function renderControlPanelContent() {
     return (
-      <div className="max-w-7xl mx-auto space-y-3">
-        {/* Row 1: Model Management Actions + Lighting Tool Tabs */}
-        <div className="flex flex-wrap items-center justify-between gap-2.5 pb-2.5 border-b border-zinc-800/80">
-          {/* Active Model Info & Upload Trigger */}
-          <div className="flex items-center gap-2 bg-zinc-900/90 p-1.5 rounded-xl border border-zinc-800">
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="px-3 py-1 text-xs font-medium bg-red-600 hover:bg-red-500 text-white rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer shadow-sm shadow-red-600/30"
-              title="Upload your own 3D model (.fbx or .glb)"
-            >
-              <Upload className="w-3.5 h-3.5" />
-              <span>Upload Model (.fbx / .glb)</span>
-            </button>
-
-            {/* Model Name and stats badge */}
-            <div className="flex items-center gap-1.5 px-2 text-xs font-mono text-zinc-300">
-              <Box className="w-3.5 h-3.5 text-red-400" />
-              <span className="font-semibold text-zinc-100 truncate max-w-[140px] sm:max-w-[200px]" title={modelName}>
-                {modelName}
-              </span>
-              {modelStats && (
-                <span className="text-[10px] text-zinc-500 hidden md:inline">
-                  ({modelStats.triangles > 0 ? `${(modelStats.triangles / 1000).toFixed(1)}k tris` : `${modelStats.vertices} verts`})
-                </span>
-              )}
-            </div>
-
-            {/* Reset Model Button if custom model is loaded */}
-            {isCustomModel && (
-              <button
-                onClick={handleResetToDefaultModel}
-                className="p-1 text-zinc-400 hover:text-red-400 hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
-                title="Reset to default calibration lookdev model"
-              >
-                <RotateCcw className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* Advanced Lighting Tool Tabs */}
-          <div className="flex flex-wrap items-center gap-1 bg-zinc-900/90 p-1 rounded-xl border border-zinc-800 overflow-x-auto">
+      <div className="w-full space-y-3">
+        {/* Row 1: Clean Lighting Tool Tabs + Utility Controls */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-zinc-800/80">
+          {/* Scrollable Lighting Tool Tabs */}
+          <div className="flex items-center gap-1 bg-zinc-900/90 p-1 rounded-xl border border-zinc-800 overflow-x-auto max-w-full">
             <button
               onClick={() => setActiveTab('presets')}
               className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
@@ -1089,6 +1373,29 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
             >
               <Camera className="w-3.5 h-3.5 text-amber-500" />
               <span>Optics</span>
+            </button>
+          </div>
+
+          {/* Right Utility Actions: Dock Mode & Code Export */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {!isFullscreen && (
+              <button
+                onClick={() => setLayoutMode(layoutMode === 'overlay' ? 'below' : 'overlay')}
+                className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-xl border border-zinc-800 transition-colors cursor-pointer"
+                title={layoutMode === 'below' ? 'Float controls inside canvas' : 'Dock controls below canvas'}
+              >
+                <Layout className="w-3.5 h-3.5 text-red-400" />
+                <span>{layoutMode === 'below' ? 'Overlay' : 'Dock Below'}</span>
+              </button>
+            )}
+
+            <button
+              onClick={() => setShowExportModal(!showExportModal)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono bg-zinc-900 hover:bg-zinc-800 text-zinc-200 rounded-xl border border-zinc-800 transition-colors cursor-pointer"
+              title="Export light rig to UE5 or Three.js"
+            >
+              <Code className="w-3.5 h-3.5 text-red-400" />
+              <span>Export</span>
             </button>
           </div>
         </div>
@@ -1488,70 +1795,143 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
             </div>
           )}
 
-          {/* TAB: ATMOSPHERE & WETNESS */}
+          {/* TAB: ATMOSPHERE & 3D ENVIRONMENT SKY */}
           {activeTab === 'atmosphere' && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
-                <div className="flex justify-between text-zinc-400">
-                  <span>Surface Pavement Wetness</span>
-                  <span className="text-white font-bold">
-                    {Math.round((lighting.surface?.wetness ?? 0.5) * 100)}%
-                  </span>
+            <div className="space-y-3 text-xs font-mono">
+              {/* HDRI / 3D Environment IBL Sky Selector */}
+              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-zinc-400 mr-1">3D Sky / IBL:</span>
+                  {(
+                    [
+                      { id: 'studio', label: 'Studio Dome' },
+                      { id: 'daylight', label: 'Daylight' },
+                      { id: 'sunset', label: 'Golden Sunset' },
+                      { id: 'cyberNight', label: 'Cyber Night' },
+                    ] as const
+                  ).map((sky) => (
+                    <button
+                      key={sky.id}
+                      onClick={() => handleSelectProceduralSky(sky.id)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] transition-colors cursor-pointer ${
+                        skyPreset === sky.id
+                          ? 'bg-emerald-600 text-white font-semibold'
+                          : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
+                      }`}
+                    >
+                      {sky.label}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => envInputRef.current?.click()}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] border transition-colors cursor-pointer ${
+                      skyPreset === 'custom'
+                        ? 'bg-emerald-950 border-emerald-500 text-emerald-300 font-semibold'
+                        : 'bg-zinc-950 border-zinc-700 text-zinc-300 hover:border-emerald-500/60'
+                    }`}
+                    title="Upload an equirectangular .hdr or .exr environment map"
+                  >
+                    {customEnvName ? `HDRI: ${customEnvName}` : '+ Load .HDR / .EXR'}
+                  </button>
                 </div>
-                <input
-                  type="range"
-                  min="0.0"
-                  max="1.0"
-                  step="0.05"
-                  value={lighting.surface?.wetness ?? 0.5}
-                  onChange={(e) =>
-                    setLighting({
-                      ...lighting,
-                      surface: { wetness: parseFloat(e.target.value) },
-                    })
-                  }
-                  className="w-full accent-emerald-500 cursor-pointer"
-                />
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => {
+                      const next = !showSkybox;
+                      setShowSkybox(next);
+                      if (next && !envRenderTargetRef.current) {
+                        const tex = createProceduralSkyTexture(skyPreset === 'custom' ? 'studio' : skyPreset);
+                        applyEnvironmentMapTexture(tex, true);
+                      }
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] cursor-pointer transition-colors ${
+                      showSkybox
+                        ? 'bg-emerald-600 text-white font-semibold'
+                        : 'bg-zinc-800 text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    {showSkybox ? 'Skybox Visible' : 'Show Skybox'}
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-400">IBL:</span>
+                    <input
+                      type="range"
+                      min="0"
+                      max="2.5"
+                      step="0.1"
+                      value={envIntensity}
+                      onChange={(e) => setEnvIntensity(parseFloat(e.target.value))}
+                      className="w-20 accent-emerald-500 cursor-pointer"
+                    />
+                    <span className="text-white font-bold w-8">{envIntensity.toFixed(1)}x</span>
+                  </div>
+                </div>
               </div>
 
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
-                <div className="flex justify-between text-zinc-400">
-                  <span>Volumetric Fog Near</span>
-                  <span className="text-white font-bold">{lighting.fog.near}m</span>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Surface Pavement Wetness</span>
+                    <span className="text-white font-bold">
+                      {Math.round((lighting.surface?.wetness ?? 0.5) * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.0"
+                    max="1.0"
+                    step="0.05"
+                    value={lighting.surface?.wetness ?? 0.5}
+                    onChange={(e) =>
+                      setLighting({
+                        ...lighting,
+                        surface: { wetness: parseFloat(e.target.value) },
+                      })
+                    }
+                    className="w-full accent-emerald-500 cursor-pointer"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min="1"
-                  max="20"
-                  value={lighting.fog.near}
-                  onChange={(e) =>
-                    setLighting({
-                      ...lighting,
-                      fog: { ...lighting.fog, near: parseInt(e.target.value, 10) },
-                    })
-                  }
-                  className="w-full accent-emerald-500 cursor-pointer"
-                />
-              </div>
 
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
-                <div className="flex justify-between text-zinc-400">
-                  <span>Volumetric Fog Far</span>
-                  <span className="text-white font-bold">{lighting.fog.far}m</span>
+                <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Volumetric Fog Near</span>
+                    <span className="text-white font-bold">{lighting.fog.near}m</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="1"
+                    max="60"
+                    value={lighting.fog.near}
+                    onChange={(e) =>
+                      setLighting({
+                        ...lighting,
+                        fog: { ...lighting.fog, near: parseInt(e.target.value, 10) },
+                      })
+                    }
+                    className="w-full accent-emerald-500 cursor-pointer"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min="15"
-                  max="60"
-                  value={lighting.fog.far}
-                  onChange={(e) =>
-                    setLighting({
-                      ...lighting,
-                      fog: { ...lighting.fog, far: parseInt(e.target.value, 10) },
-                    })
-                  }
-                  className="w-full accent-emerald-500 cursor-pointer"
-                />
+
+                <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+                  <div className="flex justify-between text-zinc-400">
+                    <span>Volumetric Fog Far</span>
+                    <span className="text-white font-bold">{lighting.fog.far}m</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="15"
+                    max="200"
+                    value={lighting.fog.far}
+                    onChange={(e) =>
+                      setLighting({
+                        ...lighting,
+                        fog: { ...lighting.fog, far: parseInt(e.target.value, 10) },
+                      })
+                    }
+                    className="w-full accent-emerald-500 cursor-pointer"
+                  />
+                </div>
               </div>
             </div>
           )}

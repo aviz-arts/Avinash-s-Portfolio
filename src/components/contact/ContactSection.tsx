@@ -99,7 +99,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-[#050505]/70 to-[#000000]" />
       </div>
 
-      <div className="max-w-5xl mx-auto px-6 relative z-10 space-y-16">
+      <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 relative z-10 space-y-12 sm:space-y-16">
         {/* 1. Header Display: Kicker + Let's Work Together */}
         <div className="text-center max-w-2xl mx-auto space-y-3">
           <div className="text-xs font-mono tracking-widest text-red-500 uppercase font-semibold">
@@ -263,7 +263,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
         </div>
 
         {/* 3. Direct Message Inquiry Form */}
-        <div className="max-w-2xl mx-auto bg-zinc-950/90 border border-zinc-800/90 rounded-3xl p-8 shadow-2xl backdrop-blur-xl">
+        <div className="max-w-3xl mx-auto bg-zinc-950/90 border border-zinc-800/90 rounded-3xl p-5 sm:p-8 shadow-2xl backdrop-blur-xl">
           <div className="flex items-center gap-2 mb-6">
             <MessageSquare className="w-5 h-5 text-red-500" />
             <h3 className="text-lg font-display font-bold text-white">Send Direct Message</h3>

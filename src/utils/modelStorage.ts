@@ -6,12 +6,22 @@
 const DB_NAME = 'avinash_portfolio_studio_db';
 const STORE_NAME = 'uploaded_models';
 const MODEL_KEY = 'active_studio_model';
+const ENV_MAP_KEY = 'active_hdri_environment';
 
 export interface StoredModelRecord {
   name: string;
   size: number;
   buffer: ArrayBuffer;
   format: 'fbx' | 'glb';
+  stageMode?: 'object' | 'environment';
+  updatedAt: number;
+}
+
+export interface StoredEnvMapRecord {
+  name: string;
+  size: number;
+  buffer: ArrayBuffer;
+  format: 'hdr' | 'exr';
   updatedAt: number;
 }
 
@@ -39,7 +49,8 @@ function openDB(): Promise<IDBDatabase> {
 export async function saveUploadedModel(
   name: string,
   buffer: ArrayBuffer,
-  format: 'fbx' | 'glb'
+  format: 'fbx' | 'glb',
+  stageMode?: 'object' | 'environment'
 ): Promise<void> {
   try {
     const db = await openDB();
@@ -51,6 +62,7 @@ export async function saveUploadedModel(
         size: buffer.byteLength,
         buffer,
         format,
+        stageMode,
         updatedAt: Date.now(),
       };
       const putReq = store.put(record, MODEL_KEY);
@@ -89,5 +101,61 @@ export async function clearUploadedModel(): Promise<void> {
     });
   } catch (err) {
     console.warn('Failed to clear 3D model from IndexedDB:', err);
+  }
+}
+
+export async function saveUploadedEnvMap(
+  name: string,
+  buffer: ArrayBuffer,
+  format: 'hdr' | 'exr'
+): Promise<void> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const record: StoredEnvMapRecord = {
+        name,
+        size: buffer.byteLength,
+        buffer,
+        format,
+        updatedAt: Date.now(),
+      };
+      const putReq = store.put(record, ENV_MAP_KEY);
+      putReq.onsuccess = () => resolve();
+      putReq.onerror = () => reject(putReq.error);
+    });
+  } catch (err) {
+    console.warn('Failed to save HDRI environment to IndexedDB:', err);
+  }
+}
+
+export async function loadUploadedEnvMap(): Promise<StoredEnvMapRecord | null> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const getReq = store.get(ENV_MAP_KEY);
+      getReq.onsuccess = () => resolve(getReq.result || null);
+      getReq.onerror = () => reject(getReq.error);
+    });
+  } catch {
+    return null;
+  }
+}
+
+export async function clearUploadedEnvMap(): Promise<void> {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const delReq = store.delete(ENV_MAP_KEY);
+      delReq.onsuccess = () => resolve();
+      delReq.onerror = () => reject(delReq.error);
+    });
+  } catch (err) {
+    console.warn('Failed to clear HDRI environment from IndexedDB:', err);
   }
 }

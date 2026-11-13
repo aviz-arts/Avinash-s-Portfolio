@@ -52,8 +52,8 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
   };
 
   return (
-    <section id="about" className="py-20 border-t border-zinc-800/80">
-      <div className="max-w-7xl mx-auto px-6">
+    <section id="about" className="py-14 sm:py-20 border-t border-zinc-800/80">
+      <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14">
         {/* Section Header */}
         <div className="max-w-3xl mb-12">
           <div className="text-xs font-mono text-red-500 tracking-wider uppercase mb-2">

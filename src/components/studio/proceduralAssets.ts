@@ -545,7 +545,8 @@ export function applyRenderPassMode(
   root.traverse((child) => {
     if (child instanceof THREE.Mesh) {
       // Don't modify contact shadows
-      if (child.renderOrder === 1 && child.material.transparent) return;
+      const singleMat = !Array.isArray(child.material) ? child.material : null;
+      if (child.renderOrder === 1 && singleMat?.transparent) return;
 
       if (!child.userData.originalMaterial) {
         child.userData.originalMaterial = child.material;
