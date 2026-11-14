@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1794639202030,
+  "updatedAt": 1794639206107,
   "projects": [
     {
       "id": "district-7-cyberpunk",
@@ -842,7 +842,7 @@
       },
       {
         "id": "about-stat-3",
-        "value": "7+ Years",
+        "value": "3+ Years",
         "label": "Game Design & Systems Exp",
         "detail": "AAA & Award-Winning Indie"
       }
