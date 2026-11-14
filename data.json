@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1794639206107,
+  "updatedAt": 1794639220473,
   "projects": [
     {
       "id": "district-7-cyberpunk",
@@ -757,7 +757,7 @@
     "homeShowPortrait": true,
     "workShowStudio": true,
     "workShowWorksGrid": true,
-    "workShowReels": true,
+    "workShowReels": false,
     "workShowReelPlayer": true,
     "workShowAbSlider": true,
     "workShowLevelDesign": true,
