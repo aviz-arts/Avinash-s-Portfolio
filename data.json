@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1794639066911,
+  "updatedAt": 1794639073069,
   "projects": [
     {
       "id": "district-7-cyberpunk",
@@ -796,7 +796,10 @@
     "contactShowForm": true,
     "contactShowSocials": true,
     "contactShowLocation": true,
-    "contactHiddenSocials": [],
+    "contactHiddenSocials": [
+      "youtube",
+      "github"
+    ],
     "homeDownloadResumeCtaText": "Download Resume",
     "homeDirectInquiryCtaText": "Direct Inquiry",
     "resumeHeaderKicker": "OFFICIAL CURRICULUM VITAE",
