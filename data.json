@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1794639135159,
+  "updatedAt": 1794639139367,
   "projects": [
     {
       "id": "district-7-cyberpunk",
@@ -680,7 +680,6 @@
         "items": [
           "Unreal Engine Blueprints & C++",
           "Marmoset Toolbag 4 Look-Dev",
-          "Maya & Blender Greybox",
           "Perforce & Git LFS"
         ]
       }
