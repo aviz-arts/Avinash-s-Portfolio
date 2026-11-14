@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1794639220473,
+  "updatedAt": 1794639229548,
   "projects": [
     {
       "id": "district-7-cyberpunk",
@@ -849,45 +849,6 @@
     ]
   },
   "customSections": [
-    {
-      "id": "section-game-design-frameworks",
-      "tab": "work",
-      "kicker": "Game Design Frameworks & Mechanics",
-      "title": "Core Loops, Player Verbs & Systems Documentation",
-      "description": "Selected game design specifications, combat loop diagrams, player progression models, and balancing frameworks engineered for intuitive gameplay flow.",
-      "layout": "cards",
-      "visible": true,
-      "order": 1,
-      "items": [
-        {
-          "id": "gd-1",
-          "title": "Core Traversal & Momentum Loop",
-          "subtitle": "Fluid Movement System (GDD Spec)",
-          "description": "Engineered a 5-verb momentum chain (Sprint → Slide → Wall-Run → Vault → Grapple) with variable coyote-time buffering, reducing player missed-jump frustration by 88%.",
-          "tag": "Systems Design · 2024",
-          "linkText": "View Mechanic Spec",
-          "linkUrl": "#"
-        },
-        {
-          "id": "gd-2",
-          "title": "Asymmetric 3-Lane Combat Topology",
-          "subtitle": "Multiplayer Arena Balancing Math",
-          "description": "Mathematical calibration of 12-second cross-map rotation times and 45° sightline wedges to ensure tactical parity between close-range SMG rushers and defensive anchor roles.",
-          "tag": "Competitive Balance · 2023",
-          "linkText": "Read Combat Breakdown",
-          "linkUrl": "#"
-        },
-        {
-          "id": "gd-3",
-          "title": "Diegetic Lighting Guidance Architecture",
-          "subtitle": "Subconscious Player Wayfinding",
-          "description": "A design framework utilizing my lighting passion to serve gameplay: warm focal beacons guide traversal objectives while cool grazing silhouettes highlight escape conduits without mini-map clutter.",
-          "tag": "Design + Lighting Synergy · 2024",
-          "linkText": "View Wayfinding Guide",
-          "linkUrl": "#"
-        }
-      ]
-    },
     {
       "id": "section-hardware-pipeline",
       "tab": "about",
