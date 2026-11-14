@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1794644557772,
+  "updatedAt": 1794668874390,
   "projects": [
     {
       "id": "district-7-cyberpunk",
@@ -691,7 +691,7 @@
     "heroHeadline": "Designing Gameplay, Mechanics and Living Worlds.",
     "heroLeadCopy": "My profession is Game Design: engineering intuitive gameplay mechanics, systemic loops, combat pacing, and spatial architecture that make games unforgettable to play, combined with my dedicated creative passion as a Lighting Artist. This dual superpower bridges player psychology with cinematic visual atmosphere.",
     "heroLabCtaText": "Launch 3D Lighting Lab",
-    "heroCaseStudiesCtaText": "Explore Game Design Works",
+    "heroCaseStudiesCtaText": "Explore",
     "stat1Value": "4 Titles",
     "stat1Label": "Shipped Commercial Releases",
     "stat2Value": "100% Core",
