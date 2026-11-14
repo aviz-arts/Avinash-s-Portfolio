@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1794639034868,
+  "updatedAt": 1794639039611,
   "projects": [
     {
       "id": "district-7-cyberpunk",
@@ -836,7 +836,7 @@
       },
       {
         "id": "bench-3",
-        "value": "7+ Years",
+        "value": "3+ Years",
         "label": "Game Industry Experience"
       }
     ]
