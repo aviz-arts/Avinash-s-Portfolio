@@ -47,11 +47,11 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="print:hidden sticky top-0 z-40 bg-[#050505]/95 backdrop-blur-md border-b border-zinc-800/80">
-      <div className="w-full max-w-[1680px] mx-auto flex items-center justify-between gap-4 sm:gap-6 px-4 sm:px-6 lg:px-10 xl:px-14 py-3.5">
+      <div className="w-full max-w-[1680px] mx-auto flex items-center justify-between md:grid md:grid-cols-[1fr_auto_1fr] gap-4 sm:gap-6 px-4 sm:px-6 lg:px-10 xl:px-14 py-3.5">
         {/* Zone 1: Portrait avatar + AVINASH heading + faded subtitle: Game Designer | Lighting Artist */}
         <button
           onClick={handleAvatarClick}
-          className="flex items-center gap-3.5 text-left group cursor-pointer shrink-0"
+          className="flex items-center gap-3.5 text-left group cursor-pointer shrink-0 md:justify-self-start"
           title="Avinash · Game Designer | Lighting Artist"
         >
           <div className="relative w-10 h-10 rounded-full overflow-hidden border-2 border-red-500/80 group-hover:border-red-400 transition-all duration-300 shadow-sm shadow-red-500/20 shrink-0">
@@ -68,18 +68,18 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="text-lg sm:text-xl font-display font-black tracking-tight text-white group-hover:text-red-400 transition-colors uppercase leading-tight">
               AVINASH
             </span>
-            <span className="text-[11px] font-mono text-zinc-500 group-hover:text-zinc-400 transition-colors tracking-wider mt-0.5">
+            <span className="text-[11px] font-mono text-zinc-500 group-hover:text-zinc-400 transition-colors tracking-wider mt-0.5 whitespace-nowrap">
               Game Designer | Lighting Artist
             </span>
           </div>
         </button>
 
-        {/* Zone 2: Navigation tabs with animated active indicator */}
-        <nav className="hidden md:flex items-center gap-8 text-xs font-mono tracking-wider uppercase text-zinc-400 font-medium">
+        {/* Zone 2: Navigation tabs centered horizontally in the header */}
+        <nav className="hidden md:flex items-center justify-center md:gap-5 lg:gap-8 text-xs font-mono tracking-wider uppercase text-zinc-400 font-medium md:justify-self-center">
           {/* 1. Home Tab */}
           <button
             onClick={() => handleNavClick('home')}
-            className={`relative py-1 transition-all duration-200 cursor-pointer ${
+            className={`relative py-1 transition-all duration-200 cursor-pointer whitespace-nowrap ${
               activeTab === 'home' ? 'text-white font-bold' : 'hover:text-zinc-200'
             }`}
           >
@@ -92,7 +92,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* 2. Work Tab */}
           <button
             onClick={() => handleNavClick('work')}
-            className={`relative py-1 transition-all duration-200 cursor-pointer ${
+            className={`relative py-1 transition-all duration-200 cursor-pointer whitespace-nowrap ${
               activeTab === 'work' ? 'text-white font-bold' : 'hover:text-zinc-200'
             }`}
           >
@@ -105,7 +105,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* 3. About Tab */}
           <button
             onClick={() => handleNavClick('about')}
-            className={`relative py-1 transition-all duration-200 cursor-pointer ${
+            className={`relative py-1 transition-all duration-200 cursor-pointer whitespace-nowrap ${
               activeTab === 'about' ? 'text-white font-bold' : 'hover:text-zinc-200'
             }`}
           >
@@ -118,7 +118,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* 4. Resume */}
           <button
             onClick={() => handleNavClick('resume')}
-            className={`relative py-1 transition-all duration-200 cursor-pointer ${
+            className={`relative py-1 transition-all duration-200 cursor-pointer whitespace-nowrap ${
               activeTab === 'resume' ? 'text-white font-bold' : 'hover:text-zinc-200'
             }`}
             title="Official Resume & Benchmarks"
@@ -132,7 +132,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* 5. Contact */}
           <button
             onClick={() => handleNavClick('contact')}
-            className={`relative py-1 transition-all duration-200 cursor-pointer ${
+            className={`relative py-1 transition-all duration-200 cursor-pointer whitespace-nowrap ${
               activeTab === 'contact' ? 'text-white font-bold' : 'hover:text-zinc-200'
             }`}
             title="Let's Work Together · Contact"
@@ -145,7 +145,7 @@ export const Header: React.FC<HeaderProps> = ({
         </nav>
 
         {/* Zone 3: CTA action button + Mobile Menu Toggle */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="flex items-center gap-3 shrink-0 md:justify-self-end">
           <button
             onClick={() => handleNavClick('contact')}
             className="hidden sm:flex items-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-red-600 hover:bg-red-500 rounded-xl transition-all duration-200 whitespace-nowrap shrink-0 font-sans shadow-md shadow-red-600/30 hover:shadow-red-600/50 cursor-pointer"
