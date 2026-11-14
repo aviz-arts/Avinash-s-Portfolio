@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1794639179619,
+  "updatedAt": 1794639192917,
   "projects": [
     {
       "id": "district-7-cyberpunk",
@@ -669,7 +669,7 @@
       {
         "category": "Lighting Art (Creative Passion)",
         "items": [
-          "Unreal Engine 5.4 Lumen & Nanite",
+          "Unreal Engine",
           "Atmospheric & Volumetric Scattering",
           "ACES Filmic Color Grading",
           "Light-Driven Player Guidance"
