@@ -1,6 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { polarToCartesian, LIGHTING_PRESETS, filterProjects, FilterableProject } from './lightingLogic';
+import {
+  polarToCartesian,
+  LIGHTING_PRESETS,
+  filterProjects,
+  FilterableProject,
+  clampByte,
+  normalizeHex,
+  hexToRgb,
+  rgbToHex,
+  formatRgbString,
+} from './lightingLogic';
+
+test('clampByte clamps and rounds numbers within 0-255 and guards non-finite values', () => {
+  assert.equal(clampByte(-10), 0);
+  assert.equal(clampByte(300), 255);
+  assert.equal(clampByte(127.6), 128);
+  assert.equal(clampByte(Number.NaN), 0);
+  assert.equal(clampByte(Number.POSITIVE_INFINITY), 0);
+});
+
+test('normalizeHex and RGB/HEX conversions convert bidirectionally accurately', () => {
+  assert.equal(normalizeHex('F0A'), '#ff00aa');
+  assert.equal(normalizeHex('#00E5FF'), '#00e5ff');
+  assert.equal(normalizeHex('invalid', '#112233'), '#112233');
+
+  assert.deepEqual(hexToRgb('#00e5ff'), { r: 0, g: 229, b: 255 });
+  assert.deepEqual(hexToRgb('f80'), { r: 255, g: 136, b: 0 });
+  assert.equal(rgbToHex(0, 229, 255), '#00e5ff');
+  assert.equal(rgbToHex(300, -5, 12.4), '#ff000c');
+  assert.equal(formatRgbString('#ff2a85'), 'rgb(255, 42, 133)');
+});
 
 test('polarToCartesian converts angles to proper 3D coordinates', () => {
   // Test zenith elevation (90 deg) -> straight up along Y axis

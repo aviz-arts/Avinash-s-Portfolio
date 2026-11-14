@@ -97,6 +97,51 @@ export function kelvinToHex(kelvin: number): string {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
+export interface RgbColor {
+  r: number;
+  g: number;
+  b: number;
+}
+
+export function clampByte(val: number): number {
+  if (!Number.isFinite(val)) return 0;
+  return Math.max(0, Math.min(255, Math.round(val)));
+}
+
+export function normalizeHex(hex: string, fallback = '#ffffff'): string {
+  if (!hex) return fallback;
+  let clean = hex.trim().replace(/^#/, '');
+  if (/^[0-9a-fA-F]{3}$/.test(clean)) {
+    clean = clean
+      .split('')
+      .map((c) => c + c)
+      .join('');
+  }
+  if (/^[0-9a-fA-F]{6}$/.test(clean)) {
+    return `#${clean.toLowerCase()}`;
+  }
+  return fallback;
+}
+
+export function hexToRgb(hex: string): RgbColor {
+  const norm = normalizeHex(hex, '#ffffff').slice(1);
+  return {
+    r: parseInt(norm.slice(0, 2), 16),
+    g: parseInt(norm.slice(2, 4), 16),
+    b: parseInt(norm.slice(4, 6), 16),
+  };
+}
+
+export function rgbToHex(r: number, g: number, b: number): string {
+  const toHex = (n: number) => clampByte(n).toString(16).padStart(2, '0');
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+}
+
+export function formatRgbString(hex: string): string {
+  const { r, g, b } = hexToRgb(hex);
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 export const LIGHTING_PRESETS: Record<string, LightSettings> = {
   studio: {
     name: 'Clean Studio',

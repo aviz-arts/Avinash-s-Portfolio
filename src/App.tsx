@@ -212,7 +212,7 @@ export default function App() {
 
   const flushPublishToServer = async (
     snapshot: OwnerSessionSnapshot,
-    options?: { reset?: boolean }
+    options?: { reset?: boolean; keepalive?: boolean }
   ): Promise<boolean> => {
     if (!canWriteToSourceRef.current) return false;
     const hash = JSON.stringify(snapshot);
@@ -233,12 +233,24 @@ export default function App() {
   };
 
   // Detect whether preview dev server can persist changes directly to source bundle
-  // and immediately rescue any pre-existing preview localStorage edits into publishedPortfolio.ts
+  // with automatic retry during server startup, and immediately rescue pending/empty bundles
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let attempts = 0;
+
+    const probeAndSync = async () => {
+      attempts += 1;
       const status = await checkServerPublishStatus();
       if (cancelled) return;
+
+      if (!status.reachable && attempts < 5) {
+        retryTimer = setTimeout(() => {
+          void probeAndSync();
+        }, 1800);
+        return;
+      }
+
       canWriteToSourceRef.current = status.canWriteToSource;
       if (!status.canWriteToSource) {
         setDeploySyncState('readonly');
@@ -248,7 +260,7 @@ export default function App() {
       const initialSnapshot = currentOwnerSnapshotRef.current;
       const initialHash = JSON.stringify(initialSnapshot);
 
-      if (bundleSyncStatusRef.current === 'has_pending_local_edits') {
+      if (bundleSyncStatusRef.current === 'has_pending_local_edits' || status.publishedAt === 0) {
         setDeploySyncState('saving');
         const res = await publishPortfolioToServer(initialSnapshot);
         if (cancelled) return;
@@ -262,10 +274,13 @@ export default function App() {
         lastPublishedHashRef.current = initialHash;
         setDeploySyncState('synced');
       }
-    })();
+    };
+
+    void probeAndSync();
 
     return () => {
       cancelled = true;
+      if (retryTimer) clearTimeout(retryTimer);
     };
   }, []);
 
@@ -279,10 +294,56 @@ export default function App() {
 
     const timer = setTimeout(() => {
       void flushPublishToServer(currentOwnerSnapshot);
-    }, 400);
+    }, 350);
 
     return () => clearTimeout(timer);
   }, [currentOwnerSnapshot]);
+
+  // Flush pending edits cleanly if the user refreshes, switches away, or closes preview
+  useEffect(() => {
+    const flushIfDirty = () => {
+      if (!canWriteToSourceRef.current) return;
+      const snapshot = currentOwnerSnapshotRef.current;
+      const nextHash = JSON.stringify(snapshot);
+      if (lastPublishedHashRef.current !== null && nextHash !== lastPublishedHashRef.current) {
+        void publishPortfolioToServer(snapshot, { keepalive: true }).then((res) => {
+          if (res.ok) {
+            lastPublishedHashRef.current = nextHash;
+          }
+        });
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        flushIfDirty();
+      }
+    };
+
+    window.addEventListener('pagehide', flushIfDirty);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      window.removeEventListener('pagehide', flushIfDirty);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, []);
+
+  const handleSyncNowForVercel = async () => {
+    const status = await checkServerPublishStatus();
+    if (!status.canWriteToSource) {
+      canWriteToSourceRef.current = false;
+      setDeploySyncState('readonly');
+      handleDownloadPublishedModule();
+      return;
+    }
+    canWriteToSourceRef.current = true;
+    const ok = await flushPublishToServer(currentOwnerSnapshotRef.current);
+    if (ok) {
+      showBanner('Synced to src/data/publishedPortfolio.ts — Ready for Vercel deploy!');
+    } else {
+      showBanner('Sync failed — try shorter video or external URL, or check server logs.');
+    }
+  };
 
   const handleDownloadPublishedModule = () => {
     const tsSource = generatePublishedPortfolioTsSource(currentOwnerSnapshot, Date.now());
@@ -544,16 +605,24 @@ export default function App() {
     }
   };
 
-  const handleSaveAllOwnerChanges = () => {
+  const handleSaveAllOwnerChanges = async () => {
     saveOwnerSessionSnapshot(currentOwnerSnapshot);
     const freshBaseline = createOwnerSessionSnapshot(currentOwnerSnapshot);
     setOwnerSessionBaseline(freshBaseline);
     saveStoredOwnerSessionBaseline(freshBaseline);
-    void flushPublishToServer(currentOwnerSnapshot);
+
+    if (!canWriteToSourceRef.current) {
+      const status = await checkServerPublishStatus();
+      canWriteToSourceRef.current = status.canWriteToSource;
+    }
+
+    const synced = await flushPublishToServer(currentOwnerSnapshot);
     showBanner(
-      canWriteToSourceRef.current
-        ? 'All Owner Mode changes saved & synced for deployment.'
-        : 'All Owner Mode changes saved.'
+      synced
+        ? 'All Owner Mode changes saved & synced to src/data/publishedPortfolio.ts for Vercel!'
+        : canWriteToSourceRef.current
+        ? 'Saved locally (deploy source sync failed — click Retry Vercel Sync).'
+        : 'Saved in browser (Static host: export publishedPortfolio.ts before redeploying).'
     );
   };
 
@@ -702,6 +771,7 @@ export default function App() {
           onOpenSecurity={() => setIsSecurityModalOpen(true)}
           deploySyncState={deploySyncState}
           onDownloadPublishedModule={handleDownloadPublishedModule}
+          onSyncNow={handleSyncNowForVercel}
         />
       )}
 
@@ -1739,6 +1809,7 @@ export default function App() {
         isOpen={isContactOpen}
         onClose={() => setIsContactOpen(false)}
         options={siteContent.contactProjectOptions}
+        recipientEmail={siteContent.contactEmail}
       />
 
       {/* Resume PDF Uploader Modal */}

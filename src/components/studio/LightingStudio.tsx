@@ -33,7 +33,10 @@ import {
   LightSettings,
   polarToCartesian,
   kelvinToHex,
+  hexToRgb,
+  normalizeHex,
 } from '../../utils/lightingLogic';
+import { RgbHexColorControl } from './RgbHexColorControl';
 import {
   Sun,
   Sliders,
@@ -589,9 +592,11 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
 
     // 6. Lights
     // Key Light (Directional Sun)
-    const keyColorHex = activeLighting.keyLight?.kelvin
-      ? kelvinToHex(activeLighting.keyLight.kelvin)
-      : (activeLighting.keyLight?.color || '#ffffff');
+    const keyColorHex = normalizeHex(
+      activeLighting.keyLight?.color ||
+        (activeLighting.keyLight?.kelvin ? kelvinToHex(activeLighting.keyLight.kelvin) : '#ffffff'),
+      '#ffffff'
+    );
     const keyLight = new THREE.DirectionalLight(keyColorHex, activeLighting.keyLight?.intensity ?? 2.0);
     const [kx, ky, kz] = polarToCartesian(activeLighting.keyLight?.azimuth ?? 60, activeLighting.keyLight?.elevation ?? 50, 12);
     keyLight.position.set(kx, ky, kz);
@@ -779,9 +784,11 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
     if (!lighting || !keyLightRef.current || !fillLightRef.current || !rimLightRef.current || !localLightRef.current) return;
 
     // Key Light (position radius adapts to Object vs 3D Environment scale)
-    const keyColorHex = lighting.keyLight.kelvin
-      ? kelvinToHex(lighting.keyLight.kelvin)
-      : lighting.keyLight.color;
+    const keyColorHex = normalizeHex(
+      lighting.keyLight.color ||
+        (lighting.keyLight.kelvin ? kelvinToHex(lighting.keyLight.kelvin) : '#ffffff'),
+      '#ffffff'
+    );
     keyLightRef.current.color.set(keyColorHex);
     keyLightRef.current.intensity = lighting.keyLight.intensity;
     const keyRadius = stageMode === 'environment' ? Math.max(18, scaledRadiusRef.current * 1.45) : 12;
@@ -908,36 +915,52 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
   // Code Export generator
   const handleCopyCode = (format: 'ue5' | 'threejs' | 'json') => {
     let output = '';
-    const keyHex = lighting.keyLight.kelvin
-      ? kelvinToHex(lighting.keyLight.kelvin)
-      : lighting.keyLight.color;
+    const keyHex = normalizeHex(
+      lighting.keyLight.color ||
+        (lighting.keyLight.kelvin ? kelvinToHex(lighting.keyLight.kelvin) : '#ffffff'),
+      '#ffffff'
+    );
+    const keyRgb = hexToRgb(keyHex);
+    const skyRgb = hexToRgb(lighting.fillLight.skyColor);
+    const groundRgb = hexToRgb(lighting.fillLight.groundColor);
+    const rimRgb = hexToRgb(lighting.rimLight.color);
+    const localRgb = hexToRgb(lighting.localLight.color);
+    const fogRgb = hexToRgb(lighting.fog.color);
 
     if (format === 'ue5') {
       output = `// Unreal Engine 5 Lumen Lighting Rig Specification
 // Model: ${modelName}
 // Generated from Avinash's Real-time 3D Lighting Studio
 
-// 1. Directional Sun Light (Key Light)
+// 1. Directional Sun Light (Key Light: ${keyHex.toUpperCase()} | RGB ${keyRgb.r}, ${keyRgb.g}, ${keyRgb.b})
 DirectionalLight->SetIntensity(${lighting.keyLight.intensity.toFixed(2)}f);
-DirectionalLight->SetLightColor(FLinearColor::FromSRGBColor(FColor::FromHex("${keyHex}")));
+DirectionalLight->SetLightColor(FLinearColor::FromSRGBColor(FColor(${keyRgb.r}, ${keyRgb.g}, ${keyRgb.b}))); // Hex: ${keyHex.toUpperCase()}
 DirectionalLight->SetCastShadows(true);
 DirectionalLight->bUseTemperature = true;
 DirectionalLight->Temperature = ${lighting.keyLight.kelvin ?? 5600}f;
 DirectionalLight->ShadowSourceAngle = ${((lighting.keyLight.softness ?? 1.0) * 1.5).toFixed(1)}f;
 
-// 2. SkyLight (Lumen Indirect GI Bounce)
+// 2. SkyLight (Lumen Indirect GI Bounce | Sky RGB ${skyRgb.r}, ${skyRgb.g}, ${skyRgb.b} / Ground RGB ${groundRgb.r}, ${groundRgb.g}, ${groundRgb.b})
 SkyLight->SetIntensity(${lighting.fillLight.intensity.toFixed(2)}f);
+SkyLight->SetLightColor(FLinearColor::FromSRGBColor(FColor(${skyRgb.r}, ${skyRgb.g}, ${skyRgb.b})));
 SkyLight->IndirectLightingIntensity = ${(lighting.fillLight.giBounceMultiplier ?? 1.0).toFixed(2)}f;
 
-// 3. PostProcess Volume (ACES Tone Mapping)
+// 3. Rim & Local Point Accent (Rim RGB ${rimRgb.r}, ${rimRgb.g}, ${rimRgb.b} | Point RGB ${localRgb.r}, ${localRgb.g}, ${localRgb.b})
+RimLight->SetLightColor(FLinearColor::FromSRGBColor(FColor(${rimRgb.r}, ${rimRgb.g}, ${rimRgb.b}))); // Hex: ${normalizeHex(lighting.rimLight.color).toUpperCase()}
+PointLight->SetLightColor(FLinearColor::FromSRGBColor(FColor(${localRgb.r}, ${localRgb.g}, ${localRgb.b}))); // Hex: ${normalizeHex(lighting.localLight.color).toUpperCase()}
+
+// 4. Exponential Height Fog & PostProcess Volume (ACES Tone Mapping)
+ExponentialHeightFog->FogInscatteringColor = FLinearColor::FromSRGBColor(FColor(${fogRgb.r}, ${fogRgb.g}, ${fogRgb.b}));
 PostProcessVolume->Settings.AutoExposureMethod = EAutoExposureMethod::AEM_Manual;
 PostProcessVolume->Settings.AutoExposureBias = ${(lighting.toneMapping?.exposure ? (lighting.toneMapping.exposure - 1.0) * 2 : 0).toFixed(2)}f;
 PostProcessVolume->Settings.ToneCurveAmount = 1.0f; // ACES Filmic`;
     } else if (format === 'threejs') {
       output = `// Three.js Lighting Setup for "${modelName}"
-const keyLight = new THREE.DirectionalLight('${keyHex}', ${lighting.keyLight.intensity});
-const fillLight = new THREE.HemisphereLight('${lighting.fillLight.skyColor}', '${lighting.fillLight.groundColor}', ${lighting.fillLight.intensity});
-const rimLight = new THREE.DirectionalLight('${lighting.rimLight.color}', ${lighting.rimLight.intensity});
+const keyLight = new THREE.DirectionalLight('rgb(${keyRgb.r}, ${keyRgb.g}, ${keyRgb.b})', ${lighting.keyLight.intensity}); // HEX: ${keyHex.toUpperCase()}
+const fillLight = new THREE.HemisphereLight('rgb(${skyRgb.r}, ${skyRgb.g}, ${skyRgb.b})', 'rgb(${groundRgb.r}, ${groundRgb.g}, ${groundRgb.b})', ${lighting.fillLight.intensity}); // HEX: ${normalizeHex(lighting.fillLight.skyColor).toUpperCase()} / ${normalizeHex(lighting.fillLight.groundColor).toUpperCase()}
+const rimLight = new THREE.DirectionalLight('rgb(${rimRgb.r}, ${rimRgb.g}, ${rimRgb.b})', ${lighting.rimLight.intensity}); // HEX: ${normalizeHex(lighting.rimLight.color).toUpperCase()}
+const pointLight = new THREE.PointLight('rgb(${localRgb.r}, ${localRgb.g}, ${localRgb.b})', ${lighting.localLight.intensity}, ${lighting.localLight.distance}); // HEX: ${normalizeHex(lighting.localLight.color).toUpperCase()}
+scene.fog = new THREE.Fog('rgb(${fogRgb.r}, ${fogRgb.g}, ${fogRgb.b})', ${lighting.fog.near}, ${lighting.fog.far}); // HEX: ${normalizeHex(lighting.fog.color).toUpperCase()}
 
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = ${lighting.toneMapping?.exposure ?? 1.1};
@@ -948,6 +971,14 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
         {
           model: modelName,
           stats: modelStats,
+          colorFormats: {
+            keyLight: { hex: keyHex.toUpperCase(), rgb: keyRgb },
+            fillSky: { hex: normalizeHex(lighting.fillLight.skyColor).toUpperCase(), rgb: skyRgb },
+            fillGround: { hex: normalizeHex(lighting.fillLight.groundColor).toUpperCase(), rgb: groundRgb },
+            rimLight: { hex: normalizeHex(lighting.rimLight.color).toUpperCase(), rgb: rimRgb },
+            pointLight: { hex: normalizeHex(lighting.localLight.color).toUpperCase(), rgb: localRgb },
+            fog: { hex: normalizeHex(lighting.fog.color).toUpperCase(), rgb: fogRgb },
+          },
           lighting,
         },
         null,
@@ -1437,12 +1468,25 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
 
           {/* TAB: KEY LIGHT */}
           {activeTab === 'key' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs font-mono">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs font-mono">
+              {/* Key Light RGB + HEX Color */}
+              <RgbHexColorControl
+                label="Key Light Color (HEX & RGB)"
+                color={lighting.keyLight.color}
+                onChange={(nextHex) =>
+                  setLighting({
+                    ...lighting,
+                    keyLight: { ...lighting.keyLight, color: nextHex },
+                  })
+                }
+                subtitle="Direct key hue (overrides Kelvin tint)"
+              />
+
               {/* Intensity */}
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5 flex flex-col justify-center">
                 <div className="flex justify-between text-zinc-400">
                   <span>Intensity</span>
-                  <span className="text-white font-bold">{lighting.keyLight.intensity.toFixed(1)} lux</span>
+                  <span className="text-white font-bold tabular-nums">{lighting.keyLight.intensity.toFixed(1)} lux</span>
                 </div>
                 <input
                   type="range"
@@ -1461,10 +1505,10 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
               </div>
 
               {/* Color Temperature (Kelvin) */}
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5 flex flex-col justify-center">
                 <div className="flex justify-between text-zinc-400">
-                  <span>Color Temp</span>
-                  <span className="text-white font-bold">
+                  <span>Color Temp (Kelvin)</span>
+                  <span className="text-white font-bold tabular-nums">
                     {lighting.keyLight.kelvin ?? 5600}K
                   </span>
                 </div>
@@ -1474,24 +1518,26 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
                   max="12000"
                   step="200"
                   value={lighting.keyLight.kelvin ?? 5600}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    const nextKelvin = parseInt(e.target.value, 10);
                     setLighting({
                       ...lighting,
                       keyLight: {
                         ...lighting.keyLight,
-                        kelvin: parseInt(e.target.value, 10),
+                        kelvin: nextKelvin,
+                        color: kelvinToHex(nextKelvin),
                       },
-                    })
-                  }
+                    });
+                  }}
                   className="w-full accent-amber-500 cursor-pointer"
                 />
               </div>
 
               {/* Azimuth Angle */}
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5 flex flex-col justify-center">
                 <div className="flex justify-between text-zinc-400">
                   <span>Sun Angle</span>
-                  <span className="text-white font-bold">{lighting.keyLight.azimuth}°</span>
+                  <span className="text-white font-bold tabular-nums">{lighting.keyLight.azimuth}°</span>
                 </div>
                 <input
                   type="range"
@@ -1509,10 +1555,10 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
               </div>
 
               {/* Elevation Angle */}
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5 flex flex-col justify-center">
                 <div className="flex justify-between text-zinc-400">
                   <span>Elevation</span>
-                  <span className="text-white font-bold">{lighting.keyLight.elevation}°</span>
+                  <span className="text-white font-bold tabular-nums">{lighting.keyLight.elevation}°</span>
                 </div>
                 <input
                   type="range"
@@ -1530,10 +1576,10 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
               </div>
 
               {/* Soft Shadows & Penumbra Radius */}
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5 flex flex-col justify-center">
                 <div className="flex justify-between text-zinc-400">
                   <span>Soft Shadows (PCF)</span>
-                  <span className="text-white font-bold">
+                  <span className="text-white font-bold tabular-nums">
                     {(lighting.keyLight.softness ?? 1.0).toFixed(1)}x
                   </span>
                 </div>
@@ -1558,10 +1604,10 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
           {/* TAB: FILL & GI */}
           {activeTab === 'fill' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5 flex flex-col justify-center">
                 <div className="flex justify-between text-zinc-400">
                   <span>Fill Skylight Intensity</span>
-                  <span className="text-white font-bold">{lighting.fillLight.intensity.toFixed(2)}</span>
+                  <span className="text-white font-bold tabular-nums">{lighting.fillLight.intensity.toFixed(2)}</span>
                 </div>
                 <input
                   type="range"
@@ -1579,10 +1625,10 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
                 />
               </div>
 
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5 flex flex-col justify-center">
                 <div className="flex justify-between text-zinc-400">
                   <span>Lumen GI Bounce Mult</span>
-                  <span className="text-white font-bold">
+                  <span className="text-white font-bold tabular-nums">
                     {(lighting.fillLight.giBounceMultiplier ?? 1.0).toFixed(2)}x
                   </span>
                 </div>
@@ -1605,57 +1651,39 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
                 />
               </div>
 
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
-                <div className="flex justify-between text-zinc-400">
-                  <span>Sky Hemis Color</span>
-                  <span className="text-zinc-200">{lighting.fillLight.skyColor}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={lighting.fillLight.skyColor}
-                    onChange={(e) =>
-                      setLighting({
-                        ...lighting,
-                        fillLight: { ...lighting.fillLight, skyColor: e.target.value },
-                      })
-                    }
-                    className="w-8 h-7 bg-transparent border-none cursor-pointer rounded"
-                  />
-                  <span className="text-[11px] text-zinc-500">Indirect dome radiance</span>
-                </div>
-              </div>
+              <RgbHexColorControl
+                label="Sky Hemis Color"
+                color={lighting.fillLight.skyColor}
+                onChange={(nextHex) =>
+                  setLighting({
+                    ...lighting,
+                    fillLight: { ...lighting.fillLight, skyColor: nextHex },
+                  })
+                }
+                subtitle="Indirect dome radiance"
+              />
 
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
-                <div className="flex justify-between text-zinc-400">
-                  <span>Ground Bounce Color</span>
-                  <span className="text-zinc-200">{lighting.fillLight.groundColor}</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={lighting.fillLight.groundColor}
-                    onChange={(e) =>
-                      setLighting({
-                        ...lighting,
-                        fillLight: { ...lighting.fillLight, groundColor: e.target.value },
-                      })
-                    }
-                    className="w-8 h-7 bg-transparent border-none cursor-pointer rounded"
-                  />
-                  <span className="text-[11px] text-zinc-500">Floor diffuse return</span>
-                </div>
-              </div>
+              <RgbHexColorControl
+                label="Ground Bounce Color"
+                color={lighting.fillLight.groundColor}
+                onChange={(nextHex) =>
+                  setLighting({
+                    ...lighting,
+                    fillLight: { ...lighting.fillLight, groundColor: nextHex },
+                  })
+                }
+                subtitle="Floor diffuse return"
+              />
             </div>
           )}
 
           {/* TAB: RIM KICKER */}
           {activeTab === 'rim' && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs font-mono">
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5 flex flex-col justify-center">
                 <div className="flex justify-between text-zinc-400">
                   <span>Rim Intensity</span>
-                  <span className="text-white font-bold">{lighting.rimLight.intensity.toFixed(1)}</span>
+                  <span className="text-white font-bold tabular-nums">{lighting.rimLight.intensity.toFixed(1)}</span>
                 </div>
                 <input
                   type="range"
@@ -1673,10 +1701,10 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
                 />
               </div>
 
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5 flex flex-col justify-center">
                 <div className="flex justify-between text-zinc-400">
                   <span>Rim Angle</span>
-                  <span className="text-white font-bold">{lighting.rimLight.angle}°</span>
+                  <span className="text-white font-bold tabular-nums">{lighting.rimLight.angle}°</span>
                 </div>
                 <input
                   type="range"
@@ -1693,33 +1721,27 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
                 />
               </div>
 
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
-                <div className="flex justify-between text-zinc-400">
-                  <span>Rim Color</span>
-                  <span className="text-zinc-200">{lighting.rimLight.color}</span>
-                </div>
-                <input
-                  type="color"
-                  value={lighting.rimLight.color}
-                  onChange={(e) =>
-                    setLighting({
-                      ...lighting,
-                      rimLight: { ...lighting.rimLight, color: e.target.value },
-                    })
-                  }
-                  className="w-8 h-7 bg-transparent border-none cursor-pointer rounded"
-                />
-              </div>
+              <RgbHexColorControl
+                label="Rim Color (HEX & RGB)"
+                color={lighting.rimLight.color}
+                onChange={(nextHex) =>
+                  setLighting({
+                    ...lighting,
+                    rimLight: { ...lighting.rimLight, color: nextHex },
+                  })
+                }
+                subtitle="Edge silhouette kicker"
+              />
             </div>
           )}
 
           {/* TAB: POINT LIGHT */}
           {activeTab === 'point' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs font-mono">
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5 flex flex-col justify-center">
                 <div className="flex justify-between text-zinc-400">
                   <span>Intensity</span>
-                  <span className="text-white font-bold">{lighting.localLight.intensity.toFixed(1)}</span>
+                  <span className="text-white font-bold tabular-nums">{lighting.localLight.intensity.toFixed(1)}</span>
                 </div>
                 <input
                   type="range"
@@ -1737,7 +1759,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
                 />
               </div>
 
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5 flex flex-col justify-center">
                 <div className="flex justify-between text-zinc-400">
                   <span>Pulse Animation</span>
                   <span className="text-white font-bold">{pulseDiegeticLight ? 'Active' : 'Static'}</span>
@@ -1754,28 +1776,22 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
                 </button>
               </div>
 
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
-                <div className="flex justify-between text-zinc-400">
-                  <span>Point Color</span>
-                  <span className="text-zinc-200">{lighting.localLight.color}</span>
-                </div>
-                <input
-                  type="color"
-                  value={lighting.localLight.color}
-                  onChange={(e) =>
-                    setLighting({
-                      ...lighting,
-                      localLight: { ...lighting.localLight, color: e.target.value },
-                    })
-                  }
-                  className="w-8 h-7 bg-transparent border-none cursor-pointer rounded"
-                />
-              </div>
+              <RgbHexColorControl
+                label="Point Color (HEX & RGB)"
+                color={lighting.localLight.color}
+                onChange={(nextHex) =>
+                  setLighting({
+                    ...lighting,
+                    localLight: { ...lighting.localLight, color: nextHex },
+                  })
+                }
+                subtitle="Localized diegetic accent"
+              />
 
-              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+              <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5 flex flex-col justify-center">
                 <div className="flex justify-between text-zinc-400">
                   <span>Position (Y Height)</span>
-                  <span className="text-white font-bold">{lighting.localLight.y.toFixed(1)}m</span>
+                  <span className="text-white font-bold tabular-nums">{lighting.localLight.y.toFixed(1)}m</span>
                 </div>
                 <input
                   type="range"
@@ -1864,16 +1880,28 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
                       onChange={(e) => setEnvIntensity(parseFloat(e.target.value))}
                       className="w-20 accent-emerald-500 cursor-pointer"
                     />
-                    <span className="text-white font-bold w-8">{envIntensity.toFixed(1)}x</span>
+                    <span className="text-white font-bold w-8 tabular-nums">{envIntensity.toFixed(1)}x</span>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <RgbHexColorControl
+                  label="Fog & Backdrop Color"
+                  color={lighting.fog.color}
+                  onChange={(nextHex) =>
+                    setLighting({
+                      ...lighting,
+                      fog: { ...lighting.fog, color: nextHex },
+                    })
+                  }
+                  subtitle="Atmospheric scattering tint"
+                />
+
+                <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5 flex flex-col justify-center">
                   <div className="flex justify-between text-zinc-400">
                     <span>Surface Pavement Wetness</span>
-                    <span className="text-white font-bold">
+                    <span className="text-white font-bold tabular-nums">
                       {Math.round((lighting.surface?.wetness ?? 0.5) * 100)}%
                     </span>
                   </div>
@@ -1893,10 +1921,10 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
                   />
                 </div>
 
-                <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+                <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5 flex flex-col justify-center">
                   <div className="flex justify-between text-zinc-400">
                     <span>Volumetric Fog Near</span>
-                    <span className="text-white font-bold">{lighting.fog.near}m</span>
+                    <span className="text-white font-bold tabular-nums">{lighting.fog.near}m</span>
                   </div>
                   <input
                     type="range"
@@ -1913,10 +1941,10 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
                   />
                 </div>
 
-                <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5">
+                <div className="p-2.5 bg-zinc-900/70 border border-zinc-800/80 rounded-xl space-y-1.5 flex flex-col justify-center">
                   <div className="flex justify-between text-zinc-400">
                     <span>Volumetric Fog Far</span>
-                    <span className="text-white font-bold">{lighting.fog.far}m</span>
+                    <span className="text-white font-bold tabular-nums">{lighting.fog.far}m</span>
                   </div>
                   <input
                     type="range"

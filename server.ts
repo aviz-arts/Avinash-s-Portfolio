@@ -1,13 +1,150 @@
 import express from 'express';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const PORT = Number(process.env.PORT) || 3000;
-const HOST = '0.0.0.0';
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+
+function resolveServerPort(): number {
+  const args = process.argv.slice(2);
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--port' && args[i + 1]) {
+      const parsed = Number(args[i + 1]);
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    } else if (args[i].startsWith('--port=')) {
+      const parsed = Number(args[i].slice('--port='.length));
+      if (Number.isFinite(parsed) && parsed > 0) return parsed;
+    }
+  }
+
+  if (IS_PRODUCTION && process.env.PORT) {
+    const prodPort = Number(process.env.PORT);
+    if (Number.isFinite(prodPort) && prodPort > 0) return prodPort;
+  }
+
+  const defaultAppPort = Number(process.env.DEFAULT_APP_PORT);
+  if (Number.isFinite(defaultAppPort) && defaultAppPort > 0) return defaultAppPort;
+
+  const envPort = Number(process.env.PORT);
+  const nginxPort = Number(process.env.NGINX_PORT);
+  if (Number.isFinite(envPort) && envPort > 0 && envPort !== nginxPort) {
+    return envPort;
+  }
+
+  return 3000;
+}
+
+const PORT = resolveServerPort();
+const HOST = '0.0.0.0';
 const PUBLISHED_FILE_PATH = path.resolve(process.cwd(), 'src/data/publishedPortfolio.ts');
+const PUBLISHED_JSON_PATH = path.resolve(process.cwd(), 'public/published-portfolio.json');
+const PUBLIC_UPLOADS_DIR = path.resolve(process.cwd(), 'public/uploads');
+
+const MIME_TO_EXT: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+  'image/svg+xml': 'svg',
+  'video/mp4': 'mp4',
+  'video/webm': 'webm',
+  'video/ogg': 'ogv',
+  'video/quicktime': 'mov',
+  'application/pdf': 'pdf',
+};
+
+function sanitizeSlug(name?: string): string {
+  const base = (name || 'media')
+    .replace(/\.[^/.]+$/, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 36);
+  return base || 'media';
+}
+
+async function persistDataUrlToUploads(dataUrl: string, suggestedName?: string): Promise<string> {
+  const match = dataUrl.match(/^data:([a-zA-Z0-9.+/-]+)(?:;[^,]*)?;base64,([A-Za-z0-9+/=\s]+)$/);
+  if (!match) return dataUrl;
+
+  const mime = match[1].toLowerCase();
+  const ext = MIME_TO_EXT[mime];
+  if (!ext) return dataUrl;
+
+  const buffer = Buffer.from(match[2].replace(/\s+/g, ''), 'base64');
+  if (buffer.length === 0) return dataUrl;
+
+  const hash = crypto.createHash('sha256').update(buffer).digest('hex').slice(0, 12);
+  const slug = sanitizeSlug(suggestedName);
+  const fileName = `${slug}-${hash}.${ext}`;
+
+  await fs.promises.mkdir(PUBLIC_UPLOADS_DIR, { recursive: true });
+  const targetPath = path.join(PUBLIC_UPLOADS_DIR, fileName);
+
+  if (!fs.existsSync(targetPath)) {
+    const tmpPath = `${targetPath}.tmp`;
+    await fs.promises.writeFile(tmpPath, buffer);
+    await fs.promises.rename(tmpPath, targetPath);
+  }
+
+  return `/uploads/${fileName}`;
+}
+
+async function internalizeMediaDataUrls<T>(value: T, keyHint?: string): Promise<T> {
+  if (typeof value === 'string') {
+    if (
+      value.startsWith('data:image/') ||
+      value.startsWith('data:video/') ||
+      value.startsWith('data:application/pdf')
+    ) {
+      return (await persistDataUrlToUploads(value, keyHint)) as unknown as T;
+    }
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    const out = [];
+    for (let i = 0; i < value.length; i++) {
+      out.push(await internalizeMediaDataUrls(value[i], `${keyHint || 'item'}-${i}`));
+    }
+    return out as unknown as T;
+  }
+
+  if (value && typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    const suggestedName =
+      typeof record.filename === 'string'
+        ? record.filename
+        : typeof record.title === 'string'
+        ? record.title
+        : typeof record.id === 'string'
+        ? record.id
+        : keyHint;
+
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(record)) {
+      out[k] = await internalizeMediaDataUrls(v, k === 'dataUrl' ? suggestedName : k);
+    }
+    return out as T;
+  }
+
+  return value;
+}
 
 function readPublishedTimestamp(): number {
+  try {
+    if (fs.existsSync(PUBLISHED_JSON_PATH)) {
+      const jsonRaw = fs.readFileSync(PUBLISHED_JSON_PATH, 'utf-8');
+      const parsed = JSON.parse(jsonRaw);
+      if (parsed && Number(parsed.publishedAt) > 0) {
+        return Number(parsed.publishedAt);
+      }
+    }
+  } catch {
+    // Fallback to TS file check
+  }
+
   try {
     if (!fs.existsSync(PUBLISHED_FILE_PATH)) return 0;
     const raw = fs.readFileSync(PUBLISHED_FILE_PATH, 'utf-8');
@@ -18,7 +155,7 @@ function readPublishedTimestamp(): number {
   }
 }
 
-function formatPublishedPortfolioTs(payload: {
+function buildSafePayload(payload: {
   publishedAt: number;
   projects: unknown;
   profile: unknown;
@@ -26,8 +163,8 @@ function formatPublishedPortfolioTs(payload: {
   customSections: unknown;
   resumeMilestones: unknown;
   resumePdf: unknown;
-}): string {
-  const safePayload = {
+}) {
+  return {
     publishedAt: payload.publishedAt,
     projects: payload.projects ?? null,
     profile: payload.profile ?? null,
@@ -36,7 +173,9 @@ function formatPublishedPortfolioTs(payload: {
     resumeMilestones: payload.resumeMilestones ?? null,
     resumePdf: payload.resumePdf ?? null,
   };
+}
 
+function formatPublishedPortfolioTs(safePayload: ReturnType<typeof buildSafePayload>): string {
   return `import { ProjectItem } from '../types/portfolio';
 
 export interface PublishedPortfolioData {
@@ -74,6 +213,39 @@ async function startServer() {
     });
   });
 
+  app.post('/api/upload-media', async (req, res) => {
+    if (IS_PRODUCTION) {
+      res.status(403).json({
+        ok: false,
+        readOnly: true,
+        error: 'Media disk uploads are disabled in static production mode.',
+      });
+      return;
+    }
+
+    try {
+      const { dataUrl, filename } = req.body || {};
+      if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) {
+        res.status(400).json({ ok: false, error: 'Missing valid base64 dataUrl.' });
+        return;
+      }
+
+      const publicUrl = await persistDataUrlToUploads(dataUrl, typeof filename === 'string' ? filename : undefined);
+      if (publicUrl === dataUrl) {
+        res.status(400).json({ ok: false, error: 'Unsupported media format for static upload.' });
+        return;
+      }
+
+      res.json({ ok: true, url: publicUrl });
+    } catch (err) {
+      console.error('Failed to persist uploaded media:', err);
+      res.status(500).json({
+        ok: false,
+        error: err instanceof Error ? err.message : 'Failed to save uploaded media file.',
+      });
+    }
+  });
+
   app.post('/api/publish-portfolio', async (req, res) => {
     if (IS_PRODUCTION) {
       res.status(403).json({
@@ -94,39 +266,63 @@ async function startServer() {
       const publishedAt = Number(body.publishedAt) || Date.now();
       const isReset = Boolean(body.reset);
 
-      const fileContent = formatPublishedPortfolioTs(
-        isReset
-          ? {
-              publishedAt,
-              projects: null,
-              profile: null,
-              siteContent: null,
-              customSections: null,
-              resumeMilestones: null,
-              resumePdf: null,
-            }
-          : {
-              publishedAt,
-              projects: Array.isArray(body.projects) ? body.projects : null,
-              profile: body.profile && typeof body.profile === 'object' ? body.profile : null,
-              siteContent: body.siteContent && typeof body.siteContent === 'object' ? body.siteContent : null,
-              customSections: Array.isArray(body.customSections) ? body.customSections : null,
-              resumeMilestones: Array.isArray(body.resumeMilestones) ? body.resumeMilestones : null,
-              resumePdf:
-                body.resumePdf && typeof body.resumePdf === 'object' && body.resumePdf.dataUrl
-                  ? body.resumePdf
-                  : null,
-            }
-      );
+      const rawPayload = isReset
+        ? buildSafePayload({
+            publishedAt,
+            projects: null,
+            profile: null,
+            siteContent: null,
+            customSections: null,
+            resumeMilestones: null,
+            resumePdf: null,
+          })
+        : buildSafePayload({
+            publishedAt,
+            projects: await internalizeMediaDataUrls(
+              Array.isArray(body.projects) ? body.projects : null,
+              'project'
+            ),
+            profile: await internalizeMediaDataUrls(
+              body.profile && typeof body.profile === 'object' ? body.profile : null,
+              'profile'
+            ),
+            siteContent: await internalizeMediaDataUrls(
+              body.siteContent && typeof body.siteContent === 'object' ? body.siteContent : null,
+              'site'
+            ),
+            customSections: await internalizeMediaDataUrls(
+              Array.isArray(body.customSections) ? body.customSections : null,
+              'section'
+            ),
+            resumeMilestones: await internalizeMediaDataUrls(
+              Array.isArray(body.resumeMilestones) ? body.resumeMilestones : null,
+              'milestone'
+            ),
+            resumePdf: await internalizeMediaDataUrls(
+              body.resumePdf && typeof body.resumePdf === 'object' && body.resumePdf.dataUrl
+                ? body.resumePdf
+                : null,
+              'resume'
+            ),
+          });
 
-      const dir = path.dirname(PUBLISHED_FILE_PATH);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+      const fileContent = formatPublishedPortfolioTs(rawPayload);
+
+      const tsDir = path.dirname(PUBLISHED_FILE_PATH);
+      if (!fs.existsSync(tsDir)) {
+        fs.mkdirSync(tsDir, { recursive: true });
       }
+      const tsTempPath = `${PUBLISHED_FILE_PATH}.tmp`;
+      await fs.promises.writeFile(tsTempPath, fileContent, 'utf-8');
+      await fs.promises.rename(tsTempPath, PUBLISHED_FILE_PATH);
 
-      const tempPath = `${PUBLISHED_FILE_PATH}.tmp`;
-      await fs.promises.writeFile(tempPath, fileContent, 'utf-8');
-      await fs.promises.rename(tempPath, PUBLISHED_FILE_PATH);
+      const jsonDir = path.dirname(PUBLISHED_JSON_PATH);
+      if (!fs.existsSync(jsonDir)) {
+        fs.mkdirSync(jsonDir, { recursive: true });
+      }
+      const jsonTempPath = `${PUBLISHED_JSON_PATH}.tmp`;
+      await fs.promises.writeFile(jsonTempPath, JSON.stringify(rawPayload, null, 2), 'utf-8');
+      await fs.promises.rename(jsonTempPath, PUBLISHED_JSON_PATH);
 
       res.json({ ok: true, publishedAt });
     } catch (err) {
@@ -137,6 +333,10 @@ async function startServer() {
       });
     }
   });
+
+  // Serve uploaded media from public/uploads directly so newly uploaded images,
+  // videos, and PDFs render immediately in preview without waiting on Vite watch
+  app.use('/uploads', express.static(PUBLIC_UPLOADS_DIR));
 
   if (!IS_PRODUCTION) {
     const { createServer: createViteServer } = await import('vite');

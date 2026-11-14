@@ -431,7 +431,7 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
   philosophyCardTitle: "The Game Designer's Edge",
   philosophyCardText:
     'When a Game Designer understands light transport, they do not need arbitrary floating objective arrows or artificial mini-map clutter. Contrast draws the crosshair, warmth signals safe recharge zones, silhouette breaks frame enemy weakpoints, and console frametimes remain protected because gameplay geometry and lighting budgets are planned together.',
-  contactEmail: 'avinashr5904@gmail.com',
+  contactEmail: 'aviz.arts@gmail.com',
 
   // Contact (Dedicated Page based on reference)
   contactKicker: 'GET IN TOUCH',
@@ -773,10 +773,14 @@ export function getPublishedProfile(): OwnerProfile {
 
 export function getPublishedSiteContent(): SiteContent {
   if (PUBLISHED_PORTFOLIO.siteContent && typeof PUBLISHED_PORTFOLIO.siteContent === 'object') {
-    return sanitizeJsonStrings({
+    const merged = sanitizeJsonStrings({
       ...DEFAULT_SITE_CONTENT,
       ...(PUBLISHED_PORTFOLIO.siteContent as Partial<SiteContent>),
     });
+    if (!merged.contactEmail || merged.contactEmail.toLowerCase() === 'avinashr5904@gmail.com') {
+      merged.contactEmail = OWNER_EMAIL;
+    }
+    return merged;
   }
   return DEFAULT_SITE_CONTENT;
 }
@@ -857,7 +861,11 @@ export function getStoredSiteContent(): SiteContent {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && typeof parsed === 'object') {
-        return sanitizeJsonStrings({ ...getPublishedSiteContent(), ...parsed });
+        const merged = sanitizeJsonStrings({ ...getPublishedSiteContent(), ...parsed });
+        if (!merged.contactEmail || merged.contactEmail.toLowerCase() === 'avinashr5904@gmail.com') {
+          merged.contactEmail = OWNER_EMAIL;
+        }
+        return merged;
       }
     }
   } catch (err) {
@@ -1722,26 +1730,61 @@ export const PUBLISHED_PORTFOLIO: PublishedPortfolioData = ${JSON.stringify(safe
 export async function checkServerPublishStatus(): Promise<{
   canWriteToSource: boolean;
   publishedAt: number;
+  reachable: boolean;
 }> {
   try {
     const res = await fetch('/api/publish-status', { method: 'GET', cache: 'no-store' });
     const contentType = res.headers.get('content-type') || '';
-    if (!res.ok || !contentType.includes('application/json')) {
-      return { canWriteToSource: false, publishedAt: 0 };
+    if (!contentType.includes('application/json')) {
+      // On Vite/Vercel SPA fallback (200 HTML) or proxy warmup (502/503 HTML):
+      // If it's a 502/503/504 warmup, mark reachable=false so we retry instead of locking into readonly!
+      const isWarmup = res.status >= 500;
+      return { canWriteToSource: false, publishedAt: 0, reachable: !isWarmup };
+    }
+    if (!res.ok) {
+      return { canWriteToSource: false, publishedAt: 0, reachable: res.status < 500 };
     }
     const data = await res.json();
     return {
       canWriteToSource: Boolean(data?.canWriteToSource),
       publishedAt: Number(data?.publishedAt) || 0,
+      reachable: true,
     };
   } catch {
-    return { canWriteToSource: false, publishedAt: 0 };
+    return { canWriteToSource: false, publishedAt: 0, reachable: false };
+  }
+}
+
+export async function uploadMediaFileToServer(
+  dataUrl: string,
+  filename?: string
+): Promise<{ ok: boolean; url?: string; readOnly?: boolean }> {
+  if (!dataUrl || !dataUrl.startsWith('data:')) {
+    return { ok: false };
+  }
+  try {
+    const res = await fetch('/api/upload-media', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataUrl, filename }),
+    });
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return { ok: false, readOnly: res.status === 404 || res.status === 405 };
+    }
+    const data = await res.json();
+    if (res.ok && data?.ok && typeof data.url === 'string') {
+      return { ok: true, url: data.url };
+    }
+    return { ok: false, readOnly: Boolean(data?.readOnly) || res.status === 403 };
+  } catch {
+    return { ok: false };
   }
 }
 
 export async function publishPortfolioToServer(
   snapshot: OwnerSessionSnapshot,
-  options?: { reset?: boolean }
+  options?: { reset?: boolean; keepalive?: boolean }
 ): Promise<{
   ok: boolean;
   publishedAt?: number;
@@ -1750,24 +1793,42 @@ export async function publishPortfolioToServer(
 }> {
   try {
     const publishedAt = Date.now();
+    const bodyString = JSON.stringify({
+      publishedAt,
+      reset: Boolean(options?.reset),
+      projects: snapshot.projects,
+      profile: snapshot.profile,
+      siteContent: snapshot.siteContent,
+      customSections: snapshot.customSections,
+      resumeMilestones: snapshot.resumeMilestones,
+      resumePdf: snapshot.resumePdf ?? null,
+    });
+
+    const canKeepalive = Boolean(options?.keepalive) && bodyString.length < 60_000;
+
     const res = await fetch('/api/publish-portfolio', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        publishedAt,
-        reset: Boolean(options?.reset),
-        projects: snapshot.projects,
-        profile: snapshot.profile,
-        siteContent: snapshot.siteContent,
-        customSections: snapshot.customSections,
-        resumeMilestones: snapshot.resumeMilestones,
-        resumePdf: snapshot.resumePdf ?? null,
-      }),
+      keepalive: canKeepalive,
+      body: bodyString,
     });
+
+    if (res.status === 413) {
+      return {
+        ok: false,
+        readOnly: false,
+        error: 'Upload payload exceeds 32MB request limit. Use shorter videos or external video URLs.',
+      };
+    }
 
     const contentType = res.headers.get('content-type') || '';
     if (!contentType.includes('application/json')) {
-      return { ok: false, readOnly: true, error: 'Static host environment' };
+      const isStaticSpA = res.status === 404 || res.status === 405 || res.status === 200;
+      return {
+        ok: false,
+        readOnly: isStaticSpA,
+        error: isStaticSpA ? 'Static host environment' : `Transient server response (${res.status})`,
+      };
     }
 
     const data = await res.json();

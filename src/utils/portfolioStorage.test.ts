@@ -545,4 +545,17 @@ test('syncLocalStorageWithPublishedBundle detects pending local edits and refres
   clearLocalPortfolioOverrides();
 });
 
+test('contactEmail defaults to aviz.arts@gmail.com and upgrades legacy owner email automatically', () => {
+  assert.equal(DEFAULT_SITE_CONTENT.contactEmail, 'aviz.arts@gmail.com');
+  assert.equal(DEFAULT_PROFILE.email, 'aviz.arts@gmail.com');
+
+  const legacy = updateSiteContentKey('contactEmail', 'avinashr5904@gmail.com', DEFAULT_SITE_CONTENT);
+  assert.equal(legacy.contactEmail, 'avinashr5904@gmail.com');
+  // getStoredSiteContent automatically upgrades the deprecated legacy email to OWNER_EMAIL
+  assert.equal(getStoredSiteContent().contactEmail, 'aviz.arts@gmail.com');
+
+  // Custom non-legacy email is preserved
+  updateSiteContentKey('contactEmail', 'studio-inquiries@example.com', DEFAULT_SITE_CONTENT);
+  assert.equal(getStoredSiteContent().contactEmail, 'studio-inquiries@example.com');
+});
 

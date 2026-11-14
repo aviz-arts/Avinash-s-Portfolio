@@ -11,9 +11,17 @@ import {
   Sparkles,
   Sliders,
   Trash2,
+  AlertCircle,
+  Loader2,
 } from 'lucide-react';
 import { SiteContent, CustomSection, DEFAULT_CONTACT_OPTIONS } from '../../utils/portfolioStorage';
 import { getAdaptiveGridClass } from '../../utils/layoutHelpers';
+import {
+  buildGmailComposeUrl,
+  buildMailtoUrl,
+  resolveRecipientEmail,
+  sendContactInquiry,
+} from '../../utils/contactMailer';
 import { EditableText } from '../common/EditableText';
 import { CustomSectionRenderer } from '../portfolio/CustomSectionRenderer';
 import { LiveIstClock } from './LiveIstClock';
@@ -56,6 +64,11 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
     message: '',
   });
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitNotice, setSubmitNotice] = useState<{
+    type: 'success' | 'activation' | 'error';
+    text: string;
+  } | null>(null);
 
   // Sync formData.projectType if options list changes
   useEffect(() => {
@@ -64,7 +77,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
     }
   }, [projectOptions, formData.projectType]);
 
-  const email = siteContent.contactEmail || 'avinashr5904@gmail.com';
+  const email = resolveRecipientEmail(siteContent.contactEmail);
   const phone = siteContent.contactPhone || '+91 9361287193';
 
   const showEmailCard = siteContent.contactShowEmailCard !== false;
@@ -94,9 +107,38 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
     setTimeout(() => setCopiedPhone(false), 2500);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const inquiryPayload = {
+    recipientEmail: email,
+    name: formData.name,
+    email: formData.email,
+    projectType: formData.projectType,
+    message: formData.message,
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitted(true);
+    if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    setSubmitNotice(null);
+
+    const res = await sendContactInquiry(inquiryPayload);
+    setIsSubmitting(false);
+
+    if (res.ok) {
+      setIsSubmitted(true);
+      setSubmitNotice({
+        type: res.needsActivation ? 'activation' : 'success',
+        text: res.message,
+      });
+    } else {
+      setSubmitNotice({
+        type: 'error',
+        text: res.message,
+      });
+    }
   };
 
   return (
@@ -323,30 +365,90 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
             </div>
 
           {isSubmitted ? (
-            <div className="p-6 bg-zinc-900/80 border border-red-500/40 rounded-2xl text-center space-y-3 animate-in fade-in">
+            <div className="p-6 bg-zinc-900/80 border border-red-500/40 rounded-2xl text-center space-y-4 animate-in fade-in">
               <div className="w-12 h-12 rounded-full bg-red-950/60 border border-red-800/60 text-red-400 flex items-center justify-center mx-auto">
                 <Check className="w-6 h-6" />
               </div>
-              <h4 className="text-lg font-display font-bold text-white">Message Transmitted</h4>
+              <h4 className="text-lg font-display font-bold text-white">
+                {submitNotice?.type === 'activation' ? 'Inquiry Queued for Gmail Delivery' : 'Message Sent to Gmail'}
+              </h4>
               <p className="text-xs text-zinc-400 max-w-md mx-auto leading-relaxed">
-                Thank you, {formData.name || 'there'}! Your inquiry regarding "{formData.projectType}" has been registered. You can also reach me directly at{' '}
-                <a href={`mailto:${email}`} className="text-red-400 underline">
-                  {email}
-                </a>.
+                {submitNotice?.text ||
+                  `Thank you, ${formData.name || 'there'}! Your inquiry regarding "${formData.projectType}" has been sent to ${email}.`}
               </p>
-              <button
-                type="button"
-                onClick={() => {
-                  setIsSubmitted(false);
-                  setFormData({ name: '', email: '', projectType: 'Game Design & Core Mechanics', message: '' });
-                }}
-                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-xs font-mono text-zinc-200 rounded-xl transition-colors cursor-pointer"
-              >
-                Send Another Message
-              </button>
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                <a
+                  href={buildGmailComposeUrl(inquiryPayload)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 bg-red-600 hover:bg-red-500 text-xs font-mono text-white rounded-xl transition-colors inline-flex items-center gap-1.5"
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Open in Gmail</span>
+                </a>
+                <a
+                  href={buildMailtoUrl(inquiryPayload)}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-xs font-mono text-zinc-200 rounded-xl transition-colors inline-flex items-center gap-1.5"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Mail App</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSubmitted(false);
+                    setSubmitNotice(null);
+                    setFormData({
+                      name: '',
+                      email: '',
+                      projectType: projectOptions[0] || 'Game Design & Core Mechanics (Loops & Pacing)',
+                      message: '',
+                    });
+                  }}
+                  className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-mono text-zinc-300 rounded-xl transition-colors cursor-pointer"
+                >
+                  Send Another Message
+                </button>
+              </div>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
+              {submitNotice?.type === 'error' && (
+                <div className="p-3.5 bg-red-950/50 border border-red-800/70 rounded-xl text-xs font-mono text-red-200 space-y-2.5">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                    <span>{submitNotice.text}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 pl-6">
+                    <a
+                      href={buildGmailComposeUrl(inquiryPayload)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-lg inline-flex items-center gap-1.5 transition-colors"
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      <span>Send via Gmail Web</span>
+                    </a>
+                    <a
+                      href={buildMailtoUrl(inquiryPayload)}
+                      className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 rounded-lg inline-flex items-center gap-1.5 transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Open Mail App</span>
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {isOwner && (
+                <div className="px-3 py-2 bg-zinc-900/70 border border-zinc-800 rounded-xl text-[11px] font-mono text-zinc-400 flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    Delivering direct messages to: <strong className="text-red-400">{email}</strong>
+                  </span>
+                  <span className="text-zinc-500">First test submission sends a 1-time FormSubmit verification link to your Gmail</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-mono text-zinc-400 mb-1">Your Name</label>
@@ -427,10 +529,20 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
 
               <button
                 type="submit"
-                className="w-full py-3 bg-red-600 hover:bg-red-500 text-white font-medium rounded-xl text-xs flex items-center justify-center gap-2 transition-colors font-sans shadow-lg shadow-red-600/30 cursor-pointer"
+                disabled={isSubmitting}
+                className="w-full py-3 bg-red-600 hover:bg-red-500 disabled:opacity-60 text-white font-medium rounded-xl text-xs flex items-center justify-center gap-2 transition-colors font-sans shadow-lg shadow-red-600/30 cursor-pointer"
               >
-                <Send className="w-3.5 h-3.5" />
-                <span>Transmit Message</span>
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Sending to {email}...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Transmit Message</span>
+                  </>
+                )}
               </button>
             </form>
           )}

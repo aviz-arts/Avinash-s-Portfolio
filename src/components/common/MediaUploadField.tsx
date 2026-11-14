@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, Link2, X, Image as ImageIcon, Film, Check, AlertCircle, Loader2 } from 'lucide-react';
 import { compressImageFile, readFileAsDataUrl, formatFileSize } from '../../utils/mediaUploader';
+import { uploadMediaFileToServer } from '../../utils/portfolioStorage';
 
 interface MediaUploadFieldProps {
   label: string;
@@ -30,7 +31,7 @@ export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({
 
   const isVideo =
     value?.startsWith('data:video/') ||
-    /\.(mp4|webm|mov|m4v)(\?.*)?$/i.test(value);
+    /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i.test(value);
 
   const acceptTypes =
     mediaType === 'image'
@@ -45,20 +46,24 @@ export const MediaUploadField: React.FC<MediaUploadFieldProps> = ({
 
     try {
       if (file.type.startsWith('image/')) {
-        // Compress image to ensure it fits comfortably in browser storage
+        // Compress image to ensure crisp quality and compact footprint
         const compressed = await compressImageFile(file, 1920, 1080, 0.85);
-        onChange(compressed);
-        setUrlInput(compressed);
+        const uploaded = await uploadMediaFileToServer(compressed, file.name);
+        const finalUrl = uploaded.ok && uploaded.url ? uploaded.url : compressed;
+        onChange(finalUrl);
+        setUrlInput(finalUrl);
       } else if (file.type.startsWith('video/')) {
-        // Warn if video is very large (over 25MB)
-        if (file.size > 25 * 1024 * 1024) {
+        // Warn if video is very large (over 22MB base64 stays under 32MB proxy limit)
+        if (file.size > 22 * 1024 * 1024) {
           setErrorMsg(
-            `Video is ${formatFileSize(file.size)}. For smooth browser performance, videos under 25MB or hosted video URLs are recommended.`
+            `Video is ${formatFileSize(file.size)}. For reliable syncing and Vercel deployment, videos under 22MB or external hosted URLs are recommended.`
           );
         }
         const dataUrl = await readFileAsDataUrl(file);
-        onChange(dataUrl);
-        setUrlInput(dataUrl);
+        const uploaded = await uploadMediaFileToServer(dataUrl, file.name);
+        const finalUrl = uploaded.ok && uploaded.url ? uploaded.url : dataUrl;
+        onChange(finalUrl);
+        setUrlInput(finalUrl);
       } else {
         setErrorMsg('Unsupported file format. Please upload a standard image or video file.');
       }

@@ -13,7 +13,7 @@ import {
   StoredResumePdf,
   saveStoredResumePdf,
   deleteStoredResumePdf,
-  getStoredResumePdf,
+  uploadMediaFileToServer,
 } from '../../utils/portfolioStorage';
 
 interface ResumeUploaderModalProps {
@@ -43,7 +43,7 @@ export const ResumeUploaderModal: React.FC<ResumeUploaderModalProps> = ({
       return;
     }
 
-    // Check size (max 8MB for localStorage safety)
+    // Check size (max 8MB)
     if (file.size > 8 * 1024 * 1024) {
       setError('PDF file is larger than 8MB. Please compress your PDF before uploading.');
       return;
@@ -51,10 +51,12 @@ export const ResumeUploaderModal: React.FC<ResumeUploaderModalProps> = ({
 
     setIsProcessing(true);
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       const dataUrl = e.target?.result as string;
       if (dataUrl) {
-        const saved = saveStoredResumePdf(dataUrl, file.name, file.size);
+        const uploaded = await uploadMediaFileToServer(dataUrl, file.name);
+        const finalUrl = uploaded.ok && uploaded.url ? uploaded.url : dataUrl;
+        const saved = saveStoredResumePdf(finalUrl, file.name, file.size);
         setIsProcessing(false);
         onUploadSuccess(saved);
       } else {
