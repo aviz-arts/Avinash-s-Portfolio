@@ -63,7 +63,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     <article
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="group relative flex flex-col bg-zinc-900/60 border border-zinc-800 hover:border-zinc-700/80 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-black/50"
+      className="group relative flex flex-col h-full bg-zinc-900/60 border border-zinc-800 hover:border-zinc-700/80 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:shadow-black/50"
     >
       {/* Media Container (16:9) */}
       <div

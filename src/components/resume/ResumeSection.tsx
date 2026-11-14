@@ -21,7 +21,10 @@ import {
   resolveResumeSkills,
   resolveResumeEducation,
 } from '../../utils/portfolioStorage';
-import { getAdaptiveGridClass } from '../../utils/layoutHelpers';
+import {
+  getBalancedContainerClass,
+  getBalancedItemSpanClass,
+} from '../../utils/layoutHelpers';
 import { EditableText } from '../common/EditableText';
 import { CustomSectionRenderer } from '../portfolio/CustomSectionRenderer';
 
@@ -248,11 +251,11 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({
             )}
 
             {benchmarks.length > 0 && (
-              <div className={getAdaptiveGridClass(benchmarks.length, 'stats')}>
+              <div className={getBalancedContainerClass(benchmarks.length, 'stats')}>
                 {benchmarks.map((item, idx) => (
                   <div
                     key={item.id}
-                    className="group relative p-5 bg-zinc-950/80 border border-zinc-800 rounded-2xl space-y-1 print:bg-zinc-50 print:border-zinc-300 print:p-3.5 print:rounded-xl"
+                    className={`${getBalancedItemSpanClass(idx, benchmarks.length, 'stats')} group relative p-5 bg-zinc-950/80 border border-zinc-800 rounded-2xl space-y-1 print:bg-zinc-50 print:border-zinc-300 print:p-3.5 print:rounded-xl`}
                   >
                     {isOwner && (
                       <button
@@ -401,11 +404,11 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({
             </div>
 
             {skills.length > 0 && (
-              <div className={`${getAdaptiveGridClass(skills.length, 'split')} text-xs`}>
-                {skills.map((skill) => (
+              <div className={`${getBalancedContainerClass(skills.length, 'split')} text-xs`}>
+                {skills.map((skill, idx) => (
                   <div
                     key={skill.id}
-                    className="group relative p-4 bg-zinc-900/50 border border-zinc-800/80 rounded-2xl space-y-1.5 print:bg-zinc-50 print:border-zinc-300 print:rounded-xl"
+                    className={`${getBalancedItemSpanClass(idx, skills.length, 'split')} group relative p-4 bg-zinc-900/50 border border-zinc-800/80 rounded-2xl space-y-1.5 print:bg-zinc-50 print:border-zinc-300 print:rounded-xl`}
                   >
                     {isOwner && (
                       <button

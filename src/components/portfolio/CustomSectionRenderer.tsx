@@ -1,6 +1,9 @@
 import React from 'react';
 import { CustomSection, CustomSectionItem } from '../../utils/portfolioStorage';
-import { getAdaptiveGridClass } from '../../utils/layoutHelpers';
+import {
+  getBalancedContainerClass,
+  getBalancedItemSpanClass,
+} from '../../utils/layoutHelpers';
 import { EditableText } from '../common/EditableText';
 import { Plus, Trash2, Edit3, ExternalLink, Sparkles } from 'lucide-react';
 
@@ -118,7 +121,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
           )}
 
           {/* Section Header */}
-          <div className="max-w-3xl mb-6">
+          <div className="w-full mb-6">
             <div className="text-xs font-mono text-red-500 print:text-red-700 uppercase tracking-wider mb-2 flex items-center gap-2">
               <Sparkles className="w-3.5 h-3.5 text-red-500 print:text-red-700" />
               <EditableText
@@ -170,11 +173,11 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
 
           {/* Content Layouts */}
           {sec.layout === 'cards' && sec.items.length > 0 && (
-            <div className={getAdaptiveGridClass(sec.items.length, 'cards')}>
-              {sec.items.map((item) => (
+            <div className={getBalancedContainerClass(sec.items.length, 'cards')}>
+              {sec.items.map((item, idx) => (
                 <div
                   key={item.id}
-                  className="group relative p-6 bg-zinc-900/60 hover:bg-zinc-900/90 border border-zinc-800 rounded-2xl flex flex-col transition-all h-full print:bg-zinc-50 print:border-zinc-300"
+                  className={`${getBalancedItemSpanClass(idx, sec.items.length, 'cards')} group relative p-6 bg-zinc-900/60 hover:bg-zinc-900/90 border border-zinc-800 rounded-2xl flex flex-col transition-all h-full print:bg-zinc-50 print:border-zinc-300`}
                 >
                   {isOwner && (
                     <button
@@ -250,11 +253,11 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
           )}
 
           {sec.layout === 'split' && sec.items.length > 0 && (
-            <div className={getAdaptiveGridClass(sec.items.length, 'split')}>
-              {sec.items.map((item) => (
+            <div className={getBalancedContainerClass(sec.items.length, 'split')}>
+              {sec.items.map((item, idx) => (
                 <div
                   key={item.id}
-                  className="group relative p-6 bg-zinc-900/60 border border-zinc-800 rounded-2xl flex flex-col h-full"
+                  className={`${getBalancedItemSpanClass(idx, sec.items.length, 'split')} group relative p-6 bg-zinc-900/60 border border-zinc-800 rounded-2xl flex flex-col h-full`}
                 >
                   {isOwner && (
                     <button
@@ -395,11 +398,11 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
           {sec.layout === 'stats' && (
             <div className="space-y-4">
               {sec.items.length > 0 && (
-                <div className={getAdaptiveGridClass(sec.items.length, 'stats')}>
+                <div className={getBalancedContainerClass(sec.items.length, 'stats')}>
                   {sec.items.map((item, idx) => (
                     <div
                       key={item.id}
-                      className="group relative p-5 bg-zinc-950/80 border border-zinc-800 rounded-2xl space-y-1 transition-all hover:border-zinc-700 print:bg-zinc-50 print:border-zinc-300"
+                      className={`${getBalancedItemSpanClass(idx, sec.items.length, 'stats')} group relative p-5 bg-zinc-950/80 border border-zinc-800 rounded-2xl space-y-1 transition-all hover:border-zinc-700 print:bg-zinc-50 print:border-zinc-300`}
                     >
                     {isOwner && (
                       <button

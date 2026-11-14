@@ -7,7 +7,10 @@ import {
   StatCardItem,
   resolveAboutStats,
 } from '../../utils/portfolioStorage';
-import { getAdaptiveGridClass } from '../../utils/layoutHelpers';
+import {
+  getBalancedContainerClass,
+  getBalancedItemSpanClass,
+} from '../../utils/layoutHelpers';
 import { EditableText } from '../common/EditableText';
 import { CareerTimeline } from './CareerTimeline';
 
@@ -192,7 +195,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
     <section id="about" className="py-12 sm:py-16 border-t border-zinc-800/80">
       <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 space-y-10">
         {/* Section Header */}
-        <div className="max-w-3xl">
+        <div className="w-full">
           <div className="text-xs font-mono text-red-500 tracking-wider uppercase mb-2">
             <EditableText
               value={kicker}
@@ -229,7 +232,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
           <div
             className={
               showPortrait && hasRightColumn
-                ? 'grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start'
+                ? 'grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-stretch'
                 : 'space-y-6'
             }
           >
@@ -237,7 +240,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
             {showPortrait && (
               <div
                 className={`${
-                  hasRightColumn ? 'lg:col-span-4' : 'max-w-md mx-auto'
+                  hasRightColumn ? 'lg:col-span-4 h-full flex flex-col' : 'max-w-md mx-auto'
                 } relative group bg-zinc-900/60 border border-zinc-800 rounded-2xl overflow-hidden shadow-xl`}
               >
                 {isOwner && (
@@ -251,7 +254,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
                   </button>
                 )}
 
-                <div className="relative aspect-[4/5] w-full overflow-hidden bg-zinc-950">
+                <div className="relative aspect-[4/5] lg:aspect-auto lg:flex-1 lg:min-h-[340px] w-full overflow-hidden bg-zinc-950">
                   <img
                     src={
                       siteContent?.avatarUrl ||
@@ -273,7 +276,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
                   </div>
                 </div>
 
-                <div className="p-5 border-t border-zinc-800 space-y-3 bg-zinc-950/40">
+                <div className="p-5 border-t border-zinc-800 space-y-3 bg-zinc-950/40 shrink-0">
                   <div className="grid grid-cols-2 gap-2.5 text-[11px] font-mono text-zinc-400">
                     <div className="p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800/80">
                       <div className="text-zinc-500 text-[9px] uppercase">Profession</div>
@@ -294,10 +297,14 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
             {/* Philosophy Card + Auto-Aligned Toolset Matrix */}
             {hasRightColumn && (
               <div
-                className={`${showPortrait ? 'lg:col-span-8' : 'w-full'} flex flex-col gap-6`}
+                className={`${showPortrait ? 'lg:col-span-8 h-full' : 'w-full'} flex flex-col gap-6`}
               >
                 {showPhilosophy && (
-                  <div className="relative group p-6 bg-zinc-900/60 border border-zinc-800 rounded-2xl space-y-4">
+                  <div
+                    className={`relative group p-6 bg-zinc-900/60 border border-zinc-800 rounded-2xl space-y-4 ${
+                      !showTools ? 'flex-1 flex flex-col justify-between' : ''
+                    }`}
+                  >
                     {isOwner && (
                       <button
                         type="button"
@@ -368,7 +375,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
 
                 {/* Engine & Discipline Toolset Matrix */}
                 {showTools && (
-                  <div className="space-y-4">
+                  <div className="flex-1 flex flex-col gap-4">
                     {isOwner && (
                       <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
                         <span className="text-zinc-500 uppercase tracking-wider text-[11px]">
@@ -397,11 +404,11 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
                     )}
 
                     {tools.length > 0 && (
-                      <div className={getAdaptiveGridClass(tools.length, 'tools')}>
+                      <div className={`flex-1 ${getBalancedContainerClass(tools.length, 'tools')}`}>
                         {tools.map((group, idx) => (
                           <div
                             key={`${group.category}-${idx}`}
-                            className="group relative p-5 bg-zinc-900/40 border border-zinc-800/80 rounded-2xl space-y-3 h-full flex flex-col"
+                            className={`${getBalancedItemSpanClass(idx, tools.length, 'tools')} group relative p-5 bg-zinc-900/40 border border-zinc-800/80 rounded-2xl space-y-3 h-full flex flex-col`}
                           >
                             {isOwner && (
                               <button
@@ -529,13 +536,16 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
 
             {statsList.length > 0 && (
               <div
-                className={`${getAdaptiveGridClass(
+                className={`${getBalancedContainerClass(
                   statsList.length,
                   'stats'
                 )} p-6 bg-zinc-900/30 border border-zinc-800/80 rounded-2xl`}
               >
                 {statsList.map((st, idx) => (
-                  <div key={st.id} className="group relative pr-5">
+                  <div
+                    key={st.id}
+                    className={`${getBalancedItemSpanClass(idx, statsList.length, 'stats')} group relative pr-5`}
+                  >
                     {isOwner && (
                       <button
                         type="button"

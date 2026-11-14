@@ -15,7 +15,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { SiteContent, CustomSection, DEFAULT_CONTACT_OPTIONS } from '../../utils/portfolioStorage';
-import { getAdaptiveGridClass } from '../../utils/layoutHelpers';
+import { getBalancedContainerClass } from '../../utils/layoutHelpers';
 import {
   buildGmailComposeUrl,
   buildMailtoUrl,
@@ -192,7 +192,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
 
         {/* 3. Primary Contact Cards: Email & Phone (Auto-aligns cleanly if either card is removed) */}
         {visibleContactCardsCount > 0 && (
-          <div className={getAdaptiveGridClass(visibleContactCardsCount, 'split')}>
+          <div className={getBalancedContainerClass(visibleContactCardsCount, 'split')}>
             {/* Card 1: EMAIL */}
             {showEmailCard && (
               <div className="relative group bg-zinc-950/80 hover:bg-zinc-900/80 border border-zinc-800/90 hover:border-red-500/60 rounded-3xl p-7 transition-all duration-300 shadow-xl backdrop-blur-xl flex flex-col justify-between">
@@ -345,7 +345,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
 
         {/* 3. Direct Message Inquiry Form */}
         {showForm && (
-          <div className="max-w-3xl mx-auto bg-zinc-950/90 border border-zinc-800/90 rounded-3xl p-5 sm:p-8 shadow-2xl backdrop-blur-xl">
+          <div className="w-full bg-zinc-950/90 border border-zinc-800/90 rounded-3xl p-5 sm:p-8 shadow-2xl backdrop-blur-xl">
             <div className="flex items-center justify-between gap-2 mb-6">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-red-500" />

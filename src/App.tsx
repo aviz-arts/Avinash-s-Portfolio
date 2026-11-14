@@ -2,7 +2,10 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ProjectItem } from './types/portfolio';
 import { filterProjects } from './utils/lightingLogic';
-import { getAdaptiveGridClass } from './utils/layoutHelpers';
+import {
+  getBalancedContainerClass,
+  getBalancedItemSpanClass,
+} from './utils/layoutHelpers';
 import { Header } from './components/navigation/Header';
 import { LightingStudio } from './components/studio/LightingStudio';
 import { ProjectCard } from './components/portfolio/ProjectCard';
@@ -1151,7 +1154,9 @@ export default function App() {
                 className={
                   showHomeHeroText && showHomePortrait
                     ? 'grid grid-cols-1 lg:grid-cols-12 gap-10 items-center'
-                    : 'max-w-4xl mx-auto'
+                    : showHomeHeroText
+                    ? 'w-full'
+                    : 'max-w-md mx-auto'
                 }
               >
                 {/* Left Column: Headlines & Actions */}
@@ -1224,7 +1229,11 @@ export default function App() {
                     </h1>
 
                     {/* Lead copy */}
-                    <p className="text-base sm:text-lg text-zinc-300 leading-relaxed mt-6 max-w-2xl font-light text-justify">
+                    <p
+                      className={`text-base sm:text-lg text-zinc-300 leading-relaxed mt-6 font-light text-justify ${
+                        showHomePortrait ? 'max-w-3xl' : 'w-full'
+                      }`}
+                    >
                       <EditableText
                         value={siteContent.heroLeadCopy}
                         onChange={(v) => handleUpdateSiteLine('heroLeadCopy', v)}
@@ -1533,17 +1542,21 @@ export default function App() {
                   No matching projects found for "{searchQuery}".
                 </div>
               ) : (
-                <div className={getAdaptiveGridClass(filteredProjects.length, 'cards')}>
-                  {filteredProjects.map((project) => (
-                    <ProjectCard
+                <div className={getBalancedContainerClass(filteredProjects.length, 'cards')}>
+                  {filteredProjects.map((project, idx) => (
+                    <div
                       key={project.id}
-                      project={project}
-                      onSelect={(p) => setActiveProject(p)}
-                      onOpenInStudio={handleOpenInStudio}
-                      isOwner={ownerCanEdit}
-                      onEdit={handleEditProject}
-                      onDelete={handleDeleteProject}
-                    />
+                      className={getBalancedItemSpanClass(idx, filteredProjects.length, 'cards')}
+                    >
+                      <ProjectCard
+                        project={project}
+                        onSelect={(p) => setActiveProject(p)}
+                        onOpenInStudio={handleOpenInStudio}
+                        isOwner={ownerCanEdit}
+                        onEdit={handleEditProject}
+                        onDelete={handleDeleteProject}
+                      />
+                    </div>
                   ))}
                 </div>
               )}
@@ -1556,7 +1569,7 @@ export default function App() {
           <section id="reels" className="py-14 sm:py-20 bg-zinc-950/60 border-b border-zinc-800/80">
             <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14">
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-12">
-                <div className="max-w-2xl">
+                <div className="flex-1">
                   <div className="text-xs font-mono text-red-500 uppercase tracking-wider mb-2">
                     <EditableText
                       value={siteContent.reelsKicker}
@@ -1600,10 +1613,10 @@ export default function App() {
 
               {/* Adaptive Showcase Grid: 2 Columns or Full Width when 1 remains */}
               {visibleReelsCount > 0 && (
-                <div className={`${getAdaptiveGridClass(visibleReelsCount, 'split')} gap-8 items-start`}>
+                <div className={`${getBalancedContainerClass(visibleReelsCount, 'split')} gap-8 items-stretch`}>
                   {/* Left Column: Live Cinematic Video Reel Player */}
                   {showReelPlayer && (
-                    <div className="space-y-3">
+                    <div className="space-y-3 h-full flex flex-col justify-between">
                 <div className="flex items-center justify-between text-xs font-mono text-zinc-400">
                   <span className="font-semibold text-zinc-200">
                     <EditableText
@@ -1683,7 +1696,7 @@ export default function App() {
 
                   {/* Right Column: Interactive Before/After Split Slider */}
                   {showAbSlider && (
-                    <div className="space-y-3">
+                    <div className="space-y-3 h-full flex flex-col justify-between">
                 <div className="flex items-center justify-between text-xs font-mono text-zinc-400">
                   <span className="font-semibold text-zinc-200">
                     <EditableText
@@ -1776,7 +1789,7 @@ export default function App() {
           <section id="level-design" className="py-14 sm:py-20 border-b border-zinc-800/80">
             <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14">
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-12">
-                <div className="max-w-2xl">
+                <div className="flex-1">
                   <div className="text-xs font-mono text-red-500 uppercase tracking-wider mb-2">
                     <EditableText
                       value={siteContent.levelKicker}
@@ -1838,11 +1851,14 @@ export default function App() {
 
               {/* Adaptive Level Design Focus Cards */}
               {levelCards.length > 0 && (
-                <div className={getAdaptiveGridClass(levelCards.length, 'cards')}>
+                <div className={getBalancedContainerClass(levelCards.length, 'cards')}>
                   {levelCards.map((card, cardIdx) => {
                     const iconKind = card.icon || (cardIdx % 3 === 1 ? 'layers' : cardIdx % 3 === 2 ? 'sparkles' : 'compass');
                     return (
-                      <div key={card.id} className="relative p-6 bg-zinc-900/50 border border-zinc-800 rounded-2xl space-y-4">
+                      <div
+                        key={card.id}
+                        className={`${getBalancedItemSpanClass(cardIdx, levelCards.length, 'cards')} relative p-6 bg-zinc-900/50 border border-zinc-800 rounded-2xl flex flex-col justify-between gap-4 h-full`}
+                      >
                         {ownerCanEdit && (
                           <button
                             onClick={() =>
@@ -1857,51 +1873,53 @@ export default function App() {
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         )}
-                        <div
-                          className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                            iconKind === 'layers'
-                              ? 'bg-red-950/40 border border-red-800/60 text-red-400'
-                              : 'bg-zinc-900 border border-zinc-700 text-zinc-200'
-                          }`}
-                        >
-                          {iconKind === 'layers' ? (
-                            <Layers className="w-5 h-5" />
-                          ) : iconKind === 'sparkles' ? (
-                            <Sparkles className="w-5 h-5" />
-                          ) : (
-                            <Compass className="w-5 h-5" />
-                          )}
+                        <div className="space-y-4">
+                          <div
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                              iconKind === 'layers'
+                                ? 'bg-red-950/40 border border-red-800/60 text-red-400'
+                                : 'bg-zinc-900 border border-zinc-700 text-zinc-200'
+                            }`}
+                          >
+                            {iconKind === 'layers' ? (
+                              <Layers className="w-5 h-5" />
+                            ) : iconKind === 'sparkles' ? (
+                              <Sparkles className="w-5 h-5" />
+                            ) : (
+                              <Compass className="w-5 h-5" />
+                            )}
+                          </div>
+                          <h3 className="text-lg font-display font-semibold text-zinc-100 pr-8">
+                            <EditableText
+                              value={card.title}
+                              onChange={(v) =>
+                                handleUpdateSiteLine(
+                                  'levelCards',
+                                  levelCards.map((c) => (c.id === card.id ? { ...c, title: v } : c))
+                                )
+                              }
+                              isOwner={ownerCanEdit}
+                              label={`Card ${cardIdx + 1} Title`}
+                              as="span"
+                            />
+                          </h3>
+                          <p className="text-xs text-zinc-400 leading-relaxed text-justify">
+                            <EditableText
+                              value={card.description}
+                              onChange={(v) =>
+                                handleUpdateSiteLine(
+                                  'levelCards',
+                                  levelCards.map((c) => (c.id === card.id ? { ...c, description: v } : c))
+                                )
+                              }
+                              isOwner={ownerCanEdit}
+                              label={`Card ${cardIdx + 1} Description`}
+                              multiline={true}
+                              as="span"
+                            />
+                          </p>
                         </div>
-                        <h3 className="text-lg font-display font-semibold text-zinc-100 pr-8">
-                          <EditableText
-                            value={card.title}
-                            onChange={(v) =>
-                              handleUpdateSiteLine(
-                                'levelCards',
-                                levelCards.map((c) => (c.id === card.id ? { ...c, title: v } : c))
-                              )
-                            }
-                            isOwner={ownerCanEdit}
-                            label={`Card ${cardIdx + 1} Title`}
-                            as="span"
-                          />
-                        </h3>
-                        <p className="text-xs text-zinc-400 leading-relaxed text-justify">
-                          <EditableText
-                            value={card.description}
-                            onChange={(v) =>
-                              handleUpdateSiteLine(
-                                'levelCards',
-                                levelCards.map((c) => (c.id === card.id ? { ...c, description: v } : c))
-                              )
-                            }
-                            isOwner={ownerCanEdit}
-                            label={`Card ${cardIdx + 1} Description`}
-                            multiline={true}
-                            as="span"
-                          />
-                        </p>
-                        <div className="pt-2 text-xs font-mono text-zinc-500">
+                        <div className="pt-2 border-t border-zinc-800/60 text-xs font-mono text-zinc-500">
                           <EditableText
                             value={card.tag}
                             onChange={(v) =>
