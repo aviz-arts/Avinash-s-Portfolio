@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1794639117535,
+  "updatedAt": 1794639135159,
   "projects": [
     {
       "id": "district-7-cyberpunk",
@@ -664,15 +664,6 @@
           "Player Psychology & Motivation",
           "Systems Balancing & Economies",
           "Encounter & Boss Design"
-        ]
-      },
-      {
-        "category": "Level Design & Architecture",
-        "items": [
-          "3D Combat Blockouts & Greyboxing",
-          "Sightline & Chokepoint Theory",
-          "Pacing Curves & Tension Rhythms",
-          "Diegetic Navigation & Landmarks"
         ]
       },
       {
