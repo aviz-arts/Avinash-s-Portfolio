@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1794639261036,
+  "updatedAt": 1794639272531,
   "projects": [
     {
       "id": "district-7-cyberpunk",
@@ -701,7 +701,7 @@
     "stat4Value": "60.0 FPS",
     "stat4Label": "Lumen Console Frametime (Passion)",
     "avatarUrl": "/assets/aistudio/pic_fe23a188.jpg",
-    "studioKicker": "Interactive WebGL Workbench · Three.js",
+    "studioKicker": "Interactive WebGL Workbench",
     "studioHeadline": "Interactive 3D Scene Lighting Studio",
     "studioDescription": "Take the director's chair in my lighting passion lab. Adjust key light angles, tweak sky bounce, toggle between PBR Lit and Clay passes, and inspect how light sculpts spatial geometry and player sightlines in real time.",
     "studioModesBadge": "Modes: PBR · Clay · Normals · Wireframe",
