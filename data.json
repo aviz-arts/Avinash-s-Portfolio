@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1794639045778,
+  "updatedAt": 1794639066911,
   "projects": [
     {
       "id": "district-7-cyberpunk",
@@ -759,9 +759,8 @@
     "socialGithubUrl": "https://github.com/avinash",
     "contactProjectOptions": [
       "Game Design & Core Mechanics (Loops & Pacing)",
-      "Level Design & 3D Arena Blockout",
-      "Unreal Engine 5 Lighting Art (Passion)",
-      "Lead Role / Full-Time Studio Opportunity",
+      "Unreal Engine Lighting Art (Passion)",
+      "Full-Time Studio Opportunity",
       "General Inquiry / Coffee Chat"
     ],
     "homeShowHeroText": true,
