@@ -95,6 +95,7 @@ export const LightingComparisonSlider: React.FC<LightingComparisonSliderProps> =
         <img
           src={rightImageUrl}
           alt={rightLabel}
+          decoding="async"
           className="absolute inset-0 w-full h-full object-cover"
         />
       ) : (
@@ -117,6 +118,7 @@ export const LightingComparisonSlider: React.FC<LightingComparisonSliderProps> =
             <img
               src={leftImageUrl}
               alt={leftLabel}
+              decoding="async"
               className="absolute inset-0 w-full h-full object-cover"
             />
           ) : (
@@ -142,11 +144,11 @@ export const LightingComparisonSlider: React.FC<LightingComparisonSliderProps> =
       </div>
 
       {/* Labels for both sides */}
-      <div className="absolute top-3 left-3 pointer-events-none bg-zinc-950/80 backdrop-blur-md px-2.5 py-1 rounded text-xs font-mono text-zinc-300 border border-zinc-800">
+      <div className="absolute top-3 left-3 pointer-events-none bg-zinc-950/92 px-2.5 py-1 rounded text-xs font-mono text-zinc-300 border border-zinc-800">
         {leftLabel}
       </div>
 
-      <div className="absolute top-3 right-3 pointer-events-none bg-zinc-950/80 backdrop-blur-md px-2.5 py-1 rounded text-xs font-mono text-red-400 border border-zinc-800">
+      <div className="absolute top-3 right-3 pointer-events-none bg-zinc-950/92 px-2.5 py-1 rounded text-xs font-mono text-red-400 border border-zinc-800">
         {rightLabel}
       </div>
     </div>

@@ -552,6 +552,10 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
     camera.position.set(0, 3.2, 9.5);
     cameraRef.current = camera;
 
+    const isCompactDevice =
+      window.innerWidth < 1024 ||
+      (typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches);
+
     // 3. Renderer with ACES Tone Mapping
     const renderer = new THREE.WebGLRenderer({
       antialias: !isSoftwareGl,
@@ -559,7 +563,9 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
       precision: isSoftwareGl ? 'mediump' : 'highp',
     });
     renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, isSoftwareGl ? 1 : 2));
+    renderer.setPixelRatio(
+      Math.min(window.devicePixelRatio || 1, isSoftwareGl ? 1 : isCompactDevice ? 1.25 : 1.5)
+    );
     renderer.shadowMap.enabled = !isSoftwareGl;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -601,8 +607,9 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
     const [kx, ky, kz] = polarToCartesian(activeLighting.keyLight?.azimuth ?? 60, activeLighting.keyLight?.elevation ?? 50, 12);
     keyLight.position.set(kx, ky, kz);
     keyLight.castShadow = !isSoftwareGl;
-    keyLight.shadow.mapSize.width = isSoftwareGl ? 512 : 2048;
-    keyLight.shadow.mapSize.height = isSoftwareGl ? 512 : 2048;
+    const shadowSize = isSoftwareGl ? 512 : isCompactDevice ? 1024 : 1536;
+    keyLight.shadow.mapSize.width = shadowSize;
+    keyLight.shadow.mapSize.height = shadowSize;
     keyLight.shadow.camera.near = 1;
     keyLight.shadow.camera.far = 30;
     keyLight.shadow.camera.left = -9;
@@ -708,14 +715,32 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
       replaceSceneModel(prepared, 'Studio Lookdev Model', false, []);
     })();
 
-    // 9. Render Loop
+    // 9. Viewport- & visibility-aware Render Loop (pauses completely when scrolled offscreen or tab hidden)
     let frameId = 0;
     let isDisposed = false;
+    let isInViewport = true;
+    let isPageVisible = typeof document === 'undefined' ? true : !document.hidden;
     let lastTime = performance.now();
     let elapsedTime = 0;
 
+    function stopLoop() {
+      if (frameId) {
+        cancelAnimationFrame(frameId);
+        frameId = 0;
+      }
+    }
+
+    function startLoop() {
+      if (isDisposed || frameId || !isInViewport || !isPageVisible) return;
+      lastTime = performance.now();
+      frameId = requestAnimationFrame(tick);
+    }
+
     function tick() {
-      if (isDisposed) return;
+      if (isDisposed || !isInViewport || !isPageVisible) {
+        frameId = 0;
+        return;
+      }
       const now = performance.now();
       const delta = Math.min((now - lastTime) / 1000, 0.1);
       lastTime = now;
@@ -746,7 +771,41 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
       frameId = requestAnimationFrame(tick);
     }
 
-    frameId = requestAnimationFrame(tick);
+    // Initial frame render + start loop
+    renderer.render(scene, camera);
+    startLoop();
+
+    const intersectionObserver =
+      typeof IntersectionObserver !== 'undefined'
+        ? new IntersectionObserver(
+            (entries) => {
+              const visible = entries[0]?.isIntersecting ?? true;
+              if (visible !== isInViewport) {
+                isInViewport = visible;
+                if (visible) {
+                  startLoop();
+                } else {
+                  stopLoop();
+                }
+              }
+            },
+            { threshold: 0.02 }
+          )
+        : null;
+
+    if (intersectionObserver) {
+      intersectionObserver.observe(container);
+    }
+
+    const handleVisibilityChange = () => {
+      isPageVisible = !document.hidden;
+      if (isPageVisible) {
+        startLoop();
+      } else {
+        stopLoop();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Responsive ResizeObserver so fullscreen, mobile, and wide layouts always match WebGL size
     const handleResize = () => {
@@ -767,7 +826,9 @@ export const LightingStudio: React.FC<LightingStudioProps> = ({ className = '' }
 
     return () => {
       isDisposed = true;
-      cancelAnimationFrame(frameId);
+      stopLoop();
+      if (intersectionObserver) intersectionObserver.disconnect();
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       if (resizeObserver) resizeObserver.disconnect();
       window.removeEventListener('resize', handleResize);
       if (mixerRef.current) mixerRef.current.stopAllAction();
@@ -1026,7 +1087,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
 
         {/* Drag and Drop Visual Feedback Overlay */}
         {isDragOver && (
-          <div className="absolute inset-0 z-40 bg-black/80 border-2 border-dashed border-red-500 rounded-2xl flex flex-col items-center justify-center p-6 text-center backdrop-blur-md animate-in fade-in duration-150">
+          <div className="absolute inset-0 z-40 bg-black/90 border-2 border-dashed border-red-500 rounded-2xl flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-150">
             <div className="w-16 h-16 rounded-2xl bg-red-950/80 border border-red-600/80 flex items-center justify-center text-red-400 mb-4 animate-bounce">
               <Upload className="w-8 h-8" />
             </div>
@@ -1041,7 +1102,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
 
         {/* Loading Spinner Overlay */}
         {isLoadingModel && (
-          <div className="absolute inset-0 z-40 bg-black/75 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+          <div className="absolute inset-0 z-40 bg-black/85 flex flex-col items-center justify-center gap-3">
             <div className="w-10 h-10 border-3 border-red-500 border-t-transparent rounded-full animate-spin" />
             <span className="text-xs font-mono text-zinc-200">
               Parsing & Normalizing 3D Model Geometry...
@@ -1053,7 +1114,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
         <div className="absolute top-0 left-0 right-0 z-10 p-3 sm:p-4 flex flex-wrap items-start justify-between gap-2.5 pointer-events-none">
           {/* Top Left: Clean Active Model Pill + Subtle Orbit Hint */}
           <div className="min-w-0 max-w-full sm:max-w-[52%] flex flex-col gap-1 pointer-events-auto">
-            <div className="inline-flex items-center gap-2 text-xs font-mono text-zinc-200 bg-zinc-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl border border-zinc-800/90 shadow-lg min-w-0">
+            <div className="inline-flex items-center gap-2 text-xs font-mono text-zinc-200 bg-zinc-950/92 px-3 py-1.5 rounded-xl border border-zinc-800/90 shadow-lg min-w-0">
               <Box className="w-3.5 h-3.5 text-red-500 shrink-0" />
               <span className="text-white font-semibold truncate" title={modelName}>
                 {modelName}
@@ -1096,10 +1157,10 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 shrink-0 pointer-events-auto">
             <button
               onClick={() => setShowBase(!showBase)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono rounded-xl border backdrop-blur-md transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono rounded-xl border transition-all cursor-pointer ${
                 showBase
-                  ? 'bg-zinc-900/90 text-white border-zinc-700'
-                  : 'bg-zinc-950/75 hover:bg-zinc-900 text-zinc-400 border-zinc-800'
+                  ? 'bg-zinc-900/95 text-white border-zinc-700'
+                  : 'bg-zinc-950/90 hover:bg-zinc-900 text-zinc-400 border-zinc-800'
               }`}
               title={showBase ? 'Hide studio turntable base' : 'Show studio turntable base'}
             >
@@ -1109,10 +1170,10 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
 
             <button
               onClick={handleToggleStageMode}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono rounded-xl border backdrop-blur-md transition-all cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-mono rounded-xl border transition-all cursor-pointer ${
                 stageMode === 'environment'
-                  ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/80'
-                  : 'bg-zinc-950/85 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
+                  ? 'bg-emerald-950/90 text-emerald-300 border-emerald-700/80'
+                  : 'bg-zinc-950/92 hover:bg-zinc-900 text-zinc-300 border-zinc-800'
               }`}
               title="Switch between Object Turntable Stage and Full 3D Environment Scale"
             >
@@ -1140,7 +1201,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
 
             <button
               onClick={() => setShowUrlModal(true)}
-              className="p-1.5 bg-zinc-950/85 hover:bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 backdrop-blur-md transition-colors cursor-pointer"
+              className="p-1.5 bg-zinc-950/92 hover:bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 transition-colors cursor-pointer"
               title="Load 3D asset from URL"
             >
               <LinkIcon className="w-4 h-4 text-zinc-400" />
@@ -1148,7 +1209,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
 
             <button
               onClick={handleFrameModel}
-              className="p-1.5 bg-zinc-950/85 hover:bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 backdrop-blur-md transition-colors cursor-pointer"
+              className="p-1.5 bg-zinc-950/92 hover:bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 transition-colors cursor-pointer"
               title="Re-center camera"
             >
               <Target className="w-4 h-4 text-zinc-400" />
@@ -1156,7 +1217,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
 
             <button
               onClick={() => setIsFullscreen(!isFullscreen)}
-              className="p-1.5 bg-zinc-950/85 hover:bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 backdrop-blur-md transition-colors cursor-pointer"
+              className="p-1.5 bg-zinc-950/92 hover:bg-zinc-900 text-zinc-300 rounded-xl border border-zinc-800 transition-colors cursor-pointer"
               title={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -1166,7 +1227,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
 
         {/* Remote URL Modal */}
         {showUrlModal && (
-          <div className="absolute inset-0 z-40 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="absolute inset-0 z-40 bg-black/75 flex items-center justify-center p-4">
             <div className="w-full max-w-sm bg-zinc-950/95 border border-zinc-800 rounded-2xl shadow-2xl p-4 text-xs font-mono text-zinc-200 animate-in fade-in duration-150">
               <div className="flex items-center justify-between pb-2 mb-3 border-b border-zinc-800">
                 <span className="font-semibold text-white flex items-center gap-1.5">
@@ -1210,7 +1271,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
 
         {/* Code Export Modal */}
         {showExportModal && (
-          <div className="absolute inset-0 z-40 bg-black/55 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="absolute inset-0 z-40 bg-black/75 flex items-center justify-center p-4">
             <div className="w-full max-w-xs bg-zinc-950/95 border border-zinc-800 rounded-2xl shadow-2xl p-3.5 text-xs font-mono text-zinc-300 animate-in fade-in duration-150">
               <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-zinc-800">
                 <span className="font-semibold text-zinc-100 flex items-center gap-1.5">
@@ -1258,7 +1319,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
             <div className="flex justify-center">
               <button
                 onClick={() => setIsCollapsed(!isCollapsed)}
-                className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-mono font-medium text-zinc-300 bg-zinc-950/90 hover:bg-zinc-900 border-t border-x border-zinc-800 rounded-t-xl backdrop-blur-md transition-colors shadow-2xl cursor-pointer"
+                className="flex items-center gap-1.5 px-4 py-1.5 text-xs font-mono font-medium text-zinc-300 bg-zinc-950/95 hover:bg-zinc-900 border-t border-x border-zinc-800 rounded-t-xl transition-colors shadow-2xl cursor-pointer"
               >
                 {isCollapsed ? (
                   <>
@@ -1274,7 +1335,7 @@ renderer.shadowMap.type = THREE.PCFSoftShadowMap;`;
               </button>
             </div>
 
-            <div className="bg-zinc-950/95 border-t border-zinc-800/90 shadow-2xl backdrop-blur-xl p-3 sm:p-4 text-zinc-200">
+            <div className="bg-zinc-950/96 border-t border-zinc-800/90 shadow-2xl p-3 sm:p-4 text-zinc-200">
               {renderControlPanelContent()}
             </div>
           </div>

@@ -153,7 +153,7 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({
     <div className="relative min-h-[calc(100vh-80px)] py-12 sm:py-16 bg-[#050505] print:min-h-0 print:py-0 print:bg-white">
       <div className="w-full max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 relative z-10 space-y-8 print:px-0 print:space-y-5">
         {/* Top Action Bar & Header Banner */}
-        <div className="p-5 sm:p-8 bg-zinc-950/90 border border-zinc-800 rounded-3xl shadow-2xl backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-6 print:border-zinc-300 print:border-b print:border-t-0 print:border-x-0 print:rounded-none print:bg-white print:p-0 print:pb-4 print:shadow-none print:backdrop-blur-none">
+        <div className="p-5 sm:p-8 bg-zinc-950/95 border border-zinc-800 rounded-3xl shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-6 print:border-zinc-300 print:border-b print:border-t-0 print:border-x-0 print:rounded-none print:bg-white print:p-0 print:pb-4 print:shadow-none">
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs font-mono text-red-500 print:text-red-700 uppercase tracking-widest font-semibold">
               <FileText className="w-4 h-4 shrink-0" />

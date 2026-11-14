@@ -145,8 +145,8 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
     <div className="relative min-h-[calc(100vh-80px)] py-12 sm:py-16 overflow-hidden bg-[#050505]">
       {/* Atmospheric ambient lighting & vignette */}
       <div className="absolute inset-0 pointer-events-none z-0">
-        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[450px] bg-red-600/10 blur-[150px] rounded-full" />
-        <div className="absolute bottom-1/4 left-1/3 w-[500px] h-[300px] bg-zinc-800/20 blur-[130px] rounded-full" />
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[720px] h-[480px] bg-[radial-gradient(closest-side,rgba(220,38,38,0.12),transparent)] rounded-full" />
+        <div className="absolute bottom-1/4 left-1/3 w-[520px] h-[340px] bg-[radial-gradient(closest-side,rgba(63,63,70,0.2),transparent)] rounded-full" />
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-transparent via-[#050505]/70 to-[#000000]" />
       </div>
 
@@ -195,7 +195,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
           <div className={getBalancedContainerClass(visibleContactCardsCount, 'split')}>
             {/* Card 1: EMAIL */}
             {showEmailCard && (
-              <div className="relative group bg-zinc-950/80 hover:bg-zinc-900/80 border border-zinc-800/90 hover:border-red-500/60 rounded-3xl p-7 transition-all duration-300 shadow-xl backdrop-blur-xl flex flex-col justify-between">
+              <div className="relative group bg-zinc-950/95 hover:bg-zinc-900/95 border border-zinc-800/90 hover:border-red-500/60 rounded-3xl p-7 transition-all duration-300 shadow-xl flex flex-col justify-between">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="w-12 h-12 rounded-2xl bg-zinc-900/90 border border-zinc-800 flex items-center justify-center text-red-500 group-hover:scale-105 group-hover:border-red-500/40 transition-all duration-300">
@@ -283,7 +283,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
 
             {/* Card 2: PHONE / WHATSAPP */}
             {showPhoneCard && (
-              <div className="relative group bg-zinc-950/80 hover:bg-zinc-900/80 border border-zinc-800/90 hover:border-red-500/60 rounded-3xl p-7 transition-all duration-300 shadow-xl backdrop-blur-xl flex flex-col justify-between">
+              <div className="relative group bg-zinc-950/95 hover:bg-zinc-900/95 border border-zinc-800/90 hover:border-red-500/60 rounded-3xl p-7 transition-all duration-300 shadow-xl flex flex-col justify-between">
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <div className="w-12 h-12 rounded-2xl bg-zinc-900/90 border border-zinc-800 flex items-center justify-center text-red-500 group-hover:scale-105 group-hover:border-red-500/40 transition-all duration-300">
@@ -373,7 +373,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
 
         {/* 3. Direct Message Inquiry Form */}
         {showForm && (
-          <div className="w-full bg-zinc-950/90 border border-zinc-800/90 rounded-3xl p-5 sm:p-8 shadow-2xl backdrop-blur-xl">
+          <div className="w-full bg-zinc-950/95 border border-zinc-800/90 rounded-3xl p-5 sm:p-8 shadow-2xl">
             <div className="flex items-center justify-between gap-2 mb-6">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-red-500" />

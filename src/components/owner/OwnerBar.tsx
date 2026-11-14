@@ -71,7 +71,7 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
   onOpenGitHubSync,
 }) => {
   return (
-    <div className="print:hidden bg-zinc-950/95 border-b border-red-950/80 text-zinc-200 py-2 text-xs font-mono sticky top-0 z-50 backdrop-blur-md">
+    <div className="print:hidden bg-zinc-950/98 border-b border-red-950/80 text-zinc-200 py-2 text-xs font-mono sticky top-0 z-50">
       <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 flex flex-wrap items-center justify-between gap-3">
         {/* Left: Owner identity & GitHub Contents API status */}
         <div className="flex flex-wrap items-center gap-2.5">

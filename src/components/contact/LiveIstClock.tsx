@@ -38,7 +38,7 @@ export const LiveIstClock: React.FC = () => {
 
   return (
     <div className="flex items-center justify-center my-2">
-      <div className="inline-flex flex-wrap items-center justify-center gap-3 sm:gap-5 px-5 py-2.5 sm:px-6 sm:py-3 bg-zinc-950/90 border border-zinc-800/90 rounded-2xl shadow-xl backdrop-blur-xl">
+      <div className="inline-flex flex-wrap items-center justify-center gap-3 sm:gap-5 px-5 py-2.5 sm:px-6 sm:py-3 bg-zinc-950/95 border border-zinc-800/90 rounded-2xl shadow-xl">
         {/* Label & Pulsing Beacon */}
         <div className="flex items-center gap-2">
           <span className="relative flex h-2.5 w-2.5">

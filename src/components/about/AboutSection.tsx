@@ -262,6 +262,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
                       '/assets/aistudio/pic_fe23a188.jpg'
                     }
                     alt="Avinash - Game Designer & Lighting Artist"
+                    decoding="async"
                     className="w-full h-full object-cover object-top filter contrast-105"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/15 to-transparent" />

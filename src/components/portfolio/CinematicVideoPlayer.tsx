@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { drawProceduralScene, SceneStyle, PassType } from '../../utils/canvasMedia';
-import { Play, Pause, RotateCcw, Maximize, Volume2, VolumeX, Eye } from 'lucide-react';
+import { Play, Pause, RotateCcw, Volume2, VolumeX } from 'lucide-react';
 
 interface CinematicVideoPlayerProps {
   style: SceneStyle;
@@ -15,12 +15,12 @@ interface CinematicVideoPlayerProps {
 export const CinematicVideoPlayer: React.FC<CinematicVideoPlayerProps> = ({
   style,
   title,
-  duration = '0:42',
   autoPlay = false,
   className = '',
   videoUrl,
   posterUrl,
 }) => {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(autoPlay);
@@ -29,14 +29,37 @@ export const CinematicVideoPlayer: React.FC<CinematicVideoPlayerProps> = ({
   const [selectedPass, setSelectedPass] = useState<PassType>('final');
   const [playbackSpeed, setPlaybackSpeed] = useState<1 | 0.5>(1);
   const [isMuted, setIsMuted] = useState(true);
+  const [isInViewport, setIsInViewport] = useState(true);
   const isPlayingRef = useRef(isPlaying);
+  const isInViewportRef = useRef(true);
   const timeRef = useRef(0);
   const speedRef = useRef(playbackSpeed);
+  const lastUiBucketRef = useRef(-1);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const visible = entry.isIntersecting;
+        isInViewportRef.current = visible;
+        setIsInViewport(visible);
+        if (!visible && videoRef.current && !videoRef.current.paused) {
+          videoRef.current.pause();
+        } else if (visible && isPlayingRef.current && videoRef.current && videoRef.current.paused) {
+          videoRef.current.play().catch(() => {});
+        }
+      },
+      { rootMargin: '120px' }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     isPlayingRef.current = isPlaying;
     if (videoUrl && videoRef.current) {
-      if (isPlaying) {
+      if (isPlaying && isInViewportRef.current) {
         videoRef.current.play().catch(() => {});
       } else {
         videoRef.current.pause();
@@ -51,33 +74,45 @@ export const CinematicVideoPlayer: React.FC<CinematicVideoPlayerProps> = ({
     }
   }, [playbackSpeed, videoUrl]);
 
-  // Video reel animation loop for procedural canvas (when videoUrl is NOT provided)
+  // Render procedural frame on demand when paused; only loop rAF when playing AND visible
   useEffect(() => {
-    if (videoUrl) return; // skip procedural loop if real uploaded video is active
+    if (videoUrl) return;
 
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    canvas.width = 960;
-    canvas.height = 540;
+    if (canvas.width !== 960 || canvas.height !== 540) {
+      canvas.width = 960;
+      canvas.height = 540;
+    }
+
+    drawProceduralScene(ctx, 960, 540, style, selectedPass, timeRef.current);
+
+    if (!isPlaying || !isInViewport) {
+      return;
+    }
 
     let animId = 0;
     let lastTs = performance.now();
 
     const loop = (ts: number) => {
-      const dt = (ts - lastTs) / 1000;
+      if (!isPlayingRef.current || !isInViewportRef.current) return;
+      const dt = Math.min((ts - lastTs) / 1000, 0.1);
       lastTs = ts;
 
-      if (isPlayingRef.current) {
-        timeRef.current += dt * speedRef.current;
-        if (timeRef.current > 42) timeRef.current = 0; // loop reel at 42s
+      timeRef.current += dt * speedRef.current;
+      if (timeRef.current > 42) timeRef.current = 0;
+
+      // Throttle React scrubber state updates (~5Hz) to avoid 60fps UI re-renders
+      const bucket = Math.floor(timeRef.current * 5);
+      if (bucket !== lastUiBucketRef.current) {
+        lastUiBucketRef.current = bucket;
         setCurrentTime(timeRef.current);
       }
 
       drawProceduralScene(ctx, 960, 540, style, selectedPass, timeRef.current);
-
       animId = requestAnimationFrame(loop);
     };
 
@@ -86,7 +121,7 @@ export const CinematicVideoPlayer: React.FC<CinematicVideoPlayerProps> = ({
     return () => {
       cancelAnimationFrame(animId);
     };
-  }, [style, selectedPass, videoUrl]);
+  }, [style, selectedPass, videoUrl, isPlaying, isInViewport]);
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -100,6 +135,9 @@ export const CinematicVideoPlayer: React.FC<CinematicVideoPlayerProps> = ({
     setCurrentTime(val);
     if (videoUrl && videoRef.current) {
       videoRef.current.currentTime = val;
+    } else if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      if (ctx) drawProceduralScene(ctx, 960, 540, style, selectedPass, val);
     }
   };
 
@@ -113,13 +151,17 @@ export const CinematicVideoPlayer: React.FC<CinematicVideoPlayerProps> = ({
   };
 
   return (
-    <div className={`relative group w-full aspect-video rounded-xl overflow-hidden bg-black border border-zinc-800 ${className}`}>
+    <div
+      ref={containerRef}
+      className={`relative group w-full aspect-video rounded-xl overflow-hidden bg-black border border-zinc-800 ${className}`}
+    >
       {/* Real HTML5 Uploaded Video OR Procedural Canvas Surface */}
       {videoUrl ? (
         <video
           ref={videoRef}
           src={videoUrl}
           poster={posterUrl}
+          preload="metadata"
           playsInline
           muted={isMuted}
           loop
@@ -142,7 +184,7 @@ export const CinematicVideoPlayer: React.FC<CinematicVideoPlayerProps> = ({
 
       {/* Top Bar Video Reel Metadata */}
       <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-none z-10">
-        <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-2.5 py-1 rounded text-xs font-mono text-zinc-200 border border-white/10">
+        <div className="flex items-center gap-2 bg-black/80 px-2.5 py-1 rounded text-xs font-mono text-zinc-200 border border-white/10">
           <span className="text-red-500 font-semibold">{videoUrl ? 'UPLOADED REEL' : 'CINEMATIC REEL'}</span>
           <span className="text-zinc-600">·</span>
           <span>{title}</span>
@@ -150,7 +192,7 @@ export const CinematicVideoPlayer: React.FC<CinematicVideoPlayerProps> = ({
 
         {/* Live pass selector directly on reel (available for procedural scenes) */}
         {!videoUrl && (
-          <div className="pointer-events-auto flex items-center gap-1 bg-black/70 backdrop-blur-md p-1 rounded-lg border border-white/10">
+          <div className="pointer-events-auto flex items-center gap-1 bg-black/80 p-1 rounded-lg border border-white/10">
             {(['final', 'clay', 'normals', 'roughness'] as PassType[]).map((pass) => (
               <button
                 key={pass}
@@ -172,7 +214,7 @@ export const CinematicVideoPlayer: React.FC<CinematicVideoPlayerProps> = ({
       {!isPlaying && (
         <button
           onClick={() => setIsPlaying(true)}
-          className="absolute inset-0 m-auto w-16 h-16 rounded-full bg-red-600 text-white flex items-center justify-center shadow-[0_0_24px_rgba(239,68,68,0.4)] hover:scale-105 hover:bg-red-500 transition-all z-20"
+          className="absolute inset-0 m-auto w-16 h-16 rounded-full bg-red-600 text-white flex items-center justify-center shadow-[0_0_24px_rgba(239,68,68,0.4)] hover:scale-105 hover:bg-red-500 transition-transform z-20"
           aria-label="Play Reel"
         >
           <Play className="w-7 h-7 fill-current ml-1" />
@@ -181,7 +223,6 @@ export const CinematicVideoPlayer: React.FC<CinematicVideoPlayerProps> = ({
 
       {/* Bottom Player Scrub Bar & Controls */}
       <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/90 via-black/60 to-transparent p-3 pt-6 flex flex-col gap-2 transition-opacity z-20">
-        {/* Scrubber slider */}
         <input
           type="range"
           min="0"
@@ -208,6 +249,9 @@ export const CinematicVideoPlayer: React.FC<CinematicVideoPlayerProps> = ({
                 setCurrentTime(0);
                 if (videoUrl && videoRef.current) {
                   videoRef.current.currentTime = 0;
+                } else if (canvasRef.current) {
+                  const ctx = canvasRef.current.getContext('2d');
+                  if (ctx) drawProceduralScene(ctx, 960, 540, style, selectedPass, 0);
                 }
               }}
               className="p-1 hover:text-red-400 transition-colors"

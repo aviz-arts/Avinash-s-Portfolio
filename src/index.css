@@ -35,12 +35,11 @@ canvas {
 }
 
 html {
-  scroll-behavior: smooth;
   font-size: clamp(14.5px, 13.5px + 0.22vw, 18.5px);
 }
 
 body {
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 html.custom-cursor-active,

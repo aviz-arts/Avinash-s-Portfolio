@@ -74,6 +74,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           <video
             src={project.customVideoUrl}
             poster={project.customImageUrl}
+            preload="none"
             muted
             playsInline
             loop
@@ -84,6 +85,8 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
           <img
             src={project.customImageUrl}
             alt={project.title}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
           />
         ) : (
@@ -94,7 +97,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
         )}
 
         {/* Single Discipline Badge Overlay (Lighting OR Game Designs) */}
-        <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-zinc-950/85 backdrop-blur-md px-2.5 py-1 rounded-md text-[11px] font-mono text-zinc-300 border border-zinc-800">
+        <div className="absolute top-3 left-3 flex items-center gap-1.5 bg-zinc-950/92 px-2.5 py-1 rounded-md text-[11px] font-mono text-zinc-300 border border-zinc-800">
           {primaryDiscipline === 'lighting' ? (
             <>
               <Zap className="w-3 h-3 text-red-500" />

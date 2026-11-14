@@ -396,6 +396,8 @@ export const CareerTimeline: React.FC<CareerTimelineProps> = ({
                           <img
                             src={milestone.photoUrl}
                             alt={milestone.photoCaption || milestone.role}
+                            loading="lazy"
+                            decoding="async"
                             className="w-full h-full object-cover group-hover/photo:scale-103 transition-transform duration-500"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/15 to-transparent" />

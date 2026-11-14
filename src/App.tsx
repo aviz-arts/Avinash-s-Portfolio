@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import { ProjectItem } from './types/portfolio';
 import { filterProjects } from './utils/lightingLogic';
 import {
@@ -907,15 +906,15 @@ export default function App() {
         activeTab={activeTab}
         onSelectTab={(tab) => {
           setActiveTab(tab);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          window.scrollTo({ top: 0, behavior: 'auto' });
         }}
         onOpenContact={() => {
           setActiveTab('contact');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          window.scrollTo({ top: 0, behavior: 'auto' });
         }}
         onOpenResume={() => {
           setActiveTab('resume');
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          window.scrollTo({ top: 0, behavior: 'auto' });
         }}
         avatarUrl={siteContent.avatarUrl || DEFAULT_AVATAR_URL}
         onOpenOwnerLogin={() => setIsOwnerLoginOpen(true)}
@@ -924,17 +923,10 @@ export default function App() {
       />
 
       <main className="flex-1">
-        <AnimatePresence mode="wait">
-          {activeTab === 'home' && (
-            <motion.div
-              key="tab-home"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.3, ease: 'easeOut' }}
-            >
-              {/* 2. Hero Section (Home) */}
-              <section id="home" className="relative pt-20 pb-16 md:pt-28 md:pb-24 border-b border-zinc-800/80 overflow-hidden bg-gradient-to-b from-[#080808] to-[#050505]">
+        {activeTab === 'home' && (
+          <div key="tab-home" className="animate-in fade-in duration-150">
+            {/* 2. Hero Section (Home) */}
+            <section id="home" className="relative pt-20 pb-16 md:pt-28 md:pb-24 border-b border-zinc-800/80 overflow-hidden bg-gradient-to-b from-[#080808] to-[#050505]">
           {/* Atmospheric Background Video (Very Low Opacity) */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
             {siteContent.heroBackgroundVideoUrl ? (
@@ -943,6 +935,7 @@ export default function App() {
                 loop
                 muted
                 playsInline
+                preload="metadata"
                 src={siteContent.heroBackgroundVideoUrl}
                 className="w-full h-full object-cover opacity-15 filter contrast-125 saturate-50"
               />
@@ -952,6 +945,7 @@ export default function App() {
                 loop
                 muted
                 playsInline
+                preload="metadata"
                 src="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4"
                 className="w-full h-full object-cover opacity-12 filter contrast-125 grayscale"
                 onError={(e) => {
@@ -964,9 +958,9 @@ export default function App() {
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-zinc-800/10 via-black/40 to-black/80" />
           </div>
 
-          {/* Subtle atmospheric ambient glow */}
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-red-600/10 blur-[130px] rounded-full pointer-events-none z-0" />
-          <div className="absolute top-1/3 left-1/4 w-[400px] h-[250px] bg-zinc-700/10 blur-[100px] rounded-full pointer-events-none z-0" />
+          {/* Subtle atmospheric ambient glow (pure radial gradient for 0 blur overdraw) */}
+          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[640px] h-[340px] bg-[radial-gradient(closest-side,rgba(220,38,38,0.12),transparent)] rounded-full pointer-events-none z-0" />
+          <div className="absolute top-1/3 left-1/4 w-[440px] h-[280px] bg-[radial-gradient(closest-side,rgba(63,63,70,0.12),transparent)] rounded-full pointer-events-none z-0" />
 
           <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 relative z-10">
             {(showHomeHeroText || showHomePortrait) && (
@@ -1091,7 +1085,7 @@ export default function App() {
                       <button
                         onClick={() => {
                           setActiveTab('work');
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                          window.scrollTo({ top: 0, behavior: 'auto' });
                         }}
                         className="px-5 py-3 bg-zinc-900/90 hover:bg-zinc-800 text-white border border-zinc-700/80 rounded-xl text-sm transition-all flex items-center gap-2 font-sans cursor-pointer"
                       >
@@ -1108,7 +1102,7 @@ export default function App() {
                       <button
                         onClick={() => {
                           setActiveTab('resume');
-                          window.scrollTo({ top: 0, behavior: 'smooth' });
+                          window.scrollTo({ top: 0, behavior: 'auto' });
                         }}
                         className="px-4 py-3 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 hover:text-white border border-zinc-700/80 rounded-xl text-sm transition-all flex items-center gap-2 font-mono cursor-pointer"
                         title="Open Resume Tab"
@@ -1139,15 +1133,16 @@ export default function App() {
                 {showHomePortrait && (
                   <div className={showHomeHeroText ? 'lg:col-span-5' : 'max-w-md mx-auto'}>
                     <div className="relative group max-w-sm mx-auto lg:max-w-none">
-                      {/* Subtle rim-lighting bloom */}
-                      <div className="absolute -inset-1 bg-gradient-to-tr from-red-600/20 via-zinc-800/10 to-red-600/30 rounded-3xl blur-xl opacity-70 group-hover:opacity-100 transition duration-500" />
+                      {/* Subtle rim-lighting glow */}
+                      <div className="absolute -inset-3 bg-[radial-gradient(closest-side,rgba(220,38,38,0.2),transparent)] rounded-3xl opacity-75 group-hover:opacity-100 transition duration-500 pointer-events-none" />
 
-                      <div className="relative bg-zinc-900/80 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-xl">
+                      <div className="relative bg-zinc-900/95 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl">
                         {/* Portrait Image */}
                         <div className="relative aspect-[4/5] sm:aspect-square lg:aspect-[4/5] w-full overflow-hidden bg-zinc-950">
                           <img
                             src={siteContent.avatarUrl || DEFAULT_AVATAR_URL}
                             alt="Avinash - Game Designer & Lighting Artist"
+                            decoding="async"
                             className="w-full h-full object-cover object-top filter contrast-105 group-hover:scale-102 transition-transform duration-700"
                           />
                           <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/70 via-transparent to-transparent" />
@@ -1156,7 +1151,7 @@ export default function App() {
                             <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5">
                               <button
                                 onClick={() => setIsProfileEditorOpen(true)}
-                                className="text-red-300 hover:text-white text-[11px] font-mono font-semibold flex items-center gap-1 bg-zinc-950/85 backdrop-blur-md px-2.5 py-1 rounded-lg border border-red-800/60 transition-colors cursor-pointer"
+                                className="text-red-300 hover:text-white text-[11px] font-mono font-semibold flex items-center gap-1 bg-zinc-950/92 px-2.5 py-1 rounded-lg border border-red-800/60 transition-colors cursor-pointer"
                                 title="Upload or update artist portrait"
                               >
                                 <Upload className="w-3 h-3" />
@@ -1164,7 +1159,7 @@ export default function App() {
                               </button>
                               <button
                                 onClick={() => handleUpdateSiteLine('homeShowPortrait', false)}
-                                className="p-1.5 bg-zinc-950/85 hover:bg-red-900/80 text-red-400 border border-red-900/60 rounded-lg transition-colors cursor-pointer"
+                                className="p-1.5 bg-zinc-950/92 hover:bg-red-900/80 text-red-400 border border-red-900/60 rounded-lg transition-colors cursor-pointer"
                                 title="Remove Portrait Card"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
@@ -1174,11 +1169,11 @@ export default function App() {
                         </div>
 
                         {/* Card Footer: Direct Inquiry Only */}
-                        <div className="p-4 bg-zinc-950/85 border-t border-zinc-800/80 flex items-center justify-end text-xs font-mono">
+                        <div className="p-4 bg-zinc-950/90 border-t border-zinc-800/80 flex items-center justify-end text-xs font-mono">
                           <button
                             onClick={() => {
                               setActiveTab('contact');
-                              window.scrollTo({ top: 0, behavior: 'smooth' });
+                              window.scrollTo({ top: 0, behavior: 'auto' });
                             }}
                             className="text-red-400 hover:text-red-300 transition-colors flex items-center gap-1.5 font-medium cursor-pointer"
                           >
@@ -1211,18 +1206,12 @@ export default function App() {
             />
           </div>
         </section>
-      </motion.div>
-    )}
+          </div>
+        )}
 
-    {activeTab === 'work' && (
-      <motion.div
-        key="tab-work"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -12 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-      >
-        {/* 3. Interactive 3D Scene Lighting Studio */}
+        {activeTab === 'work' && (
+          <div key="tab-work" className="animate-in fade-in duration-150">
+            {/* 3. Interactive 3D Scene Lighting Studio */}
         {showStudioSection && (
           <section id="studio" className="py-12 sm:py-16 lg:py-20 bg-zinc-950/60 border-b border-zinc-800/80">
             <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14">
@@ -1630,22 +1619,16 @@ export default function App() {
             />
           </div>
         )}
-      </motion.div>
+      </div>
     )}
 
     {activeTab === 'about' && (
-      <motion.div
-        key="tab-about"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -12 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-      >
+      <div key="tab-about" className="animate-in fade-in duration-150">
         {/* 7. About, Toolset & Interactive Career Timeline */}
         <AboutSection
           onOpenContact={() => {
             setActiveTab('contact');
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            window.scrollTo({ top: 0, behavior: 'auto' });
           }}
           profile={profile}
           onUpdateProfile={handleSaveProfile}
@@ -1672,17 +1655,11 @@ export default function App() {
             />
           </div>
         )}
-      </motion.div>
+      </div>
     )}
 
     {activeTab === 'resume' && (
-      <motion.div
-        key="tab-resume"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -12 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-      >
+      <div key="tab-resume" className="animate-in fade-in duration-150">
         {/* Dedicated Resume Page (CV, PDF Download & Proficiencies) */}
         <ResumeSection
           profile={profile}
@@ -1698,17 +1675,11 @@ export default function App() {
           onAddSectionClick={handleOpenAddSection}
           onEditSectionClick={handleOpenEditSection}
         />
-      </motion.div>
+      </div>
     )}
 
     {activeTab === 'contact' && (
-      <motion.div
-        key="tab-contact"
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -12 }}
-        transition={{ duration: 0.3, ease: 'easeOut' }}
-      >
+      <div key="tab-contact" className="animate-in fade-in duration-150">
         {/* Dedicated Contact Page based on Reference Image */}
         <ContactSection
           siteContent={siteContent}
@@ -1720,9 +1691,8 @@ export default function App() {
           onAddSectionClick={handleOpenAddSection}
           onEditSectionClick={handleOpenEditSection}
         />
-      </motion.div>
+      </div>
     )}
-  </AnimatePresence>
 </main>
 
       {/* 8. Quiet Footer */}
