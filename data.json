@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1794639192917,
+  "updatedAt": 1794639202030,
   "projects": [
     {
       "id": "district-7-cyberpunk",
@@ -830,6 +830,21 @@
         "id": "bench-3",
         "value": "3+ Years",
         "label": "Game Industry Experience"
+      }
+    ],
+    "aboutStats": [
+      {
+        "id": "about-stat-2",
+        "value": "100% Core",
+        "label": "Game Design & Mechanics Focus",
+        "detail": "Strict < 16.6ms console target",
+        "highlight": true
+      },
+      {
+        "id": "about-stat-3",
+        "value": "7+ Years",
+        "label": "Game Design & Systems Exp",
+        "detail": "AAA & Award-Winning Indie"
       }
     ]
   },
