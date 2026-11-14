@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1794639242256,
+  "updatedAt": 1794639254280,
   "projects": [
     {
       "id": "district-7-cyberpunk",
@@ -716,7 +716,7 @@
     "abSliderTitle": "A/B Inspection: Clay vs Lit",
     "abSliderHint": "Drag slider to compare",
     "abSliderCaption": "Notice how the cool moonlight shaft pierces the gloom, while the warm fire brazier creates high-contrast localized sanctuary pockets for player navigation.",
-    "levelKicker": "Primary Profession · Game Systems & Level Architecture",
+    "levelKicker": "Primary Profession · Game Designs",
     "levelHeadline": "Core Competency",
     "levelDescription": "Great game design balances player agency, mechanical depth, and intuitive guidance. Here is how core loops, encounter spaces, and player feedback systems are architected from paper to engine.",
     "levelCard1Title": "Gameplay Loops & Mechanics Design",
