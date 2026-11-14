@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1794639039611,
+  "updatedAt": 1794639041520,
   "projects": [
     {
       "id": "district-7-cyberpunk",
@@ -779,7 +779,7 @@
     "aboutShowTimeline": true,
     "heroShowStats": true,
     "resumeShowBenchmarks": true,
-    "resumeShowExecutiveProfile": true,
+    "resumeShowExecutiveProfile": false,
     "resumeShowSkills": true,
     "resumeShowEducation": true,
     "resumeBenchmark1Value": "4 Titles",
