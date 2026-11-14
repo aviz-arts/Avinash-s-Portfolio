@@ -16,12 +16,10 @@ import {
   QrCode,
   Check,
   Loader2,
-  FileCode2,
-  Cloud,
+  GitBranch,
+  AlertTriangle,
 } from 'lucide-react';
-import type { CloudSyncState } from './CloudSyncModal';
-
-export type DeploySyncState = 'checking' | 'synced' | 'saving' | 'readonly' | 'error';
+import type { GitHubSyncState } from './GitHubSyncModal';
 
 interface OwnerBarProps {
   onAddNewProject: () => void;
@@ -42,12 +40,10 @@ interface OwnerBarProps {
   hasUnsavedChanges?: boolean;
   onSaveChanges?: () => void;
   onOpenSecurity?: () => void;
-  deploySyncState?: DeploySyncState;
-  onDownloadPublishedModule?: () => void;
-  onSyncNow?: () => void;
-  cloudSyncState?: CloudSyncState;
-  cloudGistId?: string;
-  onOpenCloudSync?: () => void;
+  githubSyncState?: GitHubSyncState;
+  githubRepoLabel?: string | null;
+  lastCommitSha?: string | null;
+  onOpenGitHubSync?: () => void;
 }
 
 export const OwnerBar: React.FC<OwnerBarProps> = ({
@@ -69,103 +65,73 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
   hasUnsavedChanges = false,
   onSaveChanges,
   onOpenSecurity,
-  deploySyncState = 'checking',
-  onDownloadPublishedModule,
-  onSyncNow,
-  cloudSyncState = 'disconnected',
-  cloudGistId,
-  onOpenCloudSync,
+  githubSyncState = 'checking',
+  githubRepoLabel,
+  lastCommitSha,
+  onOpenGitHubSync,
 }) => {
   return (
     <div className="print:hidden bg-zinc-950/95 border-b border-red-950/80 text-zinc-200 py-2 text-xs font-mono sticky top-0 z-50 backdrop-blur-md">
       <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14 flex flex-wrap items-center justify-between gap-3">
-        {/* Left: Owner identity */}
+        {/* Left: Owner identity & GitHub Contents API status */}
         <div className="flex flex-wrap items-center gap-2.5">
           <ShieldCheck className="w-4 h-4 text-red-500" />
           <span className="font-semibold text-white">Owner Mode Active:</span>
           <span className="text-zinc-400">aviz.arts@gmail.com</span>
+
           {hasUnsavedChanges && (
             <span className="inline-flex items-center gap-1.5 text-amber-300 border-l border-zinc-800 pl-2.5 text-[11px]">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-              <span>Unsaved changes</span>
+              <span>Uncommitted edits</span>
             </span>
-          )}
-          {deploySyncState === 'saving' && (
-            <span
-              className="inline-flex items-center gap-1.5 text-amber-300 border-l border-zinc-800 pl-2.5 text-[11px]"
-              title="Writing edits to source bundle for Vercel / production deployments..."
-            >
-              <Loader2 className="w-3 h-3 animate-spin" />
-              <span>Saving Preview...</span>
-            </span>
-          )}
-          {deploySyncState === 'synced' && (
-            <button
-              type="button"
-              onClick={onSyncNow}
-              className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 border-l border-zinc-800 pl-2.5 text-[11px] cursor-pointer transition-colors"
-              title="Saved in src/data/publishedPortfolio.ts & public/uploads. Click to verify."
-            >
-              <Check className="w-3 h-3" />
-              <span>Preview Bundle Saved</span>
-            </button>
-          )}
-          {deploySyncState === 'readonly' && onDownloadPublishedModule && (
-            <button
-              type="button"
-              onClick={onDownloadPublishedModule}
-              className="inline-flex items-center gap-1.5 text-amber-300 hover:text-white border-l border-zinc-800 pl-2.5 text-[11px] underline decoration-zinc-700 hover:decoration-red-500 underline-offset-2 cursor-pointer transition-colors"
-              title="Static Vercel build — use Cloud Sync to replicate changes everywhere automatically, or click here to export publishedPortfolio.ts."
-            >
-              <FileCode2 className="w-3 h-3 text-red-400" />
-              <span>Vercel Host · Export Bundle</span>
-            </button>
-          )}
-          {deploySyncState === 'error' && (
-            <button
-              type="button"
-              onClick={onSyncNow}
-              className="inline-flex items-center gap-1 text-red-400 hover:text-red-300 border-l border-zinc-800 pl-2.5 text-[11px] underline cursor-pointer"
-              title="Deploy source sync failed or payload too large; click to retry."
-            >
-              <span>Retry Bundle Save</span>
-            </button>
           )}
 
-          {onOpenCloudSync && (
+          {onOpenGitHubSync && (
             <button
               type="button"
-              onClick={onOpenCloudSync}
+              onClick={onOpenGitHubSync}
               className={`inline-flex items-center gap-1.5 border-l border-zinc-800 pl-2.5 text-[11px] cursor-pointer transition-colors ${
-                cloudSyncState === 'synced'
+                githubSyncState === 'committed'
                   ? 'text-emerald-400 hover:text-emerald-300'
-                  : cloudSyncState === 'syncing' || cloudSyncState === 'checking'
+                  : githubSyncState === 'committing' || githubSyncState === 'checking'
                   ? 'text-amber-300'
-                  : cloudSyncState === 'error'
+                  : githubSyncState === 'local-saved'
+                  ? 'text-sky-300 hover:text-sky-200'
+                  : githubSyncState === 'error'
                   ? 'text-red-400 hover:text-red-300'
-                  : 'text-red-300 hover:text-white'
+                  : 'text-amber-300 hover:text-white'
               }`}
               title={
-                cloudGistId
-                  ? `Live Cloud Sync active (Gist: ${cloudGistId}). Edits replicate automatically between Vercel, Preview, and every device.`
-                  : 'Connect Live Cloud Sync so edits made in Vercel or Preview replicate everywhere automatically.'
+                githubRepoLabel
+                  ? `Target repo: ${githubRepoLabel} (/data.json)${
+                      lastCommitSha ? ` · Last commit ${lastCommitSha.slice(0, 7)}` : ''
+                    }`
+                  : 'Click to open GitHub data.json sync & Vercel GITHUB_TOKEN setup guide'
               }
             >
-              {cloudSyncState === 'syncing' || cloudSyncState === 'checking' ? (
+              {githubSyncState === 'committing' || githubSyncState === 'checking' ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
+              ) : githubSyncState === 'committed' ? (
+                <Check className="w-3 h-3" />
+              ) : githubSyncState === 'error' || githubSyncState === 'needs-config' ? (
+                <AlertTriangle className="w-3 h-3" />
               ) : (
-                <Cloud className="w-3 h-3" />
+                <GitBranch className="w-3 h-3" />
               )}
               <span>
-                {cloudSyncState === 'synced'
-                  ? 'Live Everywhere (Vercel ↔ Preview)'
-                  : cloudSyncState === 'syncing'
-                  ? 'Replicating Everywhere...'
-                  : cloudSyncState === 'checking'
-                  ? 'Checking Live Cloud...'
-                  : cloudSyncState === 'error'
-                  ? 'Cloud Sync Needs Token'
-                  : 'Setup Anywhere Sync'}
+                {githubSyncState === 'committed'
+                  ? lastCommitSha
+                    ? `GitHub Committed (${lastCommitSha.slice(0, 7)})`
+                    : 'GitHub Synced (data.json)'
+                  : githubSyncState === 'committing'
+                  ? 'Committing data.json...'
+                  : githubSyncState === 'checking'
+                  ? 'Checking GitHub...'
+                  : githubSyncState === 'local-saved'
+                  ? 'Local data.json Saved · Setup GITHUB_TOKEN'
+                  : githubSyncState === 'error'
+                  ? 'GitHub Commit Failed — Inspect'
+                  : 'Setup GITHUB_TOKEN for GitHub Commits'}
               </span>
             </button>
           )}
@@ -243,7 +209,7 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
             className="flex items-center gap-1.5 px-2.5 py-1 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border border-zinc-800 rounded-lg transition-colors"
           >
             <Edit3 className="w-3.5 h-3.5 text-red-400" />
-            <span>Profile & Bio</span>
+            <span>Profile &amp; Bio</span>
           </button>
 
           {onOpenSecurity && (
@@ -257,19 +223,19 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
             </button>
           )}
 
-          {onOpenCloudSync && (
+          {onOpenGitHubSync && (
             <button
               type="button"
-              onClick={onOpenCloudSync}
+              onClick={onOpenGitHubSync}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${
-                cloudSyncState === 'synced'
+                githubSyncState === 'committed'
                   ? 'bg-emerald-950/35 hover:bg-emerald-900/40 text-emerald-300 border-emerald-800/60'
                   : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border-red-900/50'
               }`}
-              title="Sync edits between Vercel, AI Studio Preview, and all devices automatically"
+              title="Manage direct GitHub data.json commits & Vercel GITHUB_TOKEN setup"
             >
-              <Cloud className="w-3.5 h-3.5 text-red-400" />
-              <span>Cloud Sync</span>
+              <GitBranch className="w-3.5 h-3.5 text-red-400" />
+              <span>GitHub Sync</span>
             </button>
           )}
 
@@ -312,21 +278,29 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
             <RotateCcw className="w-3.5 h-3.5" />
           </button>
 
-          {hasUnsavedChanges && onSaveChanges && (
+          {onSaveChanges && (
             <button
               onClick={onSaveChanges}
-              className="flex items-center gap-1.5 px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 text-amber-200 border border-amber-500/40 rounded-lg transition-colors cursor-pointer"
-              title="Save all pending changes made during this Owner Mode session"
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${
+                hasUnsavedChanges
+                  ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border-amber-500/50'
+                  : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border-zinc-800'
+              }`}
+              title="Commit current data.json changes directly to GitHub via /api/github-content"
             >
-              <Save className="w-3.5 h-3.5 text-amber-400" />
-              <span>Save Changes</span>
+              {githubSyncState === 'committing' ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+              ) : (
+                <Save className="w-3.5 h-3.5 text-amber-400" />
+              )}
+              <span>Save &amp; Commit</span>
             </button>
           )}
 
           <button
             onClick={onLogout}
             className="flex items-center gap-1 px-2.5 py-1 bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 rounded-lg transition-colors cursor-pointer"
-            title="Close Owner Mode (prompts to save if edits were made)"
+            title="Close Owner Mode (prompts to save & commit if edits were made)"
           >
             <LogOut className="w-3.5 h-3.5" />
             <span>Close Owner Mode</span>

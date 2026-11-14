@@ -227,7 +227,13 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
 
                   <div>
                     <div className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 font-semibold">
-                      EMAIL
+                      <EditableText
+                        value={siteContent.contactEmailCardLabel || 'EMAIL'}
+                        onChange={(v) => handleUpdate('contactEmailCardLabel', v)}
+                        isOwner={isOwner}
+                        label="Email Card Heading"
+                        as="span"
+                      />
                     </div>
                     <div className="text-lg sm:text-xl font-display font-bold text-white group-hover:text-red-400 transition-colors mt-0.5 break-all">
                       <EditableText
@@ -262,7 +268,15 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
                     <span>Compose Mail</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
-                  <span className="text-[11px] font-mono text-zinc-500">Fast Turnaround</span>
+                  <span className="text-[11px] font-mono text-zinc-500">
+                    <EditableText
+                      value={siteContent.contactEmailCardBadge || 'Fast Turnaround'}
+                      onChange={(v) => handleUpdate('contactEmailCardBadge', v)}
+                      isOwner={isOwner}
+                      label="Email Card Badge"
+                      as="span"
+                    />
+                  </span>
                 </div>
               </div>
             )}
@@ -301,7 +315,13 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
 
                   <div>
                     <div className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 font-semibold">
-                      PHONE / WHATSAPP
+                      <EditableText
+                        value={siteContent.contactPhoneCardLabel || 'PHONE / WHATSAPP'}
+                        onChange={(v) => handleUpdate('contactPhoneCardLabel', v)}
+                        isOwner={isOwner}
+                        label="Phone Card Heading"
+                        as="span"
+                      />
                     </div>
                     <div className="text-lg sm:text-xl font-display font-bold text-white group-hover:text-red-400 transition-colors mt-0.5">
                       <EditableText
@@ -336,7 +356,15 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
                     <span>Direct Dial / WhatsApp</span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
-                  <span className="text-[11px] font-mono text-zinc-500">IST Business Hours</span>
+                  <span className="text-[11px] font-mono text-zinc-500">
+                    <EditableText
+                      value={siteContent.contactPhoneCardBadge || 'IST Business Hours'}
+                      onChange={(v) => handleUpdate('contactPhoneCardBadge', v)}
+                      isOwner={isOwner}
+                      label="Phone Card Badge"
+                      as="span"
+                    />
+                  </span>
                 </div>
               </div>
             )}
@@ -349,7 +377,15 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
             <div className="flex items-center justify-between gap-2 mb-6">
               <div className="flex items-center gap-2">
                 <MessageSquare className="w-5 h-5 text-red-500" />
-                <h3 className="text-lg font-display font-bold text-white">Send Direct Message</h3>
+                <h3 className="text-lg font-display font-bold text-white">
+                  <EditableText
+                    value={siteContent.contactFormTitle || 'Send Direct Message'}
+                    onChange={(v) => handleUpdate('contactFormTitle', v)}
+                    isOwner={isOwner}
+                    label="Direct Message Form Title"
+                    as="span"
+                  />
+                </h3>
               </div>
               {isOwner && (
                 <button

@@ -16,7 +16,7 @@ import { AboutSection } from './components/about/AboutSection';
 import { ContactSection } from './components/contact/ContactSection';
 import { ResumeSection } from './components/resume/ResumeSection';
 import { ContactModal } from './components/contact/ContactModal';
-import { OwnerBar, DeploySyncState } from './components/owner/OwnerBar';
+import { OwnerBar } from './components/owner/OwnerBar';
 import { OwnerLoginModal } from './components/owner/OwnerLoginModal';
 import { ProjectEditorModal } from './components/owner/ProjectEditorModal';
 import { ProfileEditorModal } from './components/owner/ProfileEditorModal';
@@ -25,18 +25,15 @@ import { SiteContentEditorModal } from './components/owner/SiteContentEditorModa
 import { SectionManagerModal } from './components/owner/SectionManagerModal';
 import { UnsavedChangesModal } from './components/owner/UnsavedChangesModal';
 import { OwnerSecurityModal } from './components/owner/OwnerSecurityModal';
-import { CloudSyncModal, CloudSyncState } from './components/owner/CloudSyncModal';
-import { PUBLISHED_PORTFOLIO } from './data/publishedPortfolio';
+import { GitHubSyncModal, GitHubSyncState } from './components/owner/GitHubSyncModal';
 import {
-  checkServerCloudSyncStatus,
-  clearStoredCloudSyncCredentials,
-  extractGistId,
-  fetchSnapshotFromCloud,
-  getStoredCloudSyncCredentials,
-  pushSnapshotToCloud,
-  resolveEffectiveCloudGistId,
-  saveStoredCloudSyncCredentials,
-} from './utils/cloudSync';
+  GitHubSyncStatus,
+  PortfolioDataDocument,
+  commitPortfolioDataToGitHub,
+  fetchGitHubContentStatus,
+  fetchPortfolioDataFromGitHub,
+  snapshotFromPortfolioDocument,
+} from './utils/githubSync';
 import { CustomSectionRenderer } from './components/portfolio/CustomSectionRenderer';
 import { EditableText } from './components/common/EditableText';
 import { CustomCursor } from './components/common/CustomCursor';
@@ -85,12 +82,8 @@ import {
   getStoredOwnerSessionBaseline,
   saveStoredOwnerSessionBaseline,
   clearStoredOwnerSessionBaseline,
-  syncLocalStorageWithPublishedBundle,
-  checkServerPublishStatus,
-  publishPortfolioToServer,
-  generatePublishedPortfolioTsSource,
-  getLocalPortfolioTimestamp,
-  setLocalPortfolioTimestamp,
+  getPortfolioDataTimestamp,
+  hydratePortfolioStoreFromDocument,
   DEFAULT_AVATAR_URL,
 } from './utils/portfolioStorage';
 import {
@@ -108,7 +101,6 @@ import {
   Upload,
   Image as ImageIcon,
   Film,
-  RotateCcw,
   Plus,
   Trash2,
 } from 'lucide-react';
@@ -121,22 +113,13 @@ export default function App() {
   const [isContactOpen, setIsContactOpen] = useState(false);
   const [siteContentEditorTab, setSiteContentEditorTab] = useState<'hero' | 'studio' | 'works' | 'reels' | 'level' | 'about' | 'contact' | 'footer'>('hero');
 
-  // Synchronize any newer deployed bundle with stale browser localStorage BEFORE initial reads
-  const bundleSyncStatusRef = useRef<'refreshed_from_deploy' | 'has_pending_local_edits' | 'in_sync' | null>(null);
-  if (bundleSyncStatusRef.current === null) {
-    bundleSyncStatusRef.current = syncLocalStorageWithPublishedBundle();
-  }
-
-  // Persistent State
+  // In-memory state seeded synchronously from root /data.json (zero localStorage for portfolio content)
   const [projects, setProjects] = useState<ProjectItem[]>(() => getStoredProjects());
   const [profile, setProfile] = useState<OwnerProfile>(() => getStoredProfile());
   const [siteContent, setSiteContent] = useState<SiteContent>(() => getStoredSiteContent());
   const [resumePdf, setResumePdf] = useState<StoredResumePdf | null>(() => getStoredResumePdf());
   const [customSections, setCustomSections] = useState<CustomSection[]>(() => getStoredCustomSections());
   const [resumeMilestones, setResumeMilestones] = useState<ResumeMilestone[]>(() => getStoredResumeMilestones());
-  const [deploySyncState, setDeploySyncState] = useState<DeploySyncState>('checking');
-  const canWriteToSourceRef = useRef(false);
-  const lastPublishedHashRef = useRef<string | null>(null);
 
   // Owner Mode State (Private: Only visible to Owner Avinash)
   const [isOwner, setIsOwner] = useState<boolean>(() => isOwnerSessionActive());
@@ -171,19 +154,27 @@ export default function App() {
   const [pendingOwnerCloseAction, setPendingOwnerCloseAction] = useState<'logout' | 'forgetDevice' | null>(null);
   const [pendingCloseModalMode, setPendingCloseModalMode] = useState<'unsaved' | 'confirmForget'>('unsaved');
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
-  const [isCloudSyncOpen, setIsCloudSyncOpen] = useState(false);
-  const [cloudSyncState, setCloudSyncState] = useState<CloudSyncState>(() =>
-    resolveEffectiveCloudGistId(siteContent) || getStoredCloudSyncCredentials()?.githubToken
-      ? 'checking'
-      : 'disconnected'
+  const [isGitHubSyncOpen, setIsGitHubSyncOpen] = useState(false);
+  const [githubSyncState, setGithubSyncState] = useState<GitHubSyncState>('checking');
+  const [githubStatus, setGithubStatus] = useState<GitHubSyncStatus>({
+    configured: false,
+    hasToken: false,
+    hasRepo: false,
+    owner: null,
+    repo: null,
+    branch: 'main',
+    path: 'data.json',
+    canWriteLocal: false,
+  });
+  const [lastCommitSha, setLastCommitSha] = useState<string | null>(null);
+  const [lastCommitUrl, setLastCommitUrl] = useState<string | null>(null);
+  const [lastGitHubSyncedAt, setLastGitHubSyncedAt] = useState<number>(() =>
+    getPortfolioDataTimestamp()
   );
-  const [lastCloudSyncedAt, setLastCloudSyncedAt] = useState<number>(() =>
-    Math.max(getLocalPortfolioTimestamp(), Number(PUBLISHED_PORTFOLIO?.publishedAt) || 0)
-  );
-  const [serverCloudEnvConfigured, setServerCloudEnvConfigured] = useState<boolean>(false);
-  const serverCloudSyncRef = useRef<{ configured: boolean; gistId?: string }>({ configured: false });
-  const lastCloudPullAtRef = useRef<number>(0);
-  const lastCloudPushedHashRef = useRef<string | null>(null);
+  const [lastGitHubError, setLastGitHubError] = useState<string | null>(null);
+  const lastGitHubPullAtRef = useRef<number>(0);
+  const lastCommittedHashRef = useRef<string | null>(null);
+  const hasUnsavedOwnerEditsRef = useRef<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -240,174 +231,29 @@ export default function App() {
   const currentOwnerSnapshotRef = useRef<OwnerSessionSnapshot>(currentOwnerSnapshot);
   currentOwnerSnapshotRef.current = currentOwnerSnapshot;
 
-  const flushPublishToServer = async (
-    snapshot: OwnerSessionSnapshot,
-    options?: { reset?: boolean; keepalive?: boolean }
-  ): Promise<boolean> => {
-    if (!canWriteToSourceRef.current) return false;
-    const hash = JSON.stringify(snapshot);
-    setDeploySyncState('saving');
-    const result = await publishPortfolioToServer(snapshot, options);
-    if (result.ok) {
-      lastPublishedHashRef.current = hash;
-      setDeploySyncState('synced');
-      return true;
-    }
-    if (result.readOnly) {
-      canWriteToSourceRef.current = false;
-      setDeploySyncState('readonly');
-    } else {
-      setDeploySyncState('error');
-    }
-    return false;
-  };
-
-  // Detect whether preview dev server can persist changes directly to source bundle
-  // with automatic retry during server startup, and immediately rescue pending/empty bundles
-  useEffect(() => {
-    let cancelled = false;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    let attempts = 0;
-
-    const probeAndSync = async () => {
-      attempts += 1;
-      const status = await checkServerPublishStatus();
-      if (cancelled) return;
-
-      if (!status.reachable && attempts < 5) {
-        retryTimer = setTimeout(() => {
-          void probeAndSync();
-        }, 1800);
-        return;
-      }
-
-      canWriteToSourceRef.current = status.canWriteToSource;
-      if (!status.canWriteToSource) {
-        setDeploySyncState('readonly');
-        return;
-      }
-
-      const initialSnapshot = currentOwnerSnapshotRef.current;
-      const initialHash = JSON.stringify(initialSnapshot);
-      const localTs = getLocalPortfolioTimestamp();
-
-      if (
-        bundleSyncStatusRef.current === 'has_pending_local_edits' ||
-        status.publishedAt === 0 ||
-        localTs > status.publishedAt
-      ) {
-        setDeploySyncState('saving');
-        const res = await publishPortfolioToServer(initialSnapshot, {
-          publishedAt: localTs > 0 ? localTs : undefined,
-        });
-        if (cancelled) return;
-        if (res.ok) {
-          lastPublishedHashRef.current = initialHash;
-          setDeploySyncState('synced');
-        } else {
-          setDeploySyncState(res.readOnly ? 'readonly' : 'error');
-        }
-      } else {
-        lastPublishedHashRef.current = initialHash;
-        setDeploySyncState('synced');
-      }
-    };
-
-    void probeAndSync();
-
-    return () => {
-      cancelled = true;
-      if (retryTimer) clearTimeout(retryTimer);
-    };
-  }, []);
-
-  // Automatically sync any Owner Mode changes to src/data/publishedPortfolio.ts in preview
-  useEffect(() => {
-    if (!canWriteToSourceRef.current) return;
-    const nextHash = JSON.stringify(currentOwnerSnapshot);
-    if (lastPublishedHashRef.current === null || nextHash === lastPublishedHashRef.current) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      void flushPublishToServer(currentOwnerSnapshot);
-    }, 350);
-
-    return () => clearTimeout(timer);
-  }, [currentOwnerSnapshot]);
-
-  // Flush pending edits cleanly if the user refreshes, switches away, or closes preview
-  useEffect(() => {
-    const flushIfDirty = () => {
-      if (!canWriteToSourceRef.current) return;
-      const snapshot = currentOwnerSnapshotRef.current;
-      const nextHash = JSON.stringify(snapshot);
-      if (lastPublishedHashRef.current !== null && nextHash !== lastPublishedHashRef.current) {
-        void publishPortfolioToServer(snapshot, { keepalive: true }).then((res) => {
-          if (res.ok) {
-            lastPublishedHashRef.current = nextHash;
-          }
-        });
-      }
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        flushIfDirty();
-      }
-    };
-
-    window.addEventListener('pagehide', flushIfDirty);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => {
-      window.removeEventListener('pagehide', flushIfDirty);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
-
-  const applyCloudSnapshot = async (
-    incomingSnapshot: OwnerSessionSnapshot,
-    remoteTs: number,
-    gistIdFromRemote?: string,
-    bannerText?: string
-  ) => {
-    const cleanGistId =
-      extractGistId(gistIdFromRemote || '') ||
-      resolveEffectiveCloudGistId(incomingSnapshot.siteContent) ||
-      serverCloudSyncRef.current.gistId ||
-      '';
-
-    const normalizedSnapshot = createOwnerSessionSnapshot({
-      ...incomingSnapshot,
-      siteContent: {
-        ...incomingSnapshot.siteContent,
-        ...(cleanGistId ? { cloudSyncGistId: cleanGistId } : {}),
-      },
+  const applyPortfolioDocument = (doc: PortfolioDataDocument, bannerText?: string) => {
+    hydratePortfolioStoreFromDocument(doc);
+    const hydratedSnapshot = createOwnerSessionSnapshot({
+      projects: getStoredProjects(),
+      profile: getStoredProfile(),
+      siteContent: getStoredSiteContent(),
+      customSections: getStoredCustomSections(),
+      resumeMilestones: getStoredResumeMilestones(),
+      resumePdf: getStoredResumePdf(),
     });
 
-    const appliedHash = JSON.stringify(normalizedSnapshot);
-    lastCloudPushedHashRef.current = appliedHash;
-    lastPublishedHashRef.current = appliedHash;
-
-    setProjects(normalizedSnapshot.projects);
-    setProfile(normalizedSnapshot.profile);
-    setSiteContent(normalizedSnapshot.siteContent);
-    setCustomSections(normalizedSnapshot.customSections);
-    setResumeMilestones(normalizedSnapshot.resumeMilestones);
-    setResumePdf(normalizedSnapshot.resumePdf);
-    saveOwnerSessionSnapshot(normalizedSnapshot, remoteTs);
+    lastCommittedHashRef.current = JSON.stringify(hydratedSnapshot);
+    setProjects(hydratedSnapshot.projects);
+    setProfile(hydratedSnapshot.profile);
+    setSiteContent(hydratedSnapshot.siteContent);
+    setCustomSections(hydratedSnapshot.customSections);
+    setResumeMilestones(hydratedSnapshot.resumeMilestones);
+    setResumePdf(hydratedSnapshot.resumePdf);
+    setLastGitHubSyncedAt(Number(doc.updatedAt) || Date.now());
 
     if (isOwnerSessionActive()) {
-      setOwnerSessionBaseline(normalizedSnapshot);
-      saveStoredOwnerSessionBaseline(normalizedSnapshot);
-    }
-
-    setLastCloudSyncedAt(remoteTs);
-    setCloudSyncState('synced');
-
-    if (canWriteToSourceRef.current) {
-      await publishPortfolioToServer(normalizedSnapshot, { publishedAt: remoteTs });
-      setDeploySyncState('synced');
+      setOwnerSessionBaseline(hydratedSnapshot);
+      saveStoredOwnerSessionBaseline(hydratedSnapshot);
     }
 
     if (bannerText) {
@@ -415,155 +261,196 @@ export default function App() {
     }
   };
 
-  const pullFromCloudIfNewer = async (options?: {
+  const pullLatestDataJson = async (options?: {
     force?: boolean;
-    gistIdOverride?: string;
     showNoChangesBanner?: boolean;
   }): Promise<{ ok: boolean; message?: string }> => {
     const now = Date.now();
-    if (!options?.force && now - lastCloudPullAtRef.current < 4000) {
+    if (!options?.force && now - lastGitHubPullAtRef.current < 4000) {
       return { ok: true };
     }
-    lastCloudPullAtRef.current = now;
+    lastGitHubPullAtRef.current = now;
 
-    const effectiveGistId =
-      extractGistId(options?.gistIdOverride || '') ||
-      resolveEffectiveCloudGistId(currentOwnerSnapshotRef.current.siteContent) ||
-      serverCloudSyncRef.current.gistId ||
-      '';
+    // Never overwrite uncommitted Owner Mode edits in flight unless explicitly forced
+    if (!options?.force && hasUnsavedOwnerEditsRef.current) {
+      return { ok: true };
+    }
 
-    if (!effectiveGistId && !serverCloudSyncRef.current.configured) {
-      setCloudSyncState(
-        getStoredCloudSyncCredentials()?.githubToken ? 'error' : 'disconnected'
+    const res = await fetchPortfolioDataFromGitHub();
+    if (!res.ok || !res.data) {
+      if (res.notConfigured) {
+        setGithubSyncState(githubStatus.canWriteLocal ? 'local-saved' : 'needs-config');
+      } else {
+        setLastGitHubError(res.error || 'Could not load data.json');
+        setGithubSyncState('error');
+      }
+      return { ok: false, message: res.error || 'Could not load data.json.' };
+    }
+
+    setLastGitHubError(null);
+    const remoteTs = Number(res.updatedAt) || Number(res.data.updatedAt) || 0;
+    const knownTs = getPortfolioDataTimestamp();
+
+    if (options?.force || remoteTs > knownTs) {
+      applyPortfolioDocument(
+        res.data,
+        options?.force ? 'Loaded latest data.json from repository.' : undefined
       );
-      return { ok: false, message: 'No Cloud Sync Gist ID configured yet.' };
+      if (res.source === 'github') {
+        setGithubSyncState('committed');
+      } else if (githubStatus.configured) {
+        setGithubSyncState('committed');
+      } else if (githubStatus.canWriteLocal) {
+        setGithubSyncState('local-saved');
+      }
+      return { ok: true, message: 'Loaded latest data.json and updated portfolio.' };
     }
 
-    setCloudSyncState('checking');
-    const res = await fetchSnapshotFromCloud(effectiveGistId);
-    if (!res.ok || !res.snapshot) {
-      setCloudSyncState(res.notConfigured ? 'disconnected' : 'error');
-      return { ok: false, message: res.error || 'Could not fetch from Cloud Sync.' };
+    if (res.source === 'github' || githubStatus.configured) {
+      setGithubSyncState('committed');
+    } else if (githubStatus.canWriteLocal) {
+      setGithubSyncState('local-saved');
+    } else {
+      setGithubSyncState('needs-config');
     }
 
-    const knownTs = Math.max(
-      getLocalPortfolioTimestamp(),
-      Number(PUBLISHED_PORTFOLIO?.publishedAt) || 0
-    );
-
-    if (res.publishedAt > knownTs || options?.force) {
-      const appliedTs = res.publishedAt > 0 ? res.publishedAt : Date.now();
-      await applyCloudSnapshot(
-        res.snapshot,
-        appliedTs,
-        res.gistId || effectiveGistId,
-        'Synced latest portfolio changes from Live Cloud.'
-      );
-      return {
-        ok: true,
-        message: 'Pulled latest portfolio changes from Cloud & applied everywhere.',
-      };
-    }
-
-    setLastCloudSyncedAt(res.publishedAt || knownTs);
-    setCloudSyncState('synced');
     if (options?.showNoChangesBanner) {
-      showBanner('Portfolio is already up to date with Live Cloud.');
+      showBanner('Portfolio already matches the latest data.json.');
     }
-    return { ok: true, message: 'Portfolio is already up to date with Live Cloud.' };
+    return { ok: true, message: 'Portfolio already matches the latest data.json.' };
   };
 
-  const pushToCloudNow = async (
+  const commitSnapshotToGitHub = async (
     snapshot: OwnerSessionSnapshot,
-    publishedAtOverride?: number,
-    overrideCreds?: { gistId?: string; githubToken?: string }
-  ): Promise<{ ok: boolean; gistId?: string; message?: string; warnings?: string[] }> => {
-    const stored = getStoredCloudSyncCredentials();
-    const canPush = Boolean(
-      overrideCreds?.githubToken?.trim() ||
-        stored?.githubToken ||
-        serverCloudSyncRef.current.configured
-    );
+    options?: {
+      commitMessage?: string;
+      keepalive?: boolean;
+      updateBaseline?: boolean;
+    }
+  ): Promise<{ ok: boolean; committedToGitHub?: boolean; savedToLocalFile?: boolean; message?: string }> => {
+    const ts = Date.now();
+    saveOwnerSessionSnapshot(snapshot, ts);
+    setGithubSyncState('committing');
+    setLastGitHubError(null);
 
-    if (!canPush) {
+    const res = await commitPortfolioDataToGitHub(snapshot, {
+      updatedAt: ts,
+      commitMessage: options?.commitMessage,
+      keepalive: options?.keepalive,
+    });
+
+    if (res.ok) {
+      const committedHash = JSON.stringify(createOwnerSessionSnapshot(snapshot));
+      lastCommittedHashRef.current = committedHash;
+      setLastGitHubSyncedAt(res.updatedAt || ts);
+
+      if (res.commitSha) setLastCommitSha(res.commitSha);
+      if (res.commitUrl) setLastCommitUrl(res.commitUrl);
+
+      if (options?.updateBaseline !== false && isOwnerSessionActive()) {
+        const freshBaseline = createOwnerSessionSnapshot(snapshot);
+        setOwnerSessionBaseline(freshBaseline);
+        saveStoredOwnerSessionBaseline(freshBaseline);
+      }
+
+      if (res.committedToGitHub) {
+        setGithubSyncState('committed');
+        return {
+          ok: true,
+          committedToGitHub: true,
+          savedToLocalFile: res.savedToLocalFile,
+          message: res.commitSha
+            ? `Committed data.json to GitHub (${res.commitSha.slice(0, 7)})!`
+            : 'Committed data.json to GitHub repository!',
+        };
+      }
+
+      if (res.savedToLocalFile) {
+        setGithubSyncState('local-saved');
+        return {
+          ok: true,
+          committedToGitHub: false,
+          savedToLocalFile: true,
+          message:
+            'Saved to local data.json (set GITHUB_TOKEN in Vercel to commit remotely).',
+        };
+      }
+
+      setGithubSyncState('needs-config');
       return {
-        ok: false,
-        message: 'No GitHub Gist write token configured on this browser.',
+        ok: true,
+        committedToGitHub: false,
+        message: 'Changes applied in session — configure GITHUB_TOKEN in Vercel to commit data.json.',
       };
     }
 
-    setCloudSyncState('syncing');
-    const targetTs = publishedAtOverride || Date.now();
-    const res = await pushSnapshotToCloud(snapshot, targetTs, overrideCreds);
-
-    if (!res.ok) {
-      setCloudSyncState('error');
-      return { ok: false, message: res.error };
+    if (res.notConfigured) {
+      setGithubSyncState('needs-config');
+      setLastGitHubError(res.error || 'GITHUB_TOKEN is not configured in server environment.');
+      return {
+        ok: false,
+        message: res.error || 'GITHUB_TOKEN is not configured in Vercel environment variables.',
+      };
     }
 
-    const finalTs = res.publishedAt || targetTs;
-    const finalGistId = res.gistId || resolveEffectiveCloudGistId(snapshot.siteContent);
-
-    if (finalGistId && finalGistId !== snapshot.siteContent?.cloudSyncGistId) {
-      const updatedSnapshot = createOwnerSessionSnapshot({
-        ...snapshot,
-        siteContent: { ...snapshot.siteContent, cloudSyncGistId: finalGistId },
-      });
-      const updatedHash = JSON.stringify(updatedSnapshot);
-      lastCloudPushedHashRef.current = updatedHash;
-      setSiteContent(updatedSnapshot.siteContent);
-      saveOwnerSessionSnapshot(updatedSnapshot, finalTs);
-      if (isOwnerSessionActive()) {
-        setOwnerSessionBaseline(updatedSnapshot);
-        saveStoredOwnerSessionBaseline(updatedSnapshot);
-      }
-      if (canWriteToSourceRef.current) {
-        lastPublishedHashRef.current = updatedHash;
-        void publishPortfolioToServer(updatedSnapshot, { publishedAt: finalTs });
-      }
-    } else {
-      lastCloudPushedHashRef.current = JSON.stringify(snapshot);
-      setLocalPortfolioTimestamp(finalTs);
-    }
-
-    setLastCloudSyncedAt(finalTs);
-    setCloudSyncState('synced');
+    setGithubSyncState('error');
+    setLastGitHubError(res.error || 'GitHub Contents API commit failed.');
     return {
-      ok: true,
-      gistId: finalGistId,
-      warnings: res.warnings,
-      message: 'Live Cloud updated — all Vercel, Preview & visitor sessions will replicate automatically.',
+      ok: false,
+      message: res.error || 'Failed to commit data.json to GitHub.',
     };
   };
 
-  // Probe server/Vercel Cloud Sync env + pull any newer Cloud Gist updates on mount, focus & interval
+  // Probe server GitHub configuration & pull live data.json on mount, focus & interval
   useEffect(() => {
     let cancelled = false;
 
-    const initCloud = async () => {
-      const serverStatus = await checkServerCloudSyncStatus();
+    const initGitHubSync = async () => {
+      const status = await fetchGitHubContentStatus();
       if (cancelled) return;
-      serverCloudSyncRef.current = {
-        configured: serverStatus.serverConfigured,
-        gistId: serverStatus.gistId,
-      };
-      setServerCloudEnvConfigured(serverStatus.serverConfigured);
-      await pullFromCloudIfNewer({ force: false });
+      setGithubStatus(status);
+      lastCommittedHashRef.current = JSON.stringify(currentOwnerSnapshotRef.current);
+
+      const res = await fetchPortfolioDataFromGitHub();
+      if (cancelled) return;
+
+      if (res.ok && res.data) {
+        const remoteTs = Number(res.updatedAt) || Number(res.data.updatedAt) || 0;
+        const bundledTs = getPortfolioDataTimestamp();
+        if (remoteTs > bundledTs && !hasUnsavedOwnerEditsRef.current) {
+          applyPortfolioDocument(res.data);
+        }
+        setGithubSyncState(
+          status.configured
+            ? 'committed'
+            : status.canWriteLocal
+            ? 'local-saved'
+            : 'needs-config'
+        );
+      } else {
+        setGithubSyncState(
+          status.configured
+            ? 'committed'
+            : status.canWriteLocal
+            ? 'local-saved'
+            : 'needs-config'
+        );
+      }
     };
 
-    void initCloud();
+    void initGitHubSync();
 
     const handleFocus = () => {
-      void pullFromCloudIfNewer({ force: false });
+      void pullLatestDataJson({ force: false });
     };
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        void pullFromCloudIfNewer({ force: false });
+        void pullLatestDataJson({ force: false });
       }
     };
 
     const interval = setInterval(() => {
-      void pullFromCloudIfNewer({ force: false });
+      void pullLatestDataJson({ force: false });
     }, 30_000);
 
     window.addEventListener('focus', handleFocus);
@@ -576,74 +463,32 @@ export default function App() {
     };
   }, []);
 
-  // Automatically push Owner edits to Live Cloud whenever write access is connected
-  useEffect(() => {
-    if (!isOwner) return;
-    const hasCloudWrite = Boolean(
-      getStoredCloudSyncCredentials()?.githubToken || serverCloudSyncRef.current.configured
-    );
-    if (!hasCloudWrite) return;
-
-    const nextHash = JSON.stringify(currentOwnerSnapshot);
-    if (lastCloudPushedHashRef.current === null) {
-      lastCloudPushedHashRef.current = nextHash;
-      return;
-    }
-    if (nextHash === lastCloudPushedHashRef.current) {
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      const ts = Math.max(Date.now(), getLocalPortfolioTimestamp());
-      void pushToCloudNow(currentOwnerSnapshot, ts);
-    }, 750);
-
-    return () => clearTimeout(timer);
-  }, [currentOwnerSnapshot, isOwner]);
-
-  const handleSyncNowForVercel = async () => {
-    const status = await checkServerPublishStatus();
-    if (!status.canWriteToSource) {
-      canWriteToSourceRef.current = false;
-      setDeploySyncState('readonly');
-      handleDownloadPublishedModule();
-      return;
-    }
-    canWriteToSourceRef.current = true;
-    const ok = await flushPublishToServer(currentOwnerSnapshotRef.current);
-    const hasCloudWrite = Boolean(
-      getStoredCloudSyncCredentials()?.githubToken || serverCloudSyncRef.current.configured
-    );
-    if (hasCloudWrite) {
-      await pushToCloudNow(currentOwnerSnapshotRef.current);
-    }
-    if (ok) {
-      showBanner('Synced to src/data/publishedPortfolio.ts — Ready for Vercel deploy!');
-    } else {
-      showBanner('Sync failed — try shorter video or external URL, or check server logs.');
-    }
-  };
-
-  const handleDownloadPublishedModule = () => {
-    const tsSource = generatePublishedPortfolioTsSource(currentOwnerSnapshot, Date.now());
-    const blob = new Blob([tsSource], { type: 'text/typescript;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'publishedPortfolio.ts';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    showBanner('Downloaded publishedPortfolio.ts — place it in src/data/ before deploying.');
-  };
-
   const changedOwnerSections = useMemo(
     () => (isOwner ? getChangedOwnerSections(ownerSessionBaseline, currentOwnerSnapshot) : []),
     [isOwner, ownerSessionBaseline, currentOwnerSnapshot]
   );
 
   const hasUnsavedOwnerEdits = changedOwnerSections.length > 0;
+  hasUnsavedOwnerEditsRef.current = hasUnsavedOwnerEdits;
+
+  // Auto-commit data.json shortly after Owner Mode edits when GITHUB_TOKEN (or local preview file write) is ready
+  useEffect(() => {
+    if (!isOwner || (!githubStatus.configured && !githubStatus.canWriteLocal)) return;
+    const nextHash = JSON.stringify(currentOwnerSnapshot);
+    if (lastCommittedHashRef.current === null) {
+      lastCommittedHashRef.current = nextHash;
+      return;
+    }
+    if (nextHash === lastCommittedHashRef.current) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      void commitSnapshotToGitHub(currentOwnerSnapshot, { updateBaseline: true });
+    }, 1800);
+
+    return () => clearTimeout(timer);
+  }, [currentOwnerSnapshot, isOwner, githubStatus.configured, githubStatus.canWriteLocal]);
 
   // Warn before browser tab reload/close when Owner Mode has unsaved edits
   useEffect(() => {
@@ -858,10 +703,10 @@ export default function App() {
         resumeMilestones: res.resumeMilestones,
         resumePdf: null,
       };
-      void flushPublishToServer(resetSnapshot, { reset: true });
-      if (getStoredCloudSyncCredentials()?.githubToken || serverCloudSyncRef.current.configured) {
-        void pushToCloudNow(resetSnapshot);
-      }
+      void commitSnapshotToGitHub(resetSnapshot, {
+        commitMessage: 'chore(portfolio): reset data.json to factory defaults',
+        updateBaseline: true,
+      });
       showBanner('Portfolio reset to default showcase data.');
     }
   };
@@ -886,35 +731,14 @@ export default function App() {
   };
 
   const handleSaveAllOwnerChanges = async () => {
-    const ts = Date.now();
-    saveOwnerSessionSnapshot(currentOwnerSnapshot, ts);
-    const freshBaseline = createOwnerSessionSnapshot(currentOwnerSnapshot);
-    setOwnerSessionBaseline(freshBaseline);
-    saveStoredOwnerSessionBaseline(freshBaseline);
-
-    if (!canWriteToSourceRef.current) {
-      const status = await checkServerPublishStatus();
-      canWriteToSourceRef.current = status.canWriteToSource;
-    }
-
-    const synced = await flushPublishToServer(currentOwnerSnapshot);
-    const hasCloudWrite = Boolean(
-      getStoredCloudSyncCredentials()?.githubToken || serverCloudSyncRef.current.configured
-    );
-    const cloudRes = hasCloudWrite
-      ? await pushToCloudNow(currentOwnerSnapshot, ts)
-      : { ok: false };
-
-    if (cloudRes.ok) {
-      showBanner('Saved & replicated to Live Cloud (Vercel ↔ Preview)!');
+    const res = await commitSnapshotToGitHub(currentOwnerSnapshotRef.current, {
+      updateBaseline: true,
+    });
+    if (res.ok) {
+      showBanner(res.message || 'Committed data.json to GitHub!');
     } else {
-      showBanner(
-        synced
-          ? 'Saved & synced to Preview source bundle! Open Cloud Sync to replicate to live Vercel.'
-          : canWriteToSourceRef.current
-          ? 'Saved locally (deploy source sync failed — click Retry Bundle Save).'
-          : 'Saved in browser. Open Cloud Sync in Owner Bar to replicate to Preview & other devices!'
-      );
+      showBanner(res.message || 'Commit failed — open GitHub Sync to check GITHUB_TOKEN.');
+      setIsGitHubSyncOpen(true);
     }
   };
 
@@ -937,19 +761,21 @@ export default function App() {
     setPendingOwnerCloseAction('forgetDevice');
   };
 
-  const handleSaveAndCloseOwnerMode = () => {
+  const handleSaveAndCloseOwnerMode = async () => {
     const action = pendingOwnerCloseAction || 'logout';
-    const ts = Date.now();
-    saveOwnerSessionSnapshot(currentOwnerSnapshot, ts);
-    void flushPublishToServer(currentOwnerSnapshot);
-    if (getStoredCloudSyncCredentials()?.githubToken || serverCloudSyncRef.current.configured) {
-      void pushToCloudNow(currentOwnerSnapshot, ts);
-    }
+    const res = await commitSnapshotToGitHub(currentOwnerSnapshotRef.current, {
+      updateBaseline: true,
+      keepalive: true,
+    });
     executeCloseOwnerMode(
       action,
       action === 'forgetDevice'
-        ? 'Changes saved and Owner button hidden on this device.'
-        : 'All changes saved and Owner Mode closed.'
+        ? res.committedToGitHub
+          ? 'Committed data.json to GitHub and hid Owner button on this device.'
+          : 'Saved changes and hid Owner button on this device.'
+        : res.committedToGitHub
+        ? 'Committed data.json to GitHub and closed Owner Mode.'
+        : res.message || 'Changes saved and Owner Mode closed.'
     );
   };
 
@@ -964,7 +790,7 @@ export default function App() {
       setResumeMilestones(restored.resumeMilestones);
       setResumePdf(restored.resumePdf);
       saveOwnerSessionSnapshot(restored);
-      void flushPublishToServer(restored);
+      lastCommittedHashRef.current = JSON.stringify(restored);
     }
     executeCloseOwnerMode(
       action,
@@ -1065,12 +891,14 @@ export default function App() {
           hasUnsavedChanges={hasUnsavedOwnerEdits}
           onSaveChanges={handleSaveAllOwnerChanges}
           onOpenSecurity={() => setIsSecurityModalOpen(true)}
-          deploySyncState={deploySyncState}
-          onDownloadPublishedModule={handleDownloadPublishedModule}
-          onSyncNow={handleSyncNowForVercel}
-          cloudSyncState={cloudSyncState}
-          cloudGistId={resolveEffectiveCloudGistId(siteContent) || serverCloudSyncRef.current.gistId}
-          onOpenCloudSync={() => setIsCloudSyncOpen(true)}
+          githubSyncState={githubSyncState}
+          githubRepoLabel={
+            githubStatus.owner && githubStatus.repo
+              ? `${githubStatus.owner}/${githubStatus.repo}`
+              : null
+          }
+          lastCommitSha={lastCommitSha}
+          onOpenGitHubSync={() => setIsGitHubSyncOpen(true)}
         />
       )}
 
@@ -1294,7 +1122,13 @@ export default function App() {
                         title="Open Resume Tab"
                       >
                         <Download className="w-4 h-4 text-red-500" />
-                        <span>Download Resume</span>
+                        <EditableText
+                          value={siteContent.homeDownloadResumeCtaText || 'Download Resume'}
+                          onChange={(v) => handleUpdateSiteLine('homeDownloadResumeCtaText', v)}
+                          isOwner={ownerCanEdit}
+                          label="Download Resume CTA"
+                          as="span"
+                        />
                       </button>
 
                       {ownerCanEdit && (
@@ -1356,7 +1190,13 @@ export default function App() {
                             }}
                             className="text-red-400 hover:text-red-300 transition-colors flex items-center gap-1.5 font-medium cursor-pointer"
                           >
-                            <span>Direct Inquiry</span>
+                            <EditableText
+                              value={siteContent.homeDirectInquiryCtaText || 'Direct Inquiry'}
+                              onChange={(v) => handleUpdateSiteLine('homeDirectInquiryCtaText', v)}
+                              isOwner={ownerCanEdit}
+                              label="Direct Inquiry CTA"
+                              as="span"
+                            />
                             <ArrowRight className="w-3.5 h-3.5" />
                           </button>
                         </div>
@@ -2212,47 +2052,39 @@ export default function App() {
         />
       )}
 
-      {/* Owner-Only Live Cross-Site Cloud Sync & Instant Transfer Modal */}
+      {/* Owner-Only GitHub Contents API Sync & Vercel GITHUB_TOKEN Setup */}
       {isOwner && (
-        <CloudSyncModal
-          isOpen={isCloudSyncOpen}
-          onClose={() => setIsCloudSyncOpen(false)}
-          cloudSyncState={cloudSyncState}
-          effectiveGistId={resolveEffectiveCloudGistId(siteContent) || serverCloudSyncRef.current.gistId || ''}
-          storedCredentials={getStoredCloudSyncCredentials()}
-          serverEnvConfigured={serverCloudEnvConfigured}
-          lastSyncedAt={lastCloudSyncedAt}
+        <GitHubSyncModal
+          isOpen={isGitHubSyncOpen}
+          onClose={() => setIsGitHubSyncOpen(false)}
+          syncStatus={githubSyncState}
+          repoInfo={githubStatus}
+          lastCommitSha={lastCommitSha}
+          lastCommitUrl={lastCommitUrl}
+          lastSyncedAt={lastGitHubSyncedAt}
+          lastError={lastGitHubError}
+          hasUnsavedChanges={hasUnsavedOwnerEdits}
           currentSnapshot={currentOwnerSnapshot}
-          onConnectAndPush={async (gistId, token) => {
-            saveStoredCloudSyncCredentials({ gistId, githubToken: token });
-            const ts = Date.now();
-            return pushToCloudNow(currentOwnerSnapshotRef.current, ts, {
-              gistId,
-              githubToken: token,
+          onCommitNow={async (commitMessage) => {
+            const res = await commitSnapshotToGitHub(currentOwnerSnapshotRef.current, {
+              commitMessage,
+              updateBaseline: true,
             });
+            if (res.ok) {
+              showBanner(res.message || 'Committed data.json to GitHub!');
+            }
+            return res;
           }}
-          onPullNow={async (gistIdOverride) =>
-            pullFromCloudIfNewer({
-              force: true,
-              gistIdOverride,
-              showNoChangesBanner: true,
-            })
+          onPullLatest={() =>
+            pullLatestDataJson({ force: true, showNoChangesBanner: true })
           }
-          onDisconnect={() => {
-            clearStoredCloudSyncCredentials();
-            setCloudSyncState(
-              resolveEffectiveCloudGistId(siteContent) || serverCloudSyncRef.current.configured
-                ? 'synced'
-                : 'disconnected'
-            );
-          }}
-          onApplyTransferPackage={async (snapshot, ts) => {
-            await applyCloudSnapshot(
-              snapshot,
-              ts,
-              resolveEffectiveCloudGistId(snapshot.siteContent),
-              'Transfer Package applied & saved to this site!'
-            );
+          onApplyImportedDocument={async (doc) => {
+            applyPortfolioDocument(doc, 'Loaded data.json — committing to repository...');
+            const importedSnapshot = snapshotFromPortfolioDocument(doc);
+            await commitSnapshotToGitHub(importedSnapshot, {
+              commitMessage: 'chore(portfolio): import data.json via Owner Mode',
+              updateBaseline: true,
+            });
           }}
         />
       )}

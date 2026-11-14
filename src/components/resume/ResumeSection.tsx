@@ -150,20 +150,52 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({
         <div className="p-5 sm:p-8 bg-zinc-950/90 border border-zinc-800 rounded-3xl shadow-2xl backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-6 print:border-zinc-300 print:border-b print:border-t-0 print:border-x-0 print:rounded-none print:bg-white print:p-0 print:pb-4 print:shadow-none print:backdrop-blur-none">
           <div className="space-y-2">
             <div className="flex items-center gap-2 text-xs font-mono text-red-500 print:text-red-700 uppercase tracking-widest font-semibold">
-              <FileText className="w-4 h-4" />
-              <span>OFFICIAL CURRICULUM VITAE</span>
+              <FileText className="w-4 h-4 shrink-0" />
+              <EditableText
+                value={siteContent?.resumeHeaderKicker || 'OFFICIAL CURRICULUM VITAE'}
+                onChange={(v) => onUpdateSiteContent?.('resumeHeaderKicker', v)}
+                isOwner={isOwner}
+                label="Resume Kicker"
+                as="span"
+              />
             </div>
 
             <h1 className="text-3xl sm:text-4xl font-display font-black text-white print:text-zinc-950 tracking-tight">
-              {profile.name} — Resume
+              <EditableText
+                value={siteContent?.resumeHeaderHeadline || `${profile.name} — Resume`}
+                onChange={(v) => onUpdateSiteContent?.('resumeHeaderHeadline', v)}
+                isOwner={isOwner}
+                label="Resume Headline"
+                as="span"
+              />
             </h1>
 
             <div className="text-xs font-mono text-zinc-400 print:text-zinc-600 flex flex-wrap items-center gap-3">
-              <span className="text-red-400 print:text-red-700 font-semibold">{profile.title}</span>
+              <span className="text-red-400 print:text-red-700 font-semibold">
+                <EditableText
+                  value={siteContent?.resumeHeaderRole || profile.title}
+                  onChange={(v) => onUpdateSiteContent?.('resumeHeaderRole', v)}
+                  isOwner={isOwner}
+                  label="Resume Role"
+                  as="span"
+                />
+              </span>
               <span className="text-zinc-600 print:text-zinc-400">·</span>
-              <span>Unreal Engine 5.4 · C++ &amp; Blueprints</span>
+              <EditableText
+                value={siteContent?.resumeHeaderEngine || 'Unreal Engine 5.4 · C++ & Blueprints'}
+                onChange={(v) => onUpdateSiteContent?.('resumeHeaderEngine', v)}
+                isOwner={isOwner}
+                label="Resume Engine & Tools"
+                as="span"
+              />
               <span className="text-zinc-600 print:text-zinc-400">·</span>
-              <span>Available for Lead &amp; Senior Roles</span>
+              <EditableText
+                value={siteContent?.resumeHeaderAvailability || 'Available for Lead & Senior Roles'}
+                onChange={(v) => onUpdateSiteContent?.('resumeHeaderAvailability', v)}
+                isOwner={isOwner}
+                label="Resume Availability"
+                as="span"
+              />
             </div>
           </div>
 
@@ -377,7 +409,13 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({
           <div className="p-6 sm:p-8 bg-zinc-950/80 border border-zinc-800 rounded-3xl space-y-6 print:bg-white print:border-zinc-300 print:p-5 print:rounded-xl print:break-inside-avoid">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="text-xs font-mono uppercase tracking-widest text-red-500 print:text-red-700 font-semibold">
-                TECHNICAL MATRIX &amp; PROFICIENCIES
+                <EditableText
+                  value={siteContent?.resumeSkillsHeading || 'TECHNICAL MATRIX & PROFICIENCIES'}
+                  onChange={(v) => onUpdateSiteContent?.('resumeSkillsHeading', v)}
+                  isOwner={isOwner}
+                  label="Technical Matrix Heading"
+                  as="span"
+                />
               </div>
 
               {isOwner && (
@@ -452,7 +490,13 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({
           <div className="p-6 sm:p-8 bg-zinc-950/80 border border-zinc-800 rounded-3xl space-y-4 print:bg-white print:border-zinc-300 print:p-5 print:rounded-xl print:break-inside-avoid">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="text-xs font-mono uppercase tracking-widest text-red-500 print:text-red-700 font-semibold">
-                EDUCATION &amp; ACCREDITATIONS
+                <EditableText
+                  value={siteContent?.resumeEducationHeading || 'EDUCATION & ACCREDITATIONS'}
+                  onChange={(v) => onUpdateSiteContent?.('resumeEducationHeading', v)}
+                  isOwner={isOwner}
+                  label="Education Heading"
+                  as="span"
+                />
               </div>
 
               {isOwner && (

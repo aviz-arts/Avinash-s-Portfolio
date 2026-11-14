@@ -11,6 +11,7 @@ import {
   Save,
 } from 'lucide-react';
 import { SiteContent } from '../../utils/portfolioStorage';
+import { EditableText } from '../common/EditableText';
 
 interface SocialShowcaseProps {
   siteContent: SiteContent;
@@ -147,7 +148,13 @@ export const SocialShowcase: React.FC<SocialShowcaseProps> = ({
       {/* Subtle label with Owner Section Remove */}
       <div className="flex items-center gap-3">
         <div className="text-[11px] font-mono tracking-widest text-zinc-500 uppercase font-semibold">
-          CONNECT ON SOCIAL
+          <EditableText
+            value={siteContent.contactSocialKicker || 'CONNECT ON SOCIAL'}
+            onChange={(v) => onUpdateSiteContent?.('contactSocialKicker', v)}
+            isOwner={isOwner}
+            label="Social Showcase Kicker"
+            as="span"
+          />
         </div>
         {isOwner && onRemoveSection && (
           <button

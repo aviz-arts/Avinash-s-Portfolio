@@ -4,8 +4,6 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-const CLOUD_GIST_FILENAME = 'portfolio-live-sync.json';
-
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
 function resolveServerPort(): number {
@@ -39,8 +37,6 @@ function resolveServerPort(): number {
 
 const PORT = resolveServerPort();
 const HOST = '0.0.0.0';
-const PUBLISHED_FILE_PATH = path.resolve(process.cwd(), 'src/data/publishedPortfolio.ts');
-const PUBLISHED_JSON_PATH = path.resolve(process.cwd(), 'public/published-portfolio.json');
 const PUBLIC_UPLOADS_DIR = path.resolve(process.cwd(), 'public/uploads');
 
 const MIME_TO_EXT: Record<string, string> = {
@@ -94,127 +90,228 @@ async function persistDataUrlToUploads(dataUrl: string, suggestedName?: string):
   return `/uploads/${fileName}`;
 }
 
-async function internalizeMediaDataUrls<T>(value: T, keyHint?: string): Promise<T> {
-  if (typeof value === 'string') {
-    if (
-      value.startsWith('data:image/') ||
-      value.startsWith('data:video/') ||
-      value.startsWith('data:application/pdf')
-    ) {
-      return (await persistDataUrlToUploads(value, keyHint)) as unknown as T;
-    }
-    return value;
-  }
-
-  if (Array.isArray(value)) {
-    const out = [];
-    for (let i = 0; i < value.length; i++) {
-      out.push(await internalizeMediaDataUrls(value[i], `${keyHint || 'item'}-${i}`));
-    }
-    return out as unknown as T;
-  }
-
-  if (value && typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    const suggestedName =
-      typeof record.filename === 'string'
-        ? record.filename
-        : typeof record.title === 'string'
-        ? record.title
-        : typeof record.id === 'string'
-        ? record.id
-        : keyHint;
-
-    const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(record)) {
-      out[k] = await internalizeMediaDataUrls(v, k === 'dataUrl' ? suggestedName : k);
-    }
-    return out as T;
-  }
-
-  return value;
+interface ResolvedGitHubConfig {
+  token: string;
+  owner: string;
+  repo: string;
+  branch: string;
+  filePath: string;
 }
 
-function readPublishedTimestamp(): number {
-  try {
-    if (fs.existsSync(PUBLISHED_JSON_PATH)) {
-      const jsonRaw = fs.readFileSync(PUBLISHED_JSON_PATH, 'utf-8');
-      const parsed = JSON.parse(jsonRaw);
-      if (parsed && Number(parsed.publishedAt) > 0) {
-        return Number(parsed.publishedAt);
-      }
+function parseRepoTarget(rawRepo: string, rawOwner: string): { owner: string; repo: string } {
+  const cleanedRepo = (rawRepo || '').trim();
+  const cleanedOwner = (rawOwner || '').trim();
+
+  const urlMatch = cleanedRepo.match(/github\.com\/([^/]+)\/([^/\s#?]+?)(?:\.git)?(?:[/?#]|$)/i);
+  if (urlMatch) {
+    return {
+      owner: urlMatch[1].trim(),
+      repo: urlMatch[2].trim(),
+    };
+  }
+
+  if (cleanedRepo.includes('/')) {
+    const parts = cleanedRepo.split('/').map((s) => s.trim()).filter(Boolean);
+    if (parts.length >= 2) {
+      return {
+        owner: parts[0],
+        repo: parts[1].replace(/\.git$/i, ''),
+      };
     }
-  } catch {
-    // Fallback to TS file check
   }
 
-  try {
-    if (!fs.existsSync(PUBLISHED_FILE_PATH)) return 0;
-    const raw = fs.readFileSync(PUBLISHED_FILE_PATH, 'utf-8');
-    const match = raw.match(/"?publishedAt"?\s*:\s*(\d+)/);
-    return match ? Number(match[1]) || 0 : 0;
-  } catch {
-    return 0;
-  }
-}
-
-function buildSafePayload(payload: {
-  publishedAt: number;
-  projects: unknown;
-  profile: unknown;
-  siteContent: unknown;
-  customSections: unknown;
-  resumeMilestones: unknown;
-  resumePdf: unknown;
-}) {
   return {
-    publishedAt: payload.publishedAt,
-    projects: payload.projects ?? null,
-    profile: payload.profile ?? null,
-    siteContent: payload.siteContent ?? null,
-    customSections: payload.customSections ?? null,
-    resumeMilestones: payload.resumeMilestones ?? null,
-    resumePdf: payload.resumePdf ?? null,
+    owner: cleanedOwner,
+    repo: cleanedRepo.replace(/\.git$/i, ''),
   };
 }
 
-function formatPublishedPortfolioTs(safePayload: ReturnType<typeof buildSafePayload>): string {
-  return `import { ProjectItem } from '../types/portfolio';
+function resolveGitHubConfig(): ResolvedGitHubConfig {
+  const token = (process.env.GITHUB_TOKEN || '').trim();
+  const rawRepo = (
+    process.env.GITHUB_REPO ||
+    process.env.VERCEL_GIT_REPO_SLUG ||
+    ''
+  ).trim();
+  const rawOwner = (
+    process.env.GITHUB_OWNER ||
+    process.env.VERCEL_GIT_REPO_OWNER ||
+    ''
+  ).trim();
 
-export interface PublishedPortfolioData {
-  publishedAt: number;
-  projects: ProjectItem[] | null;
-  profile: Record<string, any> | null;
-  siteContent: Record<string, any> | null;
-  customSections: any[] | null;
-  resumeMilestones: any[] | null;
-  resumePdf: {
-    dataUrl: string;
-    filename: string;
-    uploadedAt: string;
-    sizeBytes?: number;
-  } | null;
+  const { owner, repo } = parseRepoTarget(rawRepo, rawOwner);
+  const branch = (
+    process.env.GITHUB_BRANCH ||
+    process.env.VERCEL_GIT_COMMIT_REF ||
+    'main'
+  ).trim();
+  const filePath = (process.env.GITHUB_DATA_PATH || 'data.json')
+    .trim()
+    .replace(/^\/+/, '');
+
+  return { token, owner, repo, branch, filePath };
 }
 
-/**
- * Bundled Owner Mode snapshot written automatically by the preview dev server
- * so Vercel / production static builds always ship with your latest Owner edits.
- */
-export const PUBLISHED_PORTFOLIO: PublishedPortfolioData = ${JSON.stringify(safePayload, null, 2)};
-`;
+function isValidPortfolioData(candidate: any): boolean {
+  return Boolean(
+    candidate &&
+      typeof candidate === 'object' &&
+      Array.isArray(candidate.projects) &&
+      candidate.profile &&
+      typeof candidate.profile === 'object' &&
+      candidate.siteContent &&
+      typeof candidate.siteContent === 'object' &&
+      Array.isArray(candidate.customSections) &&
+      Array.isArray(candidate.resumeMilestones)
+  );
+}
+
+function buildGitHubHeaders(token?: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    Accept: 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+    'User-Agent': 'avinash-portfolio-github-cms',
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+async function fetchContentsEntry(config: ResolvedGitHubConfig) {
+  const encodedPath = config.filePath
+    .split('/')
+    .map((seg) => encodeURIComponent(seg))
+    .join('/');
+  const url = `https://api.github.com/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(
+    config.repo
+  )}/contents/${encodedPath}?ref=${encodeURIComponent(config.branch)}&t=${Date.now()}`;
+
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: buildGitHubHeaders(config.token),
+  });
+
+  if (!res.ok) {
+    const errBody: any = await res.json().catch(() => ({}));
+    return {
+      ok: false as const,
+      status: res.status,
+      error: errBody?.message || `GitHub Contents API HTTP ${res.status}`,
+    };
+  }
+
+  const entry: any = await res.json();
+  let rawText = '';
+
+  if (typeof entry?.content === 'string' && entry.content.trim().length > 0) {
+    rawText = Buffer.from(entry.content.replace(/\s+/g, ''), 'base64').toString('utf-8');
+  } else if (entry?.sha) {
+    const blobUrl = `https://api.github.com/repos/${encodeURIComponent(
+      config.owner
+    )}/${encodeURIComponent(config.repo)}/git/blobs/${encodeURIComponent(entry.sha)}`;
+    const blobRes = await fetch(blobUrl, {
+      method: 'GET',
+      headers: buildGitHubHeaders(config.token),
+    });
+    if (blobRes.ok) {
+      const blobData: any = await blobRes.json();
+      if (typeof blobData?.content === 'string') {
+        rawText = Buffer.from(blobData.content.replace(/\s+/g, ''), 'base64').toString('utf-8');
+      }
+    }
+  } else if (typeof entry?.download_url === 'string') {
+    const dlRes = await fetch(entry.download_url, {
+      headers: config.token ? { Authorization: `Bearer ${config.token}` } : {},
+    });
+    if (dlRes.ok) {
+      rawText = await dlRes.text();
+    }
+  }
+
+  return {
+    ok: true as const,
+    sha: typeof entry?.sha === 'string' ? entry.sha : undefined,
+    rawText,
+  };
+}
+
+async function commitContentsEntry(
+  config: ResolvedGitHubConfig,
+  formattedJson: string,
+  commitMessage: string
+) {
+  const encodedPath = config.filePath
+    .split('/')
+    .map((seg) => encodeURIComponent(seg))
+    .join('/');
+  const endpoint = `https://api.github.com/repos/${encodeURIComponent(
+    config.owner
+  )}/${encodeURIComponent(config.repo)}/contents/${encodedPath}`;
+  const base64Content = Buffer.from(formattedJson, 'utf-8').toString('base64');
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const current = await fetchContentsEntry(config);
+    if (!current.ok && current.status !== 404) {
+      return {
+        ok: false as const,
+        status: current.status,
+        error: current.error,
+      };
+    }
+
+    const putBody: Record<string, string> = {
+      message: commitMessage,
+      content: base64Content,
+      branch: config.branch,
+    };
+    if (current.ok && current.sha) {
+      putBody.sha = current.sha;
+    }
+
+    const putRes = await fetch(endpoint, {
+      method: 'PUT',
+      headers: {
+        ...buildGitHubHeaders(config.token),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(putBody),
+    });
+
+    const putData: any = await putRes.json().catch(() => ({}));
+    if (putRes.ok) {
+      return {
+        ok: true as const,
+        commitSha: String(putData?.commit?.sha || ''),
+        commitUrl: String(putData?.commit?.html_url || ''),
+        fileSha: String(putData?.content?.sha || ''),
+      };
+    }
+
+    if (putRes.status === 409 && attempt === 0) {
+      continue;
+    }
+
+    return {
+      ok: false as const,
+      status: putRes.status,
+      error:
+        putRes.status === 401 || putRes.status === 403
+          ? 'GITHUB_TOKEN was rejected or lacks Contents Read/Write (repo) permission for this repository.'
+          : putData?.message || `GitHub Contents commit failed (HTTP ${putRes.status})`,
+    };
+  }
+
+  return {
+    ok: false as const,
+    status: 409,
+    error: 'Conflict updating data.json after retry.',
+  };
 }
 
 async function startServer() {
   const app = express();
   app.use(express.json({ limit: '50mb' }));
-
-  app.get('/api/publish-status', (_req, res) => {
-    const canWriteToSource = !IS_PRODUCTION && fs.existsSync(PUBLISHED_FILE_PATH);
-    res.json({
-      canWriteToSource,
-      publishedAt: readPublishedTimestamp(),
-    });
-  });
 
   app.post('/api/upload-media', async (req, res) => {
     if (IS_PRODUCTION) {
@@ -233,7 +330,10 @@ async function startServer() {
         return;
       }
 
-      const publicUrl = await persistDataUrlToUploads(dataUrl, typeof filename === 'string' ? filename : undefined);
+      const publicUrl = await persistDataUrlToUploads(
+        dataUrl,
+        typeof filename === 'string' ? filename : undefined
+      );
       if (publicUrl === dataUrl) {
         res.status(400).json({ ok: false, error: 'Unsupported media format for static upload.' });
         return;
@@ -249,244 +349,169 @@ async function startServer() {
     }
   });
 
-  app.post('/api/publish-portfolio', async (req, res) => {
-    if (IS_PRODUCTION) {
-      res.status(403).json({
-        ok: false,
-        readOnly: true,
-        error: 'Source filesystem is read-only in static production mode.',
-      });
-      return;
-    }
-
-    try {
-      const body = req.body;
-      if (!body || typeof body !== 'object') {
-        res.status(400).json({ ok: false, error: 'Invalid portfolio payload.' });
-        return;
-      }
-
-      const publishedAt = Number(body.publishedAt) || Date.now();
-      const isReset = Boolean(body.reset);
-
-      const rawPayload = isReset
-        ? buildSafePayload({
-            publishedAt,
-            projects: null,
-            profile: null,
-            siteContent: null,
-            customSections: null,
-            resumeMilestones: null,
-            resumePdf: null,
-          })
-        : buildSafePayload({
-            publishedAt,
-            projects: await internalizeMediaDataUrls(
-              Array.isArray(body.projects) ? body.projects : null,
-              'project'
-            ),
-            profile: await internalizeMediaDataUrls(
-              body.profile && typeof body.profile === 'object' ? body.profile : null,
-              'profile'
-            ),
-            siteContent: await internalizeMediaDataUrls(
-              body.siteContent && typeof body.siteContent === 'object' ? body.siteContent : null,
-              'site'
-            ),
-            customSections: await internalizeMediaDataUrls(
-              Array.isArray(body.customSections) ? body.customSections : null,
-              'section'
-            ),
-            resumeMilestones: await internalizeMediaDataUrls(
-              Array.isArray(body.resumeMilestones) ? body.resumeMilestones : null,
-              'milestone'
-            ),
-            resumePdf: await internalizeMediaDataUrls(
-              body.resumePdf && typeof body.resumePdf === 'object' && body.resumePdf.dataUrl
-                ? body.resumePdf
-                : null,
-              'resume'
-            ),
-          });
-
-      const fileContent = formatPublishedPortfolioTs(rawPayload);
-
-      const tsDir = path.dirname(PUBLISHED_FILE_PATH);
-      if (!fs.existsSync(tsDir)) {
-        fs.mkdirSync(tsDir, { recursive: true });
-      }
-      const tsTempPath = `${PUBLISHED_FILE_PATH}.tmp`;
-      await fs.promises.writeFile(tsTempPath, fileContent, 'utf-8');
-      await fs.promises.rename(tsTempPath, PUBLISHED_FILE_PATH);
-
-      const jsonDir = path.dirname(PUBLISHED_JSON_PATH);
-      if (!fs.existsSync(jsonDir)) {
-        fs.mkdirSync(jsonDir, { recursive: true });
-      }
-      const jsonTempPath = `${PUBLISHED_JSON_PATH}.tmp`;
-      await fs.promises.writeFile(jsonTempPath, JSON.stringify(rawPayload, null, 2), 'utf-8');
-      await fs.promises.rename(jsonTempPath, PUBLISHED_JSON_PATH);
-
-      res.json({ ok: true, publishedAt });
-    } catch (err) {
-      console.error('Failed to write publishedPortfolio.ts:', err);
-      res.status(500).json({
-        ok: false,
-        error: err instanceof Error ? err.message : 'Failed to persist portfolio source.',
-      });
-    }
-  });
-
-  app.get('/api/cloud-sync', async (req, res) => {
+  app.get('/api/github-content', async (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
-    const cleanId = (val: unknown) => {
-      const s = typeof val === 'string' ? val.trim() : '';
-      const m = s.match(/gist\.github\.com\/(?:[^/]+\/)?([a-f0-9]{16,64})/i);
-      return m ? m[1] : s.replace(/[^a-zA-Z0-9_-]/g, '');
-    };
-    const envGistId = cleanId(process.env.PORTFOLIO_GIST_ID || process.env.VITE_CLOUD_SYNC_GIST_ID || '');
-    const envToken = (process.env.PORTFOLIO_GITHUB_TOKEN || '').trim();
+    const config = resolveGitHubConfig();
+    const localDataPath = path.resolve(process.cwd(), config.filePath);
 
     if (req.query?.status === '1') {
       res.json({
-        serverConfigured: Boolean(envToken && envGistId),
-        gistId: envGistId || undefined,
+        ok: true,
+        configured: Boolean(config.token && config.owner && config.repo),
+        hasToken: Boolean(config.token),
+        hasRepo: Boolean(config.owner && config.repo),
+        owner: config.owner || null,
+        repo: config.repo || null,
+        branch: config.branch,
+        path: config.filePath,
+        canWriteLocal: !IS_PRODUCTION,
       });
       return;
     }
 
-    const targetGistId = cleanId(req.query?.gistId) || envGistId;
-    if (!targetGistId) {
-      res.status(404).json({ ok: false, notConfigured: true, error: 'Cloud Sync Gist ID is not configured.' });
-      return;
+    if (config.owner && config.repo) {
+      try {
+        const remote = await fetchContentsEntry(config);
+        if (remote.ok && remote.rawText) {
+          const parsed = JSON.parse(remote.rawText);
+          if (isValidPortfolioData(parsed)) {
+            res.json({
+              ok: true,
+              source: 'github',
+              sha: remote.sha,
+              updatedAt: Number(parsed.updatedAt) || 0,
+              data: parsed,
+            });
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn('GitHub Contents read failed, falling back to local data.json:', err);
+      }
     }
 
     try {
-      const headers: Record<string, string> = {
-        Accept: 'application/vnd.github+json',
-        'User-Agent': 'avinash-portfolio-cloud-sync',
-      };
-      if (envToken) headers.Authorization = `Bearer ${envToken}`;
-
-      const gistRes = await fetch(
-        `https://api.github.com/gists/${encodeURIComponent(targetGistId)}?t=${Date.now()}`,
-        { method: 'GET', headers }
-      );
-      if (!gistRes.ok) {
-        res.status(gistRes.status).json({ ok: false, error: `GitHub Gist HTTP ${gistRes.status}` });
-        return;
+      if (fs.existsSync(localDataPath)) {
+        const localRaw = await fs.promises.readFile(localDataPath, 'utf-8');
+        const parsed = JSON.parse(localRaw);
+        if (isValidPortfolioData(parsed)) {
+          res.json({
+            ok: true,
+            source: 'local-file',
+            updatedAt: Number(parsed.updatedAt) || 0,
+            data: parsed,
+          });
+          return;
+        }
       }
-
-      const gistData: any = await gistRes.json();
-      const fileEntry: any =
-        gistData?.files?.[CLOUD_GIST_FILENAME] ||
-        (gistData?.files ? Object.values(gistData.files)[0] : null);
-      if (!fileEntry) {
-        res.status(404).json({ ok: false, error: 'Sync Gist has no portfolio file.' });
-        return;
-      }
-
-      let rawContent = typeof fileEntry.content === 'string' ? fileEntry.content : '';
-      if (fileEntry.truncated && typeof fileEntry.raw_url === 'string') {
-        const rawRes = await fetch(`${fileEntry.raw_url}?t=${Date.now()}`);
-        if (rawRes.ok) rawContent = await rawRes.text();
-      }
-
-      const parsed = JSON.parse(rawContent);
-      const snapshot = parsed?.snapshot ?? parsed;
-      res.json({
-        ok: true,
-        publishedAt: Number(parsed?.publishedAt) || 0,
-        snapshot,
-        gistId: targetGistId,
-      });
     } catch (err) {
-      res.status(500).json({
-        ok: false,
-        error: err instanceof Error ? err.message : 'Cloud Sync read failed.',
-      });
+      console.error('Failed reading local data.json:', err);
     }
+
+    res.status(404).json({
+      ok: false,
+      notConfigured: true,
+      error: 'No valid data.json found on GitHub or disk.',
+    });
   });
 
-  app.post('/api/cloud-sync', async (req, res) => {
+  const handleGitHubCommit = async (req: express.Request, res: express.Response) => {
     res.setHeader('Cache-Control', 'no-store');
-    const cleanId = (val: unknown) => {
-      const s = typeof val === 'string' ? val.trim() : '';
-      const m = s.match(/gist\.github\.com\/(?:[^/]+\/)?([a-f0-9]{16,64})/i);
-      return m ? m[1] : s.replace(/[^a-zA-Z0-9_-]/g, '');
-    };
-    const envGistId = cleanId(process.env.PORTFOLIO_GIST_ID || process.env.VITE_CLOUD_SYNC_GIST_ID || '');
-    const envToken = (process.env.PORTFOLIO_GITHUB_TOKEN || '').trim();
-
-    if (!envToken) {
-      res.status(400).json({
-        ok: false,
-        notConfigured: true,
-        error: 'PORTFOLIO_GITHUB_TOKEN is not configured on this server.',
-      });
-      return;
-    }
+    const config = resolveGitHubConfig();
+    const localDataPath = path.resolve(process.cwd(), config.filePath);
 
     try {
-      const { snapshot, publishedAt: rawTs, gistId } = req.body || {};
-      if (!snapshot || typeof snapshot !== 'object' || !Array.isArray(snapshot.projects)) {
-        res.status(400).json({ ok: false, error: 'Missing valid portfolio snapshot.' });
+      const body = req.body || {};
+      const payload = body?.data ?? body;
+
+      if (!isValidPortfolioData(payload)) {
+        res.status(400).json({ ok: false, error: 'Invalid data.json portfolio payload.' });
         return;
       }
 
-      const publishedAt = Number(rawTs) || Date.now();
-      const targetGistId = cleanId(gistId) || envGistId;
-      const nextSnapshot = targetGistId
-        ? {
-            ...snapshot,
-            siteContent: { ...(snapshot.siteContent || {}), cloudSyncGistId: targetGistId },
-          }
-        : snapshot;
+      const updatedAt = Number(payload.updatedAt) || Date.now();
+      const nextDocument = {
+        version: Number(payload.version) || 1,
+        updatedAt,
+        projects: payload.projects,
+        profile: payload.profile,
+        siteContent: payload.siteContent,
+        customSections: payload.customSections,
+        resumeMilestones: payload.resumeMilestones,
+        resumePdf: payload.resumePdf ?? null,
+      };
+      const formattedJson = JSON.stringify(nextDocument, null, 2) + '\n';
 
-      const endpoint = targetGistId
-        ? `https://api.github.com/gists/${encodeURIComponent(targetGistId)}`
-        : 'https://api.github.com/gists';
+      // Keep local data.json synchronized cleanly when running in writable dev/preview server
+      let savedToLocalFile = false;
+      if (!IS_PRODUCTION) {
+        const dir = path.dirname(localDataPath);
+        await fs.promises.mkdir(dir, { recursive: true });
+        const tmpPath = `${localDataPath}.tmp`;
+        await fs.promises.writeFile(tmpPath, formattedJson, 'utf-8');
+        await fs.promises.rename(tmpPath, localDataPath);
+        savedToLocalFile = true;
+      }
 
-      const ghRes = await fetch(endpoint, {
-        method: targetGistId ? 'PATCH' : 'POST',
-        headers: {
-          Accept: 'application/vnd.github+json',
-          Authorization: `Bearer ${envToken}`,
-          'Content-Type': 'application/json',
-          'User-Agent': 'avinash-portfolio-cloud-sync',
-        },
-        body: JSON.stringify({
-          description: 'Avinash Portfolio — Live Cross-Site Sync (Public Read, Owner Write)',
-          ...(targetGistId ? {} : { public: true }),
-          files: {
-            [CLOUD_GIST_FILENAME]: {
-              content: JSON.stringify({ version: 1, publishedAt, snapshot: nextSnapshot }, null, 2),
-            },
-          },
-        }),
-      });
+      if (!config.token || !config.owner || !config.repo) {
+        if (savedToLocalFile) {
+          res.json({
+            ok: true,
+            committedToGitHub: false,
+            savedToLocalFile: true,
+            notConfigured: true,
+            updatedAt,
+            message:
+              'Saved to local data.json. Set GITHUB_TOKEN and GITHUB_REPO in Vercel Environment Variables to commit directly to GitHub.',
+          });
+          return;
+        }
 
-      const ghData: any = await ghRes.json().catch(() => ({}));
-      if (!ghRes.ok) {
-        res.status(ghRes.status).json({
+        res.status(400).json({
           ok: false,
-          error: ghData?.message || `GitHub Gist write failed (HTTP ${ghRes.status})`,
+          notConfigured: true,
+          error: !config.token
+            ? 'GITHUB_TOKEN is not configured in Vercel Environment Variables.'
+            : 'GITHUB_REPO (e.g. username/repo) is not configured in Vercel Environment Variables.',
+        });
+        return;
+      }
+
+      const commitMessage =
+        typeof body?.commitMessage === 'string' && body.commitMessage.trim()
+          ? body.commitMessage.trim()
+          : `chore(portfolio): update ${config.filePath} via Owner Mode`;
+
+      const commitResult = await commitContentsEntry(config, formattedJson, commitMessage);
+      if (!commitResult.ok) {
+        res.status(commitResult.status || 500).json({
+          ok: false,
+          savedToLocalFile,
+          error: commitResult.error,
         });
         return;
       }
 
       res.json({
         ok: true,
-        gistId: cleanId(ghData?.id || targetGistId),
-        publishedAt,
+        committedToGitHub: true,
+        savedToLocalFile,
+        commitSha: commitResult.commitSha,
+        commitUrl: commitResult.commitUrl,
+        fileSha: commitResult.fileSha,
+        updatedAt,
       });
     } catch (err) {
+      console.error('Failed to commit data.json:', err);
       res.status(500).json({
         ok: false,
-        error: err instanceof Error ? err.message : 'Cloud Sync write failed.',
+        error: err instanceof Error ? err.message : 'GitHub commit failed.',
       });
     }
-  });
+  };
+
+  app.put('/api/github-content', handleGitHubCommit);
+  app.post('/api/github-content', handleGitHubCommit);
 
   // Serve uploaded media from public/uploads directly so newly uploaded images,
   // videos, and PDFs render immediately in preview without waiting on Vite watch

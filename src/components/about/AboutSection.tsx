@@ -268,10 +268,22 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
 
                   <div className="absolute bottom-4 left-4 right-4 text-xs font-mono">
                     <div className="text-zinc-100 font-display font-bold text-base">
-                      {profile?.name || 'Avinash'}
+                      <EditableText
+                        value={siteContent?.aboutPortraitName || profile?.name || 'Avinash'}
+                        onChange={(v) => handleUpdate('aboutPortraitName', v)}
+                        isOwner={isOwner}
+                        label="Portrait Name"
+                        as="span"
+                      />
                     </div>
                     <div className="text-red-400 text-[11px]">
-                      {profile?.title || 'Game Designer | Lighting Artist'}
+                      <EditableText
+                        value={siteContent?.aboutPortraitTitle || profile?.title || 'Game Designer | Lighting Artist'}
+                        onChange={(v) => handleUpdate('aboutPortraitTitle', v)}
+                        isOwner={isOwner}
+                        label="Portrait Role"
+                        as="span"
+                      />
                     </div>
                   </div>
                 </div>
@@ -279,16 +291,58 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
                 <div className="p-5 border-t border-zinc-800 space-y-3 bg-zinc-950/40 shrink-0">
                   <div className="grid grid-cols-2 gap-2.5 text-[11px] font-mono text-zinc-400">
                     <div className="p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800/80">
-                      <div className="text-zinc-500 text-[9px] uppercase">Profession</div>
-                      <div className="text-zinc-200 font-semibold mt-0.5">Game Designer</div>
+                      <div className="text-zinc-500 text-[9px] uppercase">
+                        <EditableText
+                          value={siteContent?.aboutPortraitProfessionLabel || 'Profession'}
+                          onChange={(v) => handleUpdate('aboutPortraitProfessionLabel', v)}
+                          isOwner={isOwner}
+                          label="Profession Label"
+                          as="span"
+                        />
+                      </div>
+                      <div className="text-zinc-200 font-semibold mt-0.5">
+                        <EditableText
+                          value={siteContent?.aboutPortraitProfessionValue || 'Game Designer'}
+                          onChange={(v) => handleUpdate('aboutPortraitProfessionValue', v)}
+                          isOwner={isOwner}
+                          label="Profession Value"
+                          as="span"
+                        />
+                      </div>
                     </div>
                     <div className="p-2.5 rounded-lg bg-zinc-900/60 border border-zinc-800/80">
-                      <div className="text-zinc-500 text-[9px] uppercase">Creative Passion</div>
-                      <div className="text-red-400 font-semibold mt-0.5">Lighting Artist</div>
+                      <div className="text-zinc-500 text-[9px] uppercase">
+                        <EditableText
+                          value={siteContent?.aboutPortraitPassionLabel || 'Creative Passion'}
+                          onChange={(v) => handleUpdate('aboutPortraitPassionLabel', v)}
+                          isOwner={isOwner}
+                          label="Creative Passion Label"
+                          as="span"
+                        />
+                      </div>
+                      <div className="text-red-400 font-semibold mt-0.5">
+                        <EditableText
+                          value={siteContent?.aboutPortraitPassionValue || 'Lighting Artist'}
+                          onChange={(v) => handleUpdate('aboutPortraitPassionValue', v)}
+                          isOwner={isOwner}
+                          label="Creative Passion Value"
+                          as="span"
+                        />
+                      </div>
                     </div>
                   </div>
                   <p className="text-xs text-zinc-400 leading-relaxed text-justify">
-                    Specialized in core gameplay loops, player psychology, and level architecture, elevated by lighting design to intuitively guide player navigation.
+                    <EditableText
+                      value={
+                        siteContent?.aboutPortraitSummary ||
+                        'Specialized in core gameplay loops, player psychology, and level architecture, elevated by lighting design to intuitively guide player navigation.'
+                      }
+                      onChange={(v) => handleUpdate('aboutPortraitSummary', v)}
+                      isOwner={isOwner}
+                      label="Portrait Summary"
+                      multiline={true}
+                      as="span"
+                    />
                   </p>
                 </div>
               </div>
@@ -345,7 +399,13 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
                     <div className="pt-4 border-t border-zinc-800/80 flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <div className="text-[11px] font-mono text-zinc-500 uppercase tracking-wider">
-                          Primary Contact
+                          <EditableText
+                            value={siteContent?.aboutPrimaryContactLabel || 'Primary Contact'}
+                            onChange={(v) => handleUpdate('aboutPrimaryContactLabel', v)}
+                            isOwner={isOwner}
+                            label="Primary Contact Label"
+                            as="span"
+                          />
                         </div>
                         <a
                           href={`mailto:${email}`}
@@ -600,6 +660,8 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
           <CareerTimeline
             milestones={milestones}
             isOwner={isOwner}
+            siteContent={siteContent}
+            onUpdateSiteContent={onUpdateSiteContent}
             onUpdateMilestone={onUpdateMilestone}
             onCreateMilestone={onCreateMilestone}
             onDeleteMilestone={onDeleteMilestone}

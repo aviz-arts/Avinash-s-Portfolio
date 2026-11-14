@@ -1,6 +1,6 @@
 import { ProjectItem } from '../types/portfolio';
 import { PORTFOLIO_PROJECTS } from '../data/portfolioData';
-import { PUBLISHED_PORTFOLIO, PublishedPortfolioData } from '../data/publishedPortfolio';
+import initialDataJson from '../../data.json';
 
 export const DEFAULT_AVATAR_URL = '/assets/aistudio/pic_fe23a188.jpg';
 
@@ -199,8 +199,33 @@ export interface SiteContent {
   contactShowSocials?: boolean;
   contactShowLocation?: boolean;
 
-  // Cross-Device Cloud Sync (Public Gist ID only — never store private tokens here)
-  cloudSyncGistId?: string;
+  // Additional inline-editable labels across Resume, About, Timeline, Contact & Home
+  homeDownloadResumeCtaText?: string;
+  homeDirectInquiryCtaText?: string;
+  resumeHeaderKicker?: string;
+  resumeHeaderHeadline?: string;
+  resumeHeaderRole?: string;
+  resumeHeaderEngine?: string;
+  resumeHeaderAvailability?: string;
+  resumeSkillsHeading?: string;
+  resumeEducationHeading?: string;
+  aboutPortraitName?: string;
+  aboutPortraitTitle?: string;
+  aboutPortraitProfessionLabel?: string;
+  aboutPortraitProfessionValue?: string;
+  aboutPortraitPassionLabel?: string;
+  aboutPortraitPassionValue?: string;
+  aboutPortraitSummary?: string;
+  aboutPrimaryContactLabel?: string;
+  aboutTimelineKicker?: string;
+  aboutTimelineHeadline?: string;
+  aboutTimelineAchievementsLabel?: string;
+  contactEmailCardLabel?: string;
+  contactEmailCardBadge?: string;
+  contactPhoneCardLabel?: string;
+  contactPhoneCardBadge?: string;
+  contactFormTitle?: string;
+  contactSocialKicker?: string;
 
   // Footer
   footerName: string;
@@ -492,6 +517,35 @@ export const DEFAULT_SITE_CONTENT: SiteContent = {
   contactShowLocation: true,
   contactHiddenSocials: [],
 
+  // Inline-editable labels across Resume, About, Timeline, Contact & Home
+  homeDownloadResumeCtaText: 'Download Resume',
+  homeDirectInquiryCtaText: 'Direct Inquiry',
+  resumeHeaderKicker: 'OFFICIAL CURRICULUM VITAE',
+  resumeHeaderHeadline: 'Avinash — Resume',
+  resumeHeaderRole: 'Game Designer | Lighting Artist',
+  resumeHeaderEngine: 'Unreal Engine 5.4 · C++ & Blueprints',
+  resumeHeaderAvailability: 'Available for Lead & Senior Roles',
+  resumeSkillsHeading: 'TECHNICAL MATRIX & PROFICIENCIES',
+  resumeEducationHeading: 'EDUCATION & ACCREDITATIONS',
+  aboutPortraitName: 'Avinash',
+  aboutPortraitTitle: 'Game Designer | Lighting Artist',
+  aboutPortraitProfessionLabel: 'Profession',
+  aboutPortraitProfessionValue: 'Game Designer',
+  aboutPortraitPassionLabel: 'Creative Passion',
+  aboutPortraitPassionValue: 'Lighting Artist',
+  aboutPortraitSummary:
+    'Specialized in core gameplay loops, player psychology, and level architecture, elevated by lighting design to intuitively guide player navigation.',
+  aboutPrimaryContactLabel: 'Primary Contact',
+  aboutTimelineKicker: 'Chronological Record · Career Progression',
+  aboutTimelineHeadline: 'Career Timeline',
+  aboutTimelineAchievementsLabel: 'KEY ACHIEVEMENTS & PRODUCTION METRICS',
+  contactEmailCardLabel: 'EMAIL',
+  contactEmailCardBadge: 'Fast Turnaround',
+  contactPhoneCardLabel: 'PHONE / WHATSAPP',
+  contactPhoneCardBadge: 'IST Business Hours',
+  contactFormTitle: 'Send Direct Message',
+  contactSocialKicker: 'CONNECT ON SOCIAL',
+
   // Footer
   footerName: 'Avinash',
   footerRole: 'Game Designer | Lighting Artist',
@@ -524,28 +578,11 @@ export const DEFAULT_PROFILE: OwnerProfile = {
   ],
 };
 
-const PROJECTS_STORAGE_KEY = 'avinash_portfolio_projects_v2';
-const PROFILE_STORAGE_KEY = 'avinash_portfolio_profile_v2';
-const SITE_CONTENT_STORAGE_KEY = 'avinash_portfolio_site_content_v2';
-const CUSTOM_SECTIONS_STORAGE_KEY = 'avinash_portfolio_custom_sections_v2';
-const RESUME_PDF_STORAGE_KEY = 'avinash_portfolio_resume_pdf_v2';
-const RESUME_MILESTONES_STORAGE_KEY = 'avinash_portfolio_resume_milestones_v2';
-const LOCAL_UPDATED_AT_KEY = 'avinash_portfolio_local_updated_at_v2';
 const OWNER_AUTH_KEY = 'avinash_portfolio_owner_session_v1';
-const OWNER_BASELINE_KEY = 'avinash_portfolio_owner_baseline_v1';
 const OWNER_PIN_KEY = 'avinash_portfolio_owner_pin_v1';
 const TWO_FACTOR_CODE_KEY = 'avinash_portfolio_2fa_code_v1';
 const TWO_FACTOR_EXPIRY_KEY = 'avinash_portfolio_2fa_expiry_v1';
 const TOTP_SECRET_STORAGE_KEY = 'avinash_portfolio_totp_secret_v1';
-
-const PORTFOLIO_SLICE_KEYS = [
-  PROJECTS_STORAGE_KEY,
-  PROFILE_STORAGE_KEY,
-  SITE_CONTENT_STORAGE_KEY,
-  CUSTOM_SECTIONS_STORAGE_KEY,
-  RESUME_MILESTONES_STORAGE_KEY,
-  RESUME_PDF_STORAGE_KEY,
-] as const;
 
 export const DEFAULT_OWNER_PIN = '5904';
 export const OWNER_EMAIL = 'aviz.arts@gmail.com';
@@ -553,6 +590,7 @@ export const MASTER_2FA_BACKUP_CODE = '590426';
 export const DEFAULT_TOTP_SECRET = 'AVINASH5LIGHT2FA';
 export const AUTHENTICATOR_ISSUER = 'Avinash Portfolio';
 
+// Auth/session metadata storage (portfolio content is NEVER written to localStorage)
 const memoryStorage = new Map<string, string>();
 
 function getStorageItem(key: string): string | null {
@@ -589,17 +627,77 @@ function removeStorageItem(key: string): void {
   memoryStorage.delete(key);
 }
 
-export function getLocalPortfolioTimestamp(): number {
-  const raw = getStorageItem(LOCAL_UPDATED_AT_KEY);
-  return raw ? Number(raw) || 0 : 0;
+export interface BundledPortfolioDocument {
+  version?: number;
+  updatedAt?: number;
+  projects?: ProjectItem[] | null;
+  profile?: Partial<OwnerProfile> | null;
+  siteContent?: Partial<SiteContent> | null;
+  customSections?: CustomSection[] | null;
+  resumeMilestones?: ResumeMilestone[] | null;
+  resumePdf?: StoredResumePdf | null;
 }
 
-export function setLocalPortfolioTimestamp(ts: number): void {
-  setStorageItem(LOCAL_UPDATED_AT_KEY, String(ts));
+const RAW_BUNDLED_DATA = initialDataJson as unknown as BundledPortfolioDocument;
+
+const memoryPortfolioStore: {
+  updatedAt: number;
+  projects: ProjectItem[] | null;
+  profile: OwnerProfile | null;
+  siteContent: SiteContent | null;
+  customSections: CustomSection[] | null;
+  resumeMilestones: ResumeMilestone[] | null;
+  resumePdf: StoredResumePdf | null | undefined;
+} = {
+  updatedAt: Number(RAW_BUNDLED_DATA?.updatedAt) || 0,
+  projects: null,
+  profile: null,
+  siteContent: null,
+  customSections: null,
+  resumeMilestones: null,
+  resumePdf: undefined,
+};
+
+export function getBundledDataTimestamp(): number {
+  return Number(RAW_BUNDLED_DATA?.updatedAt) || 0;
 }
 
-function touchLocalPortfolioTimestamp(ts: number = Date.now()): void {
-  setStorageItem(LOCAL_UPDATED_AT_KEY, String(ts));
+export function getPortfolioDataTimestamp(): number {
+  return memoryPortfolioStore.updatedAt || getBundledDataTimestamp();
+}
+
+export function setPortfolioDataTimestamp(ts: number): void {
+  memoryPortfolioStore.updatedAt = ts;
+}
+
+export function hydratePortfolioStoreFromDocument(doc: BundledPortfolioDocument): void {
+  const ts = Number(doc?.updatedAt) || Date.now();
+  memoryPortfolioStore.updatedAt = ts;
+  memoryPortfolioStore.projects = Array.isArray(doc?.projects) && doc.projects.length > 0
+    ? sanitizeJsonStrings(doc.projects as ProjectItem[])
+    : getPublishedProjects();
+  memoryPortfolioStore.profile = doc?.profile && typeof doc.profile === 'object'
+    ? sanitizeJsonStrings({ ...DEFAULT_PROFILE, ...(doc.profile as Partial<OwnerProfile>) })
+    : getPublishedProfile();
+  memoryPortfolioStore.siteContent = doc?.siteContent && typeof doc.siteContent === 'object'
+    ? (() => {
+        const merged = sanitizeJsonStrings({
+          ...DEFAULT_SITE_CONTENT,
+          ...(doc.siteContent as Partial<SiteContent>),
+        });
+        if (!merged.contactEmail || merged.contactEmail.toLowerCase() === 'avinashr5904@gmail.com') {
+          merged.contactEmail = OWNER_EMAIL;
+        }
+        return merged;
+      })()
+    : getPublishedSiteContent();
+  memoryPortfolioStore.customSections = Array.isArray(doc?.customSections)
+    ? sanitizeJsonStrings(doc.customSections as CustomSection[])
+    : getPublishedCustomSections();
+  memoryPortfolioStore.resumeMilestones = Array.isArray(doc?.resumeMilestones)
+    ? sanitizeJsonStrings(doc.resumeMilestones as ResumeMilestone[])
+    : getPublishedResumeMilestones();
+  memoryPortfolioStore.resumePdf = doc?.resumePdf?.dataUrl ? (doc.resumePdf as StoredResumePdf) : null;
 }
 
 export function stripUnityReferences(text: string): string {
@@ -767,27 +865,30 @@ export function resolveResumeEducation(siteContent?: Partial<SiteContent>): Resu
 }
 
 /**
- * Published Bundle Fallbacks (bundled in static/Vercel builds)
+ * Bundled data.json Fallbacks (shipped in Vite/Vercel builds & updated via GitHub Contents API)
  */
 export function getPublishedProjects(): ProjectItem[] {
-  if (Array.isArray(PUBLISHED_PORTFOLIO.projects) && PUBLISHED_PORTFOLIO.projects.length > 0) {
-    return sanitizeJsonStrings(PUBLISHED_PORTFOLIO.projects as ProjectItem[]);
+  if (Array.isArray(RAW_BUNDLED_DATA?.projects) && RAW_BUNDLED_DATA.projects.length > 0) {
+    return sanitizeJsonStrings(RAW_BUNDLED_DATA.projects as ProjectItem[]);
   }
   return PORTFOLIO_PROJECTS;
 }
 
 export function getPublishedProfile(): OwnerProfile {
-  if (PUBLISHED_PORTFOLIO.profile && typeof PUBLISHED_PORTFOLIO.profile === 'object') {
-    return sanitizeJsonStrings({ ...DEFAULT_PROFILE, ...(PUBLISHED_PORTFOLIO.profile as Partial<OwnerProfile>) });
+  if (RAW_BUNDLED_DATA?.profile && typeof RAW_BUNDLED_DATA.profile === 'object') {
+    return sanitizeJsonStrings({
+      ...DEFAULT_PROFILE,
+      ...(RAW_BUNDLED_DATA.profile as Partial<OwnerProfile>),
+    });
   }
   return DEFAULT_PROFILE;
 }
 
 export function getPublishedSiteContent(): SiteContent {
-  if (PUBLISHED_PORTFOLIO.siteContent && typeof PUBLISHED_PORTFOLIO.siteContent === 'object') {
+  if (RAW_BUNDLED_DATA?.siteContent && typeof RAW_BUNDLED_DATA.siteContent === 'object') {
     const merged = sanitizeJsonStrings({
       ...DEFAULT_SITE_CONTENT,
-      ...(PUBLISHED_PORTFOLIO.siteContent as Partial<SiteContent>),
+      ...(RAW_BUNDLED_DATA.siteContent as Partial<SiteContent>),
     });
     if (!merged.contactEmail || merged.contactEmail.toLowerCase() === 'avinashr5904@gmail.com') {
       merged.contactEmail = OWNER_EMAIL;
@@ -798,97 +899,76 @@ export function getPublishedSiteContent(): SiteContent {
 }
 
 export function getPublishedCustomSections(): CustomSection[] {
-  if (Array.isArray(PUBLISHED_PORTFOLIO.customSections)) {
-    return sanitizeJsonStrings(PUBLISHED_PORTFOLIO.customSections as CustomSection[]);
+  if (Array.isArray(RAW_BUNDLED_DATA?.customSections)) {
+    return sanitizeJsonStrings(RAW_BUNDLED_DATA.customSections as CustomSection[]);
   }
   return DEFAULT_CUSTOM_SECTIONS;
 }
 
 export function getPublishedResumeMilestones(): ResumeMilestone[] {
-  if (Array.isArray(PUBLISHED_PORTFOLIO.resumeMilestones)) {
-    return sanitizeJsonStrings(PUBLISHED_PORTFOLIO.resumeMilestones as ResumeMilestone[]);
+  if (Array.isArray(RAW_BUNDLED_DATA?.resumeMilestones)) {
+    return sanitizeJsonStrings(RAW_BUNDLED_DATA.resumeMilestones as ResumeMilestone[]);
   }
   return DEFAULT_RESUME_MILESTONES;
 }
 
 export function getPublishedResumePdf(): StoredResumePdf | null {
-  if (PUBLISHED_PORTFOLIO.resumePdf && PUBLISHED_PORTFOLIO.resumePdf.dataUrl) {
-    return PUBLISHED_PORTFOLIO.resumePdf as StoredResumePdf;
+  if (RAW_BUNDLED_DATA?.resumePdf && RAW_BUNDLED_DATA.resumePdf.dataUrl) {
+    return RAW_BUNDLED_DATA.resumePdf as StoredResumePdf;
   }
   return null;
 }
 
 /**
- * Projects CRUD
+ * Projects CRUD (In-memory; persisted via GitHub Contents API commit to data.json)
  */
 export function getStoredProjects(): ProjectItem[] {
-  try {
-    const raw = getStorageItem(PROJECTS_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return sanitizeJsonStrings(parsed);
-      }
-    }
-  } catch (err) {
-    console.warn('Failed to parse stored projects, using published defaults', err);
+  if (Array.isArray(memoryPortfolioStore.projects) && memoryPortfolioStore.projects.length > 0) {
+    return sanitizeJsonStrings(memoryPortfolioStore.projects);
   }
   return getPublishedProjects();
 }
 
 export function saveStoredProjects(projects: ProjectItem[]): void {
-  setStorageItem(PROJECTS_STORAGE_KEY, JSON.stringify(projects));
-  touchLocalPortfolioTimestamp();
+  memoryPortfolioStore.projects = sanitizeJsonStrings(projects);
+  memoryPortfolioStore.updatedAt = Date.now();
 }
 
 /**
- * Profile CRUD
+ * Profile CRUD (In-memory; persisted via GitHub Contents API commit to data.json)
  */
 export function getStoredProfile(): OwnerProfile {
-  try {
-    const raw = getStorageItem(PROFILE_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        return sanitizeJsonStrings({ ...getPublishedProfile(), ...parsed });
-      }
-    }
-  } catch (err) {
-    console.warn('Failed to parse stored profile, using published defaults', err);
+  if (memoryPortfolioStore.profile) {
+    return sanitizeJsonStrings({ ...getPublishedProfile(), ...memoryPortfolioStore.profile });
   }
   return getPublishedProfile();
 }
 
 export function saveStoredProfile(profile: OwnerProfile): void {
-  setStorageItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
-  touchLocalPortfolioTimestamp();
+  memoryPortfolioStore.profile = sanitizeJsonStrings(profile);
+  memoryPortfolioStore.updatedAt = Date.now();
 }
 
 /**
- * Site Content CRUD (Every line across the site)
+ * Site Content CRUD (In-memory; persisted via GitHub Contents API commit to data.json)
  */
 export function getStoredSiteContent(): SiteContent {
-  try {
-    const raw = getStorageItem(SITE_CONTENT_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        const merged = sanitizeJsonStrings({ ...getPublishedSiteContent(), ...parsed });
-        if (!merged.contactEmail || merged.contactEmail.toLowerCase() === 'avinashr5904@gmail.com') {
-          merged.contactEmail = OWNER_EMAIL;
-        }
-        return merged;
-      }
+  if (memoryPortfolioStore.siteContent) {
+    const merged = sanitizeJsonStrings({
+      ...getPublishedSiteContent(),
+      ...memoryPortfolioStore.siteContent,
+    });
+    if (!merged.contactEmail || merged.contactEmail.toLowerCase() === 'avinashr5904@gmail.com') {
+      merged.contactEmail = OWNER_EMAIL;
     }
-  } catch (err) {
-    console.warn('Failed to parse stored site content, using published defaults', err);
+    return merged;
   }
   return getPublishedSiteContent();
 }
 
 export function saveStoredSiteContent(content: SiteContent): void {
-  setStorageItem(SITE_CONTENT_STORAGE_KEY, JSON.stringify(content));
-  touchLocalPortfolioTimestamp();
+  memoryPortfolioStore.siteContent = sanitizeJsonStrings(content);
+  memoryPortfolioStore.updatedAt = Date.now();
 }
 
 const BOOLEAN_SITE_CONTENT_KEYS = new Set<string>([
@@ -950,26 +1030,18 @@ export function updateSiteContentKey<K extends keyof SiteContent>(
 }
 
 /**
- * Custom Sections CRUD (Add or manage sections in any tab)
+ * Custom Sections CRUD
  */
 export function getStoredCustomSections(): CustomSection[] {
-  try {
-    const raw = getStorageItem(CUSTOM_SECTIONS_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-    }
-  } catch (err) {
-    console.warn('Failed to parse stored custom sections, using published defaults', err);
+  if (Array.isArray(memoryPortfolioStore.customSections)) {
+    return memoryPortfolioStore.customSections;
   }
   return getPublishedCustomSections();
 }
 
 export function saveStoredCustomSections(sections: CustomSection[]): void {
-  setStorageItem(CUSTOM_SECTIONS_STORAGE_KEY, JSON.stringify(sections));
-  touchLocalPortfolioTimestamp();
+  memoryPortfolioStore.customSections = sanitizeJsonStrings(sections);
+  memoryPortfolioStore.updatedAt = Date.now();
 }
 
 export function createCustomSection(
@@ -1006,7 +1078,7 @@ export function deleteCustomSection(
 }
 
 /**
- * Resume PDF Storage & Retrieval
+ * Resume PDF Storage & Retrieval (In-memory; committed inside data.json)
  */
 export interface StoredResumePdf {
   dataUrl: string;
@@ -1016,47 +1088,37 @@ export interface StoredResumePdf {
 }
 
 export function getStoredResumePdf(): StoredResumePdf | null {
-  try {
-    const raw = getStorageItem(RESUME_PDF_STORAGE_KEY);
-    if (raw !== null) {
-      if (raw === 'null') return null;
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.dataUrl) {
-        return parsed as StoredResumePdf;
-      }
-      return null;
-    }
-  } catch (err) {
-    console.warn('Failed to parse stored resume PDF', err);
+  if (memoryPortfolioStore.resumePdf !== undefined) {
+    return memoryPortfolioStore.resumePdf;
   }
   return getPublishedResumePdf();
 }
 
-export function saveStoredResumePdf(dataUrl: string, filename: string, sizeBytes?: number): StoredResumePdf {
+export function saveStoredResumePdf(
+  dataUrl: string,
+  filename: string,
+  sizeBytes?: number
+): StoredResumePdf {
   const item: StoredResumePdf = {
     dataUrl,
     filename: filename || 'Avinash_Game_Designer_Lighting_Artist_Resume.pdf',
     uploadedAt: new Date().toISOString(),
     sizeBytes,
   };
-  setStorageItem(RESUME_PDF_STORAGE_KEY, JSON.stringify(item));
-  touchLocalPortfolioTimestamp();
+  memoryPortfolioStore.resumePdf = item;
+  memoryPortfolioStore.updatedAt = Date.now();
   return item;
 }
 
 export function deleteStoredResumePdf(): void {
-  if (getPublishedResumePdf()) {
-    setStorageItem(RESUME_PDF_STORAGE_KEY, 'null');
-  } else {
-    removeStorageItem(RESUME_PDF_STORAGE_KEY);
-  }
-  touchLocalPortfolioTimestamp();
+  memoryPortfolioStore.resumePdf = null;
+  memoryPortfolioStore.updatedAt = Date.now();
 }
 
 export function restoreStoredResumePdf(pdf: StoredResumePdf | null): void {
   if (pdf && pdf.dataUrl) {
-    setStorageItem(RESUME_PDF_STORAGE_KEY, JSON.stringify(pdf));
-    touchLocalPortfolioTimestamp();
+    memoryPortfolioStore.resumePdf = pdf;
+    memoryPortfolioStore.updatedAt = Date.now();
   } else {
     deleteStoredResumePdf();
   }
@@ -1066,23 +1128,15 @@ export function restoreStoredResumePdf(pdf: StoredResumePdf | null): void {
  * Resume Interactive Milestones CRUD
  */
 export function getStoredResumeMilestones(): ResumeMilestone[] {
-  try {
-    const raw = getStorageItem(RESUME_MILESTONES_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        return sanitizeJsonStrings(parsed as ResumeMilestone[]);
-      }
-    }
-  } catch (err) {
-    console.warn('Failed to parse stored resume milestones, using published defaults', err);
+  if (Array.isArray(memoryPortfolioStore.resumeMilestones)) {
+    return sanitizeJsonStrings(memoryPortfolioStore.resumeMilestones);
   }
   return getPublishedResumeMilestones();
 }
 
 export function saveStoredResumeMilestones(milestones: ResumeMilestone[]): void {
-  setStorageItem(RESUME_MILESTONES_STORAGE_KEY, JSON.stringify(milestones));
-  touchLocalPortfolioTimestamp();
+  memoryPortfolioStore.resumeMilestones = sanitizeJsonStrings(milestones);
+  memoryPortfolioStore.updatedAt = Date.now();
 }
 
 export function createResumeMilestone(
@@ -1634,143 +1688,22 @@ export function saveOwnerSessionSnapshot(
   saveStoredResumeMilestones(snapshot.resumeMilestones);
   restoreStoredResumePdf(snapshot.resumePdf);
   if (typeof exactTimestamp === 'number' && exactTimestamp > 0) {
-    setLocalPortfolioTimestamp(exactTimestamp);
+    setPortfolioDataTimestamp(exactTimestamp);
   }
 }
 
+let inMemoryOwnerBaseline: OwnerSessionSnapshot | null = null;
+
 export function getStoredOwnerSessionBaseline(): OwnerSessionSnapshot | null {
-  if (typeof window !== 'undefined' && window.sessionStorage) {
-    try {
-      const raw = sessionStorage.getItem(OWNER_BASELINE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && typeof parsed === 'object' && Array.isArray(parsed.projects)) {
-          return parsed as OwnerSessionSnapshot;
-        }
-      }
-    } catch {
-      return null;
-    }
-  }
-  return null;
+  return inMemoryOwnerBaseline;
 }
 
 export function saveStoredOwnerSessionBaseline(snapshot: OwnerSessionSnapshot): void {
-  if (typeof window !== 'undefined' && window.sessionStorage) {
-    try {
-      sessionStorage.setItem(OWNER_BASELINE_KEY, JSON.stringify(snapshot));
-    } catch {
-      // Ignore sessionStorage quota limits (e.g., large PDF data URLs)
-    }
-  }
+  inMemoryOwnerBaseline = createOwnerSessionSnapshot(snapshot);
 }
 
 export function clearStoredOwnerSessionBaseline(): void {
-  if (typeof window !== 'undefined' && window.sessionStorage) {
-    try {
-      sessionStorage.removeItem(OWNER_BASELINE_KEY);
-    } catch {
-      // Ignore storage errors
-    }
-  }
-}
-
-/**
- * Deployment Synchronization: Keeps preview localStorage, bundled publishedPortfolio.ts,
- * and static Vercel builds aligned cleanly without Firebase.
- */
-export function clearLocalPortfolioOverrides(): void {
-  for (const key of PORTFOLIO_SLICE_KEYS) {
-    removeStorageItem(key);
-  }
-}
-
-export function syncLocalStorageWithPublishedBundle(
-  publishedData: PublishedPortfolioData = PUBLISHED_PORTFOLIO
-): 'refreshed_from_deploy' | 'has_pending_local_edits' | 'in_sync' {
-  const publishedAt = Number(publishedData?.publishedAt) || 0;
-  const localUpdatedAtRaw = getStorageItem(LOCAL_UPDATED_AT_KEY);
-  const localUpdatedAt = localUpdatedAtRaw ? Number(localUpdatedAtRaw) || 0 : 0;
-  const hasAnyLocalSlice = PORTFOLIO_SLICE_KEYS.some((key) => getStorageItem(key) !== null);
-
-  if (publishedAt > 0 && publishedAt > localUpdatedAt) {
-    clearLocalPortfolioOverrides();
-    setStorageItem(LOCAL_UPDATED_AT_KEY, String(publishedAt));
-    return 'refreshed_from_deploy';
-  }
-
-  if ((publishedAt === 0 && hasAnyLocalSlice) || localUpdatedAt > publishedAt) {
-    return 'has_pending_local_edits';
-  }
-
-  return 'in_sync';
-}
-
-export function generatePublishedPortfolioTsSource(
-  snapshot: OwnerSessionSnapshot,
-  publishedAt: number = Date.now()
-): string {
-  const safePayload = {
-    publishedAt,
-    projects: snapshot.projects ?? null,
-    profile: snapshot.profile ?? null,
-    siteContent: snapshot.siteContent ?? null,
-    customSections: snapshot.customSections ?? null,
-    resumeMilestones: snapshot.resumeMilestones ?? null,
-    resumePdf: snapshot.resumePdf?.dataUrl ? snapshot.resumePdf : null,
-  };
-
-  return `import { ProjectItem } from '../types/portfolio';
-
-export interface PublishedPortfolioData {
-  publishedAt: number;
-  projects: ProjectItem[] | null;
-  profile: Record<string, any> | null;
-  siteContent: Record<string, any> | null;
-  customSections: any[] | null;
-  resumeMilestones: any[] | null;
-  resumePdf: {
-    dataUrl: string;
-    filename: string;
-    uploadedAt: string;
-    sizeBytes?: number;
-  } | null;
-}
-
-/**
- * Bundled Owner Mode snapshot written automatically by the preview dev server
- * so Vercel / production static builds always ship with your latest Owner edits.
- */
-export const PUBLISHED_PORTFOLIO: PublishedPortfolioData = ${JSON.stringify(safePayload, null, 2)};
-`;
-}
-
-export async function checkServerPublishStatus(): Promise<{
-  canWriteToSource: boolean;
-  publishedAt: number;
-  reachable: boolean;
-}> {
-  try {
-    const res = await fetch('/api/publish-status', { method: 'GET', cache: 'no-store' });
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      // On Vite/Vercel SPA fallback (200 HTML) or proxy warmup (502/503 HTML):
-      // If it's a 502/503/504 warmup, mark reachable=false so we retry instead of locking into readonly!
-      const isWarmup = res.status >= 500;
-      return { canWriteToSource: false, publishedAt: 0, reachable: !isWarmup };
-    }
-    if (!res.ok) {
-      return { canWriteToSource: false, publishedAt: 0, reachable: res.status < 500 };
-    }
-    const data = await res.json();
-    return {
-      canWriteToSource: Boolean(data?.canWriteToSource),
-      publishedAt: Number(data?.publishedAt) || 0,
-      reachable: true,
-    };
-  } catch {
-    return { canWriteToSource: false, publishedAt: 0, reachable: false };
-  }
+  inMemoryOwnerBaseline = null;
 }
 
 export async function uploadMediaFileToServer(
@@ -1797,75 +1730,6 @@ export async function uploadMediaFileToServer(
     return { ok: false, readOnly: Boolean(data?.readOnly) || res.status === 403 };
   } catch {
     return { ok: false };
-  }
-}
-
-export async function publishPortfolioToServer(
-  snapshot: OwnerSessionSnapshot,
-  options?: { reset?: boolean; keepalive?: boolean; publishedAt?: number }
-): Promise<{
-  ok: boolean;
-  publishedAt?: number;
-  readOnly?: boolean;
-  error?: string;
-}> {
-  try {
-    const publishedAt = Number(options?.publishedAt) > 0 ? Number(options?.publishedAt) : Date.now();
-    const bodyString = JSON.stringify({
-      publishedAt,
-      reset: Boolean(options?.reset),
-      projects: snapshot.projects,
-      profile: snapshot.profile,
-      siteContent: snapshot.siteContent,
-      customSections: snapshot.customSections,
-      resumeMilestones: snapshot.resumeMilestones,
-      resumePdf: snapshot.resumePdf ?? null,
-    });
-
-    const canKeepalive = Boolean(options?.keepalive) && bodyString.length < 60_000;
-
-    const res = await fetch('/api/publish-portfolio', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      keepalive: canKeepalive,
-      body: bodyString,
-    });
-
-    if (res.status === 413) {
-      return {
-        ok: false,
-        readOnly: false,
-        error: 'Upload payload exceeds 32MB request limit. Use shorter videos or external video URLs.',
-      };
-    }
-
-    const contentType = res.headers.get('content-type') || '';
-    if (!contentType.includes('application/json')) {
-      const isStaticSpA = res.status === 404 || res.status === 405 || res.status === 200;
-      return {
-        ok: false,
-        readOnly: isStaticSpA,
-        error: isStaticSpA ? 'Static host environment' : `Transient server response (${res.status})`,
-      };
-    }
-
-    const data = await res.json();
-    if (res.ok && data?.ok) {
-      const serverTs = Number(data.publishedAt) || publishedAt;
-      setStorageItem(LOCAL_UPDATED_AT_KEY, String(serverTs));
-      return { ok: true, publishedAt: serverTs };
-    }
-
-    return {
-      ok: false,
-      readOnly: Boolean(data?.readOnly) || res.status === 403,
-      error: data?.error || 'Failed to sync changes to source bundle',
-    };
-  } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : 'Network error during deploy sync',
-    };
   }
 }
 

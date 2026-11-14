@@ -9,13 +9,15 @@ import {
   ZoomIn,
   X,
 } from 'lucide-react';
-import { ResumeMilestone } from '../../utils/portfolioStorage';
+import { ResumeMilestone, SiteContent } from '../../utils/portfolioStorage';
 import { EditableText } from '../common/EditableText';
 import { MediaUploadField } from '../common/MediaUploadField';
 
 interface CareerTimelineProps {
   milestones: ResumeMilestone[];
   isOwner?: boolean;
+  siteContent?: SiteContent;
+  onUpdateSiteContent?: (key: keyof SiteContent, value: any) => void;
   onUpdateMilestone: (id: string, updated: Partial<ResumeMilestone>) => void;
   onCreateMilestone: (milestone: ResumeMilestone) => void;
   onDeleteMilestone: (id: string) => void;
@@ -25,6 +27,8 @@ interface CareerTimelineProps {
 export const CareerTimeline: React.FC<CareerTimelineProps> = ({
   milestones,
   isOwner = false,
+  siteContent,
+  onUpdateSiteContent,
   onUpdateMilestone,
   onCreateMilestone,
   onDeleteMilestone,
@@ -241,10 +245,22 @@ export const CareerTimeline: React.FC<CareerTimelineProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <div className="text-xs font-mono text-red-500 tracking-wider uppercase mb-1">
-            Chronological Record · Career Progression
+            <EditableText
+              value={siteContent?.aboutTimelineKicker || 'Chronological Record · Career Progression'}
+              onChange={(v) => onUpdateSiteContent?.('aboutTimelineKicker', v)}
+              isOwner={isOwner}
+              label="Timeline Kicker"
+              as="span"
+            />
           </div>
           <h3 className="text-2xl sm:text-3xl font-display font-bold text-zinc-100">
-            Career Timeline
+            <EditableText
+              value={siteContent?.aboutTimelineHeadline || 'Career Timeline'}
+              onChange={(v) => onUpdateSiteContent?.('aboutTimelineHeadline', v)}
+              isOwner={isOwner}
+              label="Timeline Heading"
+              as="span"
+            />
           </h3>
           {milestones.length > 1 && (
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-[11px] font-mono">
@@ -516,7 +532,18 @@ export const CareerTimeline: React.FC<CareerTimelineProps> = ({
                         {/* Key Achievements */}
                         <div className="space-y-2">
                           <div className="text-[11px] font-mono uppercase tracking-wider text-zinc-500 font-semibold">
-                            KEY ACHIEVEMENTS &amp; PRODUCTION METRICS
+                            <EditableText
+                              value={
+                                siteContent?.aboutTimelineAchievementsLabel ||
+                                'KEY ACHIEVEMENTS & PRODUCTION METRICS'
+                              }
+                              onChange={(v) =>
+                                onUpdateSiteContent?.('aboutTimelineAchievementsLabel', v)
+                              }
+                              isOwner={isOwner}
+                              label="Timeline Achievements Label"
+                              as="span"
+                            />
                           </div>
 
                           <ul className="space-y-2">
@@ -585,9 +612,21 @@ export const CareerTimeline: React.FC<CareerTimelineProps> = ({
                         {milestone.techStack.map((tech, tIdx) => (
                           <span
                             key={tIdx}
+                            onClick={(e) => e.stopPropagation()}
                             className="px-2.5 py-1 rounded-lg bg-zinc-950/80 border border-zinc-800 text-[11px] font-mono text-zinc-400 inline-flex items-center gap-1.5"
                           >
-                            <span>{tech}</span>
+                            <EditableText
+                              value={tech}
+                              onChange={(v) => {
+                                const nextStack = milestone.techStack.map((item, idx) =>
+                                  idx === tIdx ? v : item
+                                );
+                                onUpdateMilestone(milestone.id, { techStack: nextStack });
+                              }}
+                              isOwner={isOwner}
+                              label="Tech Tag"
+                              as="span"
+                            />
                             {isOwner && (
                               <button
                                 type="button"
