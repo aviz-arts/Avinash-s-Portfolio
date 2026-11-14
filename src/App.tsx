@@ -73,8 +73,6 @@ import {
   StoredResumePdf,
   CustomSection,
   ResumeMilestone,
-  LevelDesignCardItem,
-  resolveLevelCards,
   OwnerSessionSnapshot,
   createOwnerSessionSnapshot,
   getChangedOwnerSections,
@@ -87,12 +85,8 @@ import {
   DEFAULT_AVATAR_URL,
 } from './utils/portfolioStorage';
 import {
-  Compass,
-  Zap,
-  Layers,
   ArrowRight,
   Search,
-  Sparkles,
   Box,
   Lock,
   CheckCircle2,
@@ -822,8 +816,6 @@ export default function App() {
   const showReelPlayer = siteContent.workShowReelPlayer !== false;
   const showAbSlider = siteContent.workShowAbSlider !== false;
   const visibleReelsCount = (showReelPlayer ? 1 : 0) + (showAbSlider ? 1 : 0);
-  const showLevelDesignSection = siteContent.workShowLevelDesign !== false;
-  const levelCards = resolveLevelCards(siteContent);
 
   return (
     <div className="min-h-screen bg-[#050505] text-zinc-100 flex flex-col selection:bg-red-500/30 selection:text-white print:bg-white print:text-zinc-950">
@@ -1618,163 +1610,6 @@ export default function App() {
                 </p>
               </div>
                   )}
-                </div>
-              )}
-            </div>
-          </section>
-        )}
-
-        {/* 6. Level Design Blockout Showcase */}
-        {showLevelDesignSection && (
-          <section id="level-design" className="py-14 sm:py-20 border-b border-zinc-800/80">
-            <div className="w-full max-w-[1680px] mx-auto px-4 sm:px-6 lg:px-10 xl:px-14">
-              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-12">
-                <div className="flex-1">
-                  <div className="text-xs font-mono text-red-500 uppercase tracking-wider mb-2">
-                    <EditableText
-                      value={siteContent.levelKicker}
-                      onChange={(v) => handleUpdateSiteLine('levelKicker', v)}
-                      isOwner={ownerCanEdit}
-                      label="Level Kicker"
-                    />
-                  </div>
-                  <h2 className="text-3xl sm:text-4xl font-display font-bold text-zinc-100">
-                    <EditableText
-                      value={siteContent.levelHeadline}
-                      onChange={(v) => handleUpdateSiteLine('levelHeadline', v)}
-                      isOwner={ownerCanEdit}
-                      label="Level Headline"
-                      as="span"
-                    />
-                  </h2>
-                  <p className="text-sm text-zinc-400 mt-2 leading-relaxed text-justify">
-                    <EditableText
-                      value={siteContent.levelDescription}
-                      onChange={(v) => handleUpdateSiteLine('levelDescription', v)}
-                      isOwner={ownerCanEdit}
-                      label="Level Description"
-                      multiline={true}
-                      as="span"
-                    />
-                  </p>
-                </div>
-
-                {ownerCanEdit && (
-                  <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
-                    <button
-                      onClick={() => {
-                        const nextCard: LevelDesignCardItem = {
-                          id: `level-card-${Date.now()}`,
-                          title: 'New Spatial Pillar',
-                          description: 'Describe encounter pacing, spatial flow, or environmental sightline framing.',
-                          tag: 'Unreal Engine 5.4 · Level Design',
-                          icon: 'compass',
-                        };
-                        handleUpdateSiteLine('levelCards', [...levelCards, nextCard]);
-                      }}
-                      className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-mono flex items-center gap-1.5 shadow-sm shadow-red-600/30 cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>+ Add Card</span>
-                    </button>
-                    <button
-                      onClick={() => handleUpdateSiteLine('workShowLevelDesign', false)}
-                      className="px-2.5 py-1.5 bg-red-950/30 hover:bg-red-900/50 text-red-400 border border-red-900/50 rounded-xl text-xs font-mono flex items-center gap-1 cursor-pointer"
-                      title="Remove Level Design section (restore in Manage Sections)"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      <span>Remove Section</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Adaptive Level Design Focus Cards */}
-              {levelCards.length > 0 && (
-                <div className={getBalancedContainerClass(levelCards.length, 'cards')}>
-                  {levelCards.map((card, cardIdx) => {
-                    const iconKind = card.icon || (cardIdx % 3 === 1 ? 'layers' : cardIdx % 3 === 2 ? 'sparkles' : 'compass');
-                    return (
-                      <div
-                        key={card.id}
-                        className={`${getBalancedItemSpanClass(cardIdx, levelCards.length, 'cards')} relative p-6 bg-zinc-900/50 border border-zinc-800 rounded-2xl flex flex-col justify-between gap-4 h-full`}
-                      >
-                        {ownerCanEdit && (
-                          <button
-                            onClick={() =>
-                              handleUpdateSiteLine(
-                                'levelCards',
-                                levelCards.filter((c) => c.id !== card.id)
-                              )
-                            }
-                            className="absolute top-4 right-4 p-1.5 bg-zinc-950/80 hover:bg-red-900/60 text-zinc-500 hover:text-red-400 border border-zinc-800 rounded-lg transition-colors cursor-pointer"
-                            title="Delete card"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                        <div className="space-y-4">
-                          <div
-                            className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                              iconKind === 'layers'
-                                ? 'bg-red-950/40 border border-red-800/60 text-red-400'
-                                : 'bg-zinc-900 border border-zinc-700 text-zinc-200'
-                            }`}
-                          >
-                            {iconKind === 'layers' ? (
-                              <Layers className="w-5 h-5" />
-                            ) : iconKind === 'sparkles' ? (
-                              <Sparkles className="w-5 h-5" />
-                            ) : (
-                              <Compass className="w-5 h-5" />
-                            )}
-                          </div>
-                          <h3 className="text-lg font-display font-semibold text-zinc-100 pr-8">
-                            <EditableText
-                              value={card.title}
-                              onChange={(v) =>
-                                handleUpdateSiteLine(
-                                  'levelCards',
-                                  levelCards.map((c) => (c.id === card.id ? { ...c, title: v } : c))
-                                )
-                              }
-                              isOwner={ownerCanEdit}
-                              label={`Card ${cardIdx + 1} Title`}
-                              as="span"
-                            />
-                          </h3>
-                          <p className="text-xs text-zinc-400 leading-relaxed text-justify">
-                            <EditableText
-                              value={card.description}
-                              onChange={(v) =>
-                                handleUpdateSiteLine(
-                                  'levelCards',
-                                  levelCards.map((c) => (c.id === card.id ? { ...c, description: v } : c))
-                                )
-                              }
-                              isOwner={ownerCanEdit}
-                              label={`Card ${cardIdx + 1} Description`}
-                              multiline={true}
-                              as="span"
-                            />
-                          </p>
-                        </div>
-                        <div className="pt-2 border-t border-zinc-800/60 text-xs font-mono text-zinc-500">
-                          <EditableText
-                            value={card.tag}
-                            onChange={(v) =>
-                              handleUpdateSiteLine(
-                                'levelCards',
-                                levelCards.map((c) => (c.id === card.id ? { ...c, tag: v } : c))
-                              )
-                            }
-                            isOwner={ownerCanEdit}
-                            label={`Card ${cardIdx + 1} Tag`}
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
                 </div>
               )}
             </div>

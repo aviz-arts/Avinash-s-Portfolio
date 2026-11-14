@@ -8,6 +8,8 @@ import {
   Trash2,
   Upload,
   CheckCircle2,
+  Compass,
+  Layers,
 } from 'lucide-react';
 import {
   OwnerProfile,
@@ -17,9 +19,11 @@ import {
   StatCardItem,
   ResumeSkillItem,
   ResumeEducationItem,
+  LevelDesignCardItem,
   resolveResumeBenchmarks,
   resolveResumeSkills,
   resolveResumeEducation,
+  resolveLevelCards,
 } from '../../utils/portfolioStorage';
 import {
   getBalancedContainerClass,
@@ -60,6 +64,7 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({
   const benchmarks = resolveResumeBenchmarks(siteContent);
   const skills = resolveResumeSkills(siteContent);
   const educationList = resolveResumeEducation(siteContent);
+  const levelCards = resolveLevelCards(siteContent);
 
   const showBenchmarks =
     siteContent?.resumeShowBenchmarks !== false && (benchmarks.length > 0 || isOwner);
@@ -68,6 +73,7 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({
     siteContent?.resumeShowSkills !== false && (skills.length > 0 || isOwner);
   const showEducation =
     siteContent?.resumeShowEducation !== false && (educationList.length > 0 || isOwner);
+  const showCoreCompetency = siteContent?.workShowLevelDesign !== false;
 
   const handlePrint = () => {
     window.print();
@@ -575,6 +581,178 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({
               ))}
             </div>
           </div>
+        )}
+
+        {/* 6. Core Competency / Game Design Focus Section (Moved from Work Tab) */}
+        {showCoreCompetency && (
+          <section
+            id="level-design"
+            className="p-6 sm:p-8 bg-zinc-950/80 border border-zinc-800 rounded-3xl space-y-8 print:bg-white print:border-zinc-300 print:p-5 print:rounded-xl print:break-inside-avoid"
+          >
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+              <div className="flex-1">
+                <div className="text-xs font-mono text-red-500 print:text-red-700 uppercase tracking-wider mb-2">
+                  <EditableText
+                    value={siteContent?.levelKicker || 'Primary Profession · Game Design'}
+                    onChange={(v) => onUpdateSiteContent?.('levelKicker', v)}
+                    isOwner={isOwner}
+                    label="Core Competency Kicker"
+                  />
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-display font-bold text-zinc-100 print:text-zinc-950">
+                  <EditableText
+                    value={siteContent?.levelHeadline || 'Core Competency'}
+                    onChange={(v) => onUpdateSiteContent?.('levelHeadline', v)}
+                    isOwner={isOwner}
+                    label="Core Competency Headline"
+                    as="span"
+                  />
+                </h2>
+                <p className="text-sm text-zinc-400 print:text-zinc-700 mt-2 leading-relaxed text-justify">
+                  <EditableText
+                    value={
+                      siteContent?.levelDescription ||
+                      'Great game design balances player agency, mechanical depth, and intuitive guidance. Here is how core loops, encounter spaces, and player feedback systems are architected from paper to engine.'
+                    }
+                    onChange={(v) => onUpdateSiteContent?.('levelDescription', v)}
+                    isOwner={isOwner}
+                    label="Core Competency Description"
+                    multiline={true}
+                    as="span"
+                  />
+                </p>
+              </div>
+
+              {isOwner && (
+                <div className="flex flex-wrap items-center gap-2 self-start md:self-auto print:hidden">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextCard: LevelDesignCardItem = {
+                        id: `level-card-${Date.now()}`,
+                        title: 'New Spatial Pillar',
+                        description:
+                          'Describe encounter pacing, spatial flow, or environmental sightline framing.',
+                        tag: 'Unreal Engine 5.4 · Level Design',
+                        icon: 'compass',
+                      };
+                      onUpdateSiteContent?.('levelCards', [...levelCards, nextCard]);
+                    }}
+                    className="px-3 py-1.5 bg-red-600 hover:bg-red-500 text-white rounded-xl text-xs font-mono flex items-center gap-1.5 shadow-sm shadow-red-600/30 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>+ Add Card</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onUpdateSiteContent?.('workShowLevelDesign', false)}
+                    className="px-2.5 py-1.5 bg-red-950/30 hover:bg-red-900/50 text-red-400 border border-red-900/50 rounded-xl text-xs font-mono flex items-center gap-1 cursor-pointer"
+                    title="Remove Core Competency section (restore in Manage Sections)"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Remove Section</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {levelCards.length > 0 && (
+              <div className={getBalancedContainerClass(levelCards.length, 'cards')}>
+                {levelCards.map((card, cardIdx) => {
+                  const iconKind =
+                    card.icon ||
+                    (cardIdx % 3 === 1 ? 'layers' : cardIdx % 3 === 2 ? 'sparkles' : 'compass');
+                  return (
+                    <div
+                      key={card.id}
+                      className={`${getBalancedItemSpanClass(
+                        cardIdx,
+                        levelCards.length,
+                        'cards'
+                      )} relative p-6 bg-zinc-900/50 border border-zinc-800 rounded-2xl flex flex-col justify-between gap-4 h-full print:bg-zinc-50 print:border-zinc-300`}
+                    >
+                      {isOwner && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            onUpdateSiteContent?.(
+                              'levelCards',
+                              levelCards.filter((c) => c.id !== card.id)
+                            )
+                          }
+                          className="absolute top-4 right-4 p-1.5 bg-zinc-950/80 hover:bg-red-900/60 text-zinc-500 hover:text-red-400 border border-zinc-800 rounded-lg transition-colors cursor-pointer print:hidden"
+                          title="Delete card"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      <div className="space-y-4">
+                        <div
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                            iconKind === 'layers'
+                              ? 'bg-red-950/40 border border-red-800/60 text-red-400'
+                              : 'bg-zinc-900 border border-zinc-700 text-zinc-200'
+                          }`}
+                        >
+                          {iconKind === 'layers' ? (
+                            <Layers className="w-5 h-5" />
+                          ) : iconKind === 'sparkles' ? (
+                            <Sparkles className="w-5 h-5" />
+                          ) : (
+                            <Compass className="w-5 h-5" />
+                          )}
+                        </div>
+                        <h3 className="text-lg font-display font-semibold text-zinc-100 print:text-zinc-950 pr-8">
+                          <EditableText
+                            value={card.title}
+                            onChange={(v) =>
+                              onUpdateSiteContent?.(
+                                'levelCards',
+                                levelCards.map((c) => (c.id === card.id ? { ...c, title: v } : c))
+                              )
+                            }
+                            isOwner={isOwner}
+                            label={`Card ${cardIdx + 1} Title`}
+                            as="span"
+                          />
+                        </h3>
+                        <p className="text-xs text-zinc-400 print:text-zinc-700 leading-relaxed text-justify">
+                          <EditableText
+                            value={card.description}
+                            onChange={(v) =>
+                              onUpdateSiteContent?.(
+                                'levelCards',
+                                levelCards.map((c) =>
+                                  c.id === card.id ? { ...c, description: v } : c
+                                )
+                              )
+                            }
+                            isOwner={isOwner}
+                            label={`Card ${cardIdx + 1} Description`}
+                            multiline={true}
+                            as="span"
+                          />
+                        </p>
+                      </div>
+                      <div className="pt-2 border-t border-zinc-800/60 print:border-zinc-300 text-xs font-mono text-zinc-500 print:text-zinc-600">
+                        <EditableText
+                          value={card.tag}
+                          onChange={(v) =>
+                            onUpdateSiteContent?.(
+                              'levelCards',
+                              levelCards.map((c) => (c.id === card.id ? { ...c, tag: v } : c))
+                            )
+                          }
+                          isOwner={isOwner}
+                          label={`Card ${cardIdx + 1} Tag`}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
         )}
       </div>
     </div>
