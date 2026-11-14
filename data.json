@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1794639031690,
+  "updatedAt": 1794639034868,
   "projects": [
     {
       "id": "district-7-cyberpunk",
@@ -826,7 +826,20 @@
     "contactSocialKicker": "CONNECT ON SOCIAL",
     "footerName": "Avinash",
     "footerRole": "Game Designer | Lighting Artist",
-    "footerCopyright": "Avinash. All rights reserved."
+    "footerCopyright": "Avinash. All rights reserved.",
+    "resumeBenchmarks": [
+      {
+        "id": "bench-2",
+        "value": "100% Core",
+        "label": "Game Design & Mechanics Focus",
+        "highlight": true
+      },
+      {
+        "id": "bench-3",
+        "value": "7+ Years",
+        "label": "Game Industry Experience"
+      }
+    ]
   },
   "customSections": [
     {
