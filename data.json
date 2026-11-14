@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updatedAt": 1794639021020,
+  "updatedAt": 1794639029881,
   "projects": [
     {
       "id": "district-7-cyberpunk",
@@ -748,7 +748,7 @@
     "contactHeadline": "Let's Work Together",
     "contactSubtitle": "Have a project in mind? I'd love to hear about it. Reach out for collaborations, freelance work, or just to say hello.",
     "contactEmailNote": "Best for project inquiries and collaborations. I typically respond within 24-48 hours.",
-    "contactPhone": "+91 7305695975",
+    "contactPhone": "+91 9361287193",
     "contactPhoneNote": "For urgent matters or quick calls. Available during IST business hours.",
     "contactLocationText": "Based in India · Available Worldwide",
     "socialYoutubeUrl": "https://youtube.com",
@@ -826,20 +826,7 @@
     "contactSocialKicker": "CONNECT ON SOCIAL",
     "footerName": "Avinash",
     "footerRole": "Game Designer | Lighting Artist",
-    "footerCopyright": "Avinash. All rights reserved.",
-    "resumeBenchmarks": [
-      {
-        "id": "bench-1",
-        "value": "4 Titles",
-        "label": "Shipped Releases (PC/Console)"
-      },
-      {
-        "id": "bench-2",
-        "value": "100% Core",
-        "label": "Game Design & Mechanics Focus",
-        "highlight": true
-      }
-    ]
+    "footerCopyright": "Avinash. All rights reserved."
   },
   "customSections": [
     {
