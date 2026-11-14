@@ -218,7 +218,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                 <h4 className="text-xs font-mono text-red-500 uppercase tracking-wider">
                   01. Creative Intent & Player Experience
                 </h4>
-                <p className="text-sm text-zinc-300 leading-relaxed mt-1.5">
+                <p className="text-sm text-zinc-300 leading-relaxed mt-1.5 text-justify">
                   {project.creativeIntent}
                 </p>
               </div>
@@ -234,7 +234,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   {project.gameplayDesign.coreLoop && (
                     <div>
                       <span className="text-[10px] font-mono text-zinc-400 uppercase">Core Loop:</span>
-                      <p className="text-xs font-mono text-zinc-100 mt-0.5 bg-black/60 p-2.5 rounded-lg border border-zinc-800 leading-relaxed">
+                      <p className="text-xs font-mono text-zinc-100 mt-0.5 bg-black/60 p-2.5 rounded-lg border border-zinc-800 leading-relaxed text-justify">
                         {project.gameplayDesign.coreLoop}
                       </p>
                     </div>
@@ -259,14 +259,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   {project.gameplayDesign.progressionEconomy && (
                     <div className="text-xs">
                       <span className="text-[10px] font-mono text-zinc-400 uppercase">Economy & Constraints:</span>
-                      <p className="text-xs text-zinc-300 mt-0.5">{project.gameplayDesign.progressionEconomy}</p>
+                      <p className="text-xs text-zinc-300 mt-0.5 text-justify leading-relaxed">{project.gameplayDesign.progressionEconomy}</p>
                     </div>
                   )}
 
                   {project.gameplayDesign.feelAndJuice && (
                     <div className="text-xs">
                       <span className="text-[10px] font-mono text-zinc-400 uppercase">Game Feel & Juice:</span>
-                      <p className="text-xs text-zinc-300 mt-0.5">{project.gameplayDesign.feelAndJuice}</p>
+                      <p className="text-xs text-zinc-300 mt-0.5 text-justify leading-relaxed">{project.gameplayDesign.feelAndJuice}</p>
                     </div>
                   )}
                 </div>
@@ -276,7 +276,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                 <h4 className="text-xs font-mono text-red-500 uppercase tracking-wider">
                   03. Technical Challenge & Envelope
                 </h4>
-                <p className="text-sm text-zinc-300 leading-relaxed mt-1.5">
+                <p className="text-sm text-zinc-300 leading-relaxed mt-1.5 text-justify">
                   {project.technicalChallenge}
                 </p>
               </div>
@@ -285,7 +285,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                 <h4 className="text-xs font-mono text-red-500 uppercase tracking-wider">
                   04. Technical & Design Solution
                 </h4>
-                <p className="text-sm text-zinc-300 leading-relaxed mt-1.5">
+                <p className="text-sm text-zinc-300 leading-relaxed mt-1.5 text-justify">
                   {project.solution}
                 </p>
               </div>

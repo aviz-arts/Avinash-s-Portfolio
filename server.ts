@@ -1,7 +1,10 @@
+import 'dotenv/config';
 import express from 'express';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
+
+const CLOUD_GIST_FILENAME = 'portfolio-live-sync.json';
 
 const IS_PRODUCTION = process.env.NODE_ENV === 'production';
 
@@ -330,6 +333,157 @@ async function startServer() {
       res.status(500).json({
         ok: false,
         error: err instanceof Error ? err.message : 'Failed to persist portfolio source.',
+      });
+    }
+  });
+
+  app.get('/api/cloud-sync', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const cleanId = (val: unknown) => {
+      const s = typeof val === 'string' ? val.trim() : '';
+      const m = s.match(/gist\.github\.com\/(?:[^/]+\/)?([a-f0-9]{16,64})/i);
+      return m ? m[1] : s.replace(/[^a-zA-Z0-9_-]/g, '');
+    };
+    const envGistId = cleanId(process.env.PORTFOLIO_GIST_ID || process.env.VITE_CLOUD_SYNC_GIST_ID || '');
+    const envToken = (process.env.PORTFOLIO_GITHUB_TOKEN || '').trim();
+
+    if (req.query?.status === '1') {
+      res.json({
+        serverConfigured: Boolean(envToken && envGistId),
+        gistId: envGistId || undefined,
+      });
+      return;
+    }
+
+    const targetGistId = cleanId(req.query?.gistId) || envGistId;
+    if (!targetGistId) {
+      res.status(404).json({ ok: false, notConfigured: true, error: 'Cloud Sync Gist ID is not configured.' });
+      return;
+    }
+
+    try {
+      const headers: Record<string, string> = {
+        Accept: 'application/vnd.github+json',
+        'User-Agent': 'avinash-portfolio-cloud-sync',
+      };
+      if (envToken) headers.Authorization = `Bearer ${envToken}`;
+
+      const gistRes = await fetch(
+        `https://api.github.com/gists/${encodeURIComponent(targetGistId)}?t=${Date.now()}`,
+        { method: 'GET', headers }
+      );
+      if (!gistRes.ok) {
+        res.status(gistRes.status).json({ ok: false, error: `GitHub Gist HTTP ${gistRes.status}` });
+        return;
+      }
+
+      const gistData: any = await gistRes.json();
+      const fileEntry: any =
+        gistData?.files?.[CLOUD_GIST_FILENAME] ||
+        (gistData?.files ? Object.values(gistData.files)[0] : null);
+      if (!fileEntry) {
+        res.status(404).json({ ok: false, error: 'Sync Gist has no portfolio file.' });
+        return;
+      }
+
+      let rawContent = typeof fileEntry.content === 'string' ? fileEntry.content : '';
+      if (fileEntry.truncated && typeof fileEntry.raw_url === 'string') {
+        const rawRes = await fetch(`${fileEntry.raw_url}?t=${Date.now()}`);
+        if (rawRes.ok) rawContent = await rawRes.text();
+      }
+
+      const parsed = JSON.parse(rawContent);
+      const snapshot = parsed?.snapshot ?? parsed;
+      res.json({
+        ok: true,
+        publishedAt: Number(parsed?.publishedAt) || 0,
+        snapshot,
+        gistId: targetGistId,
+      });
+    } catch (err) {
+      res.status(500).json({
+        ok: false,
+        error: err instanceof Error ? err.message : 'Cloud Sync read failed.',
+      });
+    }
+  });
+
+  app.post('/api/cloud-sync', async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const cleanId = (val: unknown) => {
+      const s = typeof val === 'string' ? val.trim() : '';
+      const m = s.match(/gist\.github\.com\/(?:[^/]+\/)?([a-f0-9]{16,64})/i);
+      return m ? m[1] : s.replace(/[^a-zA-Z0-9_-]/g, '');
+    };
+    const envGistId = cleanId(process.env.PORTFOLIO_GIST_ID || process.env.VITE_CLOUD_SYNC_GIST_ID || '');
+    const envToken = (process.env.PORTFOLIO_GITHUB_TOKEN || '').trim();
+
+    if (!envToken) {
+      res.status(400).json({
+        ok: false,
+        notConfigured: true,
+        error: 'PORTFOLIO_GITHUB_TOKEN is not configured on this server.',
+      });
+      return;
+    }
+
+    try {
+      const { snapshot, publishedAt: rawTs, gistId } = req.body || {};
+      if (!snapshot || typeof snapshot !== 'object' || !Array.isArray(snapshot.projects)) {
+        res.status(400).json({ ok: false, error: 'Missing valid portfolio snapshot.' });
+        return;
+      }
+
+      const publishedAt = Number(rawTs) || Date.now();
+      const targetGistId = cleanId(gistId) || envGistId;
+      const nextSnapshot = targetGistId
+        ? {
+            ...snapshot,
+            siteContent: { ...(snapshot.siteContent || {}), cloudSyncGistId: targetGistId },
+          }
+        : snapshot;
+
+      const endpoint = targetGistId
+        ? `https://api.github.com/gists/${encodeURIComponent(targetGistId)}`
+        : 'https://api.github.com/gists';
+
+      const ghRes = await fetch(endpoint, {
+        method: targetGistId ? 'PATCH' : 'POST',
+        headers: {
+          Accept: 'application/vnd.github+json',
+          Authorization: `Bearer ${envToken}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'avinash-portfolio-cloud-sync',
+        },
+        body: JSON.stringify({
+          description: 'Avinash Portfolio — Live Cross-Site Sync (Public Read, Owner Write)',
+          ...(targetGistId ? {} : { public: true }),
+          files: {
+            [CLOUD_GIST_FILENAME]: {
+              content: JSON.stringify({ version: 1, publishedAt, snapshot: nextSnapshot }, null, 2),
+            },
+          },
+        }),
+      });
+
+      const ghData: any = await ghRes.json().catch(() => ({}));
+      if (!ghRes.ok) {
+        res.status(ghRes.status).json({
+          ok: false,
+          error: ghData?.message || `GitHub Gist write failed (HTTP ${ghRes.status})`,
+        });
+        return;
+      }
+
+      res.json({
+        ok: true,
+        gistId: cleanId(ghData?.id || targetGistId),
+        publishedAt,
+      });
+    } catch (err) {
+      res.status(500).json({
+        ok: false,
+        error: err instanceof Error ? err.message : 'Cloud Sync write failed.',
       });
     }
   });

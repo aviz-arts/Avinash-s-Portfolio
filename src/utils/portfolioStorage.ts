@@ -199,6 +199,9 @@ export interface SiteContent {
   contactShowSocials?: boolean;
   contactShowLocation?: boolean;
 
+  // Cross-Device Cloud Sync (Public Gist ID only — never store private tokens here)
+  cloudSyncGistId?: string;
+
   // Footer
   footerName: string;
   footerRole: string;
@@ -584,6 +587,15 @@ function removeStorageItem(key: string): void {
     }
   }
   memoryStorage.delete(key);
+}
+
+export function getLocalPortfolioTimestamp(): number {
+  const raw = getStorageItem(LOCAL_UPDATED_AT_KEY);
+  return raw ? Number(raw) || 0 : 0;
+}
+
+export function setLocalPortfolioTimestamp(ts: number): void {
+  setStorageItem(LOCAL_UPDATED_AT_KEY, String(ts));
 }
 
 function touchLocalPortfolioTimestamp(ts: number = Date.now()): void {
@@ -1611,13 +1623,19 @@ export function hasUnsavedOwnerChanges(
   return getChangedOwnerSections(baseline, current).length > 0;
 }
 
-export function saveOwnerSessionSnapshot(snapshot: OwnerSessionSnapshot): void {
+export function saveOwnerSessionSnapshot(
+  snapshot: OwnerSessionSnapshot,
+  exactTimestamp?: number
+): void {
   saveStoredProjects(snapshot.projects);
   saveStoredProfile(snapshot.profile);
   saveStoredSiteContent(snapshot.siteContent);
   saveStoredCustomSections(snapshot.customSections);
   saveStoredResumeMilestones(snapshot.resumeMilestones);
   restoreStoredResumePdf(snapshot.resumePdf);
+  if (typeof exactTimestamp === 'number' && exactTimestamp > 0) {
+    setLocalPortfolioTimestamp(exactTimestamp);
+  }
 }
 
 export function getStoredOwnerSessionBaseline(): OwnerSessionSnapshot | null {
@@ -1784,7 +1802,7 @@ export async function uploadMediaFileToServer(
 
 export async function publishPortfolioToServer(
   snapshot: OwnerSessionSnapshot,
-  options?: { reset?: boolean; keepalive?: boolean }
+  options?: { reset?: boolean; keepalive?: boolean; publishedAt?: number }
 ): Promise<{
   ok: boolean;
   publishedAt?: number;
@@ -1792,7 +1810,7 @@ export async function publishPortfolioToServer(
   error?: string;
 }> {
   try {
-    const publishedAt = Date.now();
+    const publishedAt = Number(options?.publishedAt) > 0 ? Number(options?.publishedAt) : Date.now();
     const bodyString = JSON.stringify({
       publishedAt,
       reset: Boolean(options?.reset),

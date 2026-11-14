@@ -22,6 +22,18 @@ import { SiteContentEditorModal } from './components/owner/SiteContentEditorModa
 import { SectionManagerModal } from './components/owner/SectionManagerModal';
 import { UnsavedChangesModal } from './components/owner/UnsavedChangesModal';
 import { OwnerSecurityModal } from './components/owner/OwnerSecurityModal';
+import { CloudSyncModal, CloudSyncState } from './components/owner/CloudSyncModal';
+import { PUBLISHED_PORTFOLIO } from './data/publishedPortfolio';
+import {
+  checkServerCloudSyncStatus,
+  clearStoredCloudSyncCredentials,
+  extractGistId,
+  fetchSnapshotFromCloud,
+  getStoredCloudSyncCredentials,
+  pushSnapshotToCloud,
+  resolveEffectiveCloudGistId,
+  saveStoredCloudSyncCredentials,
+} from './utils/cloudSync';
 import { CustomSectionRenderer } from './components/portfolio/CustomSectionRenderer';
 import { EditableText } from './components/common/EditableText';
 import { CustomCursor } from './components/common/CustomCursor';
@@ -74,6 +86,8 @@ import {
   checkServerPublishStatus,
   publishPortfolioToServer,
   generatePublishedPortfolioTsSource,
+  getLocalPortfolioTimestamp,
+  setLocalPortfolioTimestamp,
   DEFAULT_AVATAR_URL,
 } from './utils/portfolioStorage';
 import {
@@ -154,6 +168,19 @@ export default function App() {
   const [pendingOwnerCloseAction, setPendingOwnerCloseAction] = useState<'logout' | 'forgetDevice' | null>(null);
   const [pendingCloseModalMode, setPendingCloseModalMode] = useState<'unsaved' | 'confirmForget'>('unsaved');
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+  const [isCloudSyncOpen, setIsCloudSyncOpen] = useState(false);
+  const [cloudSyncState, setCloudSyncState] = useState<CloudSyncState>(() =>
+    resolveEffectiveCloudGistId(siteContent) || getStoredCloudSyncCredentials()?.githubToken
+      ? 'checking'
+      : 'disconnected'
+  );
+  const [lastCloudSyncedAt, setLastCloudSyncedAt] = useState<number>(() =>
+    Math.max(getLocalPortfolioTimestamp(), Number(PUBLISHED_PORTFOLIO?.publishedAt) || 0)
+  );
+  const [serverCloudEnvConfigured, setServerCloudEnvConfigured] = useState<boolean>(false);
+  const serverCloudSyncRef = useRef<{ configured: boolean; gistId?: string }>({ configured: false });
+  const lastCloudPullAtRef = useRef<number>(0);
+  const lastCloudPushedHashRef = useRef<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -259,10 +286,17 @@ export default function App() {
 
       const initialSnapshot = currentOwnerSnapshotRef.current;
       const initialHash = JSON.stringify(initialSnapshot);
+      const localTs = getLocalPortfolioTimestamp();
 
-      if (bundleSyncStatusRef.current === 'has_pending_local_edits' || status.publishedAt === 0) {
+      if (
+        bundleSyncStatusRef.current === 'has_pending_local_edits' ||
+        status.publishedAt === 0 ||
+        localTs > status.publishedAt
+      ) {
         setDeploySyncState('saving');
-        const res = await publishPortfolioToServer(initialSnapshot);
+        const res = await publishPortfolioToServer(initialSnapshot, {
+          publishedAt: localTs > 0 ? localTs : undefined,
+        });
         if (cancelled) return;
         if (res.ok) {
           lastPublishedHashRef.current = initialHash;
@@ -328,6 +362,242 @@ export default function App() {
     };
   }, []);
 
+  const applyCloudSnapshot = async (
+    incomingSnapshot: OwnerSessionSnapshot,
+    remoteTs: number,
+    gistIdFromRemote?: string,
+    bannerText?: string
+  ) => {
+    const cleanGistId =
+      extractGistId(gistIdFromRemote || '') ||
+      resolveEffectiveCloudGistId(incomingSnapshot.siteContent) ||
+      serverCloudSyncRef.current.gistId ||
+      '';
+
+    const normalizedSnapshot = createOwnerSessionSnapshot({
+      ...incomingSnapshot,
+      siteContent: {
+        ...incomingSnapshot.siteContent,
+        ...(cleanGistId ? { cloudSyncGistId: cleanGistId } : {}),
+      },
+    });
+
+    const appliedHash = JSON.stringify(normalizedSnapshot);
+    lastCloudPushedHashRef.current = appliedHash;
+    lastPublishedHashRef.current = appliedHash;
+
+    setProjects(normalizedSnapshot.projects);
+    setProfile(normalizedSnapshot.profile);
+    setSiteContent(normalizedSnapshot.siteContent);
+    setCustomSections(normalizedSnapshot.customSections);
+    setResumeMilestones(normalizedSnapshot.resumeMilestones);
+    setResumePdf(normalizedSnapshot.resumePdf);
+    saveOwnerSessionSnapshot(normalizedSnapshot, remoteTs);
+
+    if (isOwnerSessionActive()) {
+      setOwnerSessionBaseline(normalizedSnapshot);
+      saveStoredOwnerSessionBaseline(normalizedSnapshot);
+    }
+
+    setLastCloudSyncedAt(remoteTs);
+    setCloudSyncState('synced');
+
+    if (canWriteToSourceRef.current) {
+      await publishPortfolioToServer(normalizedSnapshot, { publishedAt: remoteTs });
+      setDeploySyncState('synced');
+    }
+
+    if (bannerText) {
+      showBanner(bannerText);
+    }
+  };
+
+  const pullFromCloudIfNewer = async (options?: {
+    force?: boolean;
+    gistIdOverride?: string;
+    showNoChangesBanner?: boolean;
+  }): Promise<{ ok: boolean; message?: string }> => {
+    const now = Date.now();
+    if (!options?.force && now - lastCloudPullAtRef.current < 4000) {
+      return { ok: true };
+    }
+    lastCloudPullAtRef.current = now;
+
+    const effectiveGistId =
+      extractGistId(options?.gistIdOverride || '') ||
+      resolveEffectiveCloudGistId(currentOwnerSnapshotRef.current.siteContent) ||
+      serverCloudSyncRef.current.gistId ||
+      '';
+
+    if (!effectiveGistId && !serverCloudSyncRef.current.configured) {
+      setCloudSyncState(
+        getStoredCloudSyncCredentials()?.githubToken ? 'error' : 'disconnected'
+      );
+      return { ok: false, message: 'No Cloud Sync Gist ID configured yet.' };
+    }
+
+    setCloudSyncState('checking');
+    const res = await fetchSnapshotFromCloud(effectiveGistId);
+    if (!res.ok || !res.snapshot) {
+      setCloudSyncState(res.notConfigured ? 'disconnected' : 'error');
+      return { ok: false, message: res.error || 'Could not fetch from Cloud Sync.' };
+    }
+
+    const knownTs = Math.max(
+      getLocalPortfolioTimestamp(),
+      Number(PUBLISHED_PORTFOLIO?.publishedAt) || 0
+    );
+
+    if (res.publishedAt > knownTs || options?.force) {
+      const appliedTs = res.publishedAt > 0 ? res.publishedAt : Date.now();
+      await applyCloudSnapshot(
+        res.snapshot,
+        appliedTs,
+        res.gistId || effectiveGistId,
+        'Synced latest portfolio changes from Live Cloud.'
+      );
+      return {
+        ok: true,
+        message: 'Pulled latest portfolio changes from Cloud & applied everywhere.',
+      };
+    }
+
+    setLastCloudSyncedAt(res.publishedAt || knownTs);
+    setCloudSyncState('synced');
+    if (options?.showNoChangesBanner) {
+      showBanner('Portfolio is already up to date with Live Cloud.');
+    }
+    return { ok: true, message: 'Portfolio is already up to date with Live Cloud.' };
+  };
+
+  const pushToCloudNow = async (
+    snapshot: OwnerSessionSnapshot,
+    publishedAtOverride?: number,
+    overrideCreds?: { gistId?: string; githubToken?: string }
+  ): Promise<{ ok: boolean; gistId?: string; message?: string; warnings?: string[] }> => {
+    const stored = getStoredCloudSyncCredentials();
+    const canPush = Boolean(
+      overrideCreds?.githubToken?.trim() ||
+        stored?.githubToken ||
+        serverCloudSyncRef.current.configured
+    );
+
+    if (!canPush) {
+      return {
+        ok: false,
+        message: 'No GitHub Gist write token configured on this browser.',
+      };
+    }
+
+    setCloudSyncState('syncing');
+    const targetTs = publishedAtOverride || Date.now();
+    const res = await pushSnapshotToCloud(snapshot, targetTs, overrideCreds);
+
+    if (!res.ok) {
+      setCloudSyncState('error');
+      return { ok: false, message: res.error };
+    }
+
+    const finalTs = res.publishedAt || targetTs;
+    const finalGistId = res.gistId || resolveEffectiveCloudGistId(snapshot.siteContent);
+
+    if (finalGistId && finalGistId !== snapshot.siteContent?.cloudSyncGistId) {
+      const updatedSnapshot = createOwnerSessionSnapshot({
+        ...snapshot,
+        siteContent: { ...snapshot.siteContent, cloudSyncGistId: finalGistId },
+      });
+      const updatedHash = JSON.stringify(updatedSnapshot);
+      lastCloudPushedHashRef.current = updatedHash;
+      setSiteContent(updatedSnapshot.siteContent);
+      saveOwnerSessionSnapshot(updatedSnapshot, finalTs);
+      if (isOwnerSessionActive()) {
+        setOwnerSessionBaseline(updatedSnapshot);
+        saveStoredOwnerSessionBaseline(updatedSnapshot);
+      }
+      if (canWriteToSourceRef.current) {
+        lastPublishedHashRef.current = updatedHash;
+        void publishPortfolioToServer(updatedSnapshot, { publishedAt: finalTs });
+      }
+    } else {
+      lastCloudPushedHashRef.current = JSON.stringify(snapshot);
+      setLocalPortfolioTimestamp(finalTs);
+    }
+
+    setLastCloudSyncedAt(finalTs);
+    setCloudSyncState('synced');
+    return {
+      ok: true,
+      gistId: finalGistId,
+      warnings: res.warnings,
+      message: 'Live Cloud updated — all Vercel, Preview & visitor sessions will replicate automatically.',
+    };
+  };
+
+  // Probe server/Vercel Cloud Sync env + pull any newer Cloud Gist updates on mount, focus & interval
+  useEffect(() => {
+    let cancelled = false;
+
+    const initCloud = async () => {
+      const serverStatus = await checkServerCloudSyncStatus();
+      if (cancelled) return;
+      serverCloudSyncRef.current = {
+        configured: serverStatus.serverConfigured,
+        gistId: serverStatus.gistId,
+      };
+      setServerCloudEnvConfigured(serverStatus.serverConfigured);
+      await pullFromCloudIfNewer({ force: false });
+    };
+
+    void initCloud();
+
+    const handleFocus = () => {
+      void pullFromCloudIfNewer({ force: false });
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        void pullFromCloudIfNewer({ force: false });
+      }
+    };
+
+    const interval = setInterval(() => {
+      void pullFromCloudIfNewer({ force: false });
+    }, 30_000);
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, []);
+
+  // Automatically push Owner edits to Live Cloud whenever write access is connected
+  useEffect(() => {
+    if (!isOwner) return;
+    const hasCloudWrite = Boolean(
+      getStoredCloudSyncCredentials()?.githubToken || serverCloudSyncRef.current.configured
+    );
+    if (!hasCloudWrite) return;
+
+    const nextHash = JSON.stringify(currentOwnerSnapshot);
+    if (lastCloudPushedHashRef.current === null) {
+      lastCloudPushedHashRef.current = nextHash;
+      return;
+    }
+    if (nextHash === lastCloudPushedHashRef.current) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      const ts = Math.max(Date.now(), getLocalPortfolioTimestamp());
+      void pushToCloudNow(currentOwnerSnapshot, ts);
+    }, 750);
+
+    return () => clearTimeout(timer);
+  }, [currentOwnerSnapshot, isOwner]);
+
   const handleSyncNowForVercel = async () => {
     const status = await checkServerPublishStatus();
     if (!status.canWriteToSource) {
@@ -338,6 +608,12 @@ export default function App() {
     }
     canWriteToSourceRef.current = true;
     const ok = await flushPublishToServer(currentOwnerSnapshotRef.current);
+    const hasCloudWrite = Boolean(
+      getStoredCloudSyncCredentials()?.githubToken || serverCloudSyncRef.current.configured
+    );
+    if (hasCloudWrite) {
+      await pushToCloudNow(currentOwnerSnapshotRef.current);
+    }
     if (ok) {
       showBanner('Synced to src/data/publishedPortfolio.ts — Ready for Vercel deploy!');
     } else {
@@ -571,17 +847,18 @@ export default function App() {
       setCustomSections(res.customSections);
       setResumeMilestones(res.resumeMilestones);
       setResumePdf(null);
-      void flushPublishToServer(
-        {
-          projects: res.projects,
-          profile: res.profile,
-          siteContent: res.siteContent,
-          customSections: res.customSections,
-          resumeMilestones: res.resumeMilestones,
-          resumePdf: null,
-        },
-        { reset: true }
-      );
+      const resetSnapshot: OwnerSessionSnapshot = {
+        projects: res.projects,
+        profile: res.profile,
+        siteContent: res.siteContent,
+        customSections: res.customSections,
+        resumeMilestones: res.resumeMilestones,
+        resumePdf: null,
+      };
+      void flushPublishToServer(resetSnapshot, { reset: true });
+      if (getStoredCloudSyncCredentials()?.githubToken || serverCloudSyncRef.current.configured) {
+        void pushToCloudNow(resetSnapshot);
+      }
       showBanner('Portfolio reset to default showcase data.');
     }
   };
@@ -606,7 +883,8 @@ export default function App() {
   };
 
   const handleSaveAllOwnerChanges = async () => {
-    saveOwnerSessionSnapshot(currentOwnerSnapshot);
+    const ts = Date.now();
+    saveOwnerSessionSnapshot(currentOwnerSnapshot, ts);
     const freshBaseline = createOwnerSessionSnapshot(currentOwnerSnapshot);
     setOwnerSessionBaseline(freshBaseline);
     saveStoredOwnerSessionBaseline(freshBaseline);
@@ -617,13 +895,24 @@ export default function App() {
     }
 
     const synced = await flushPublishToServer(currentOwnerSnapshot);
-    showBanner(
-      synced
-        ? 'All Owner Mode changes saved & synced to src/data/publishedPortfolio.ts for Vercel!'
-        : canWriteToSourceRef.current
-        ? 'Saved locally (deploy source sync failed — click Retry Vercel Sync).'
-        : 'Saved in browser (Static host: export publishedPortfolio.ts before redeploying).'
+    const hasCloudWrite = Boolean(
+      getStoredCloudSyncCredentials()?.githubToken || serverCloudSyncRef.current.configured
     );
+    const cloudRes = hasCloudWrite
+      ? await pushToCloudNow(currentOwnerSnapshot, ts)
+      : { ok: false };
+
+    if (cloudRes.ok) {
+      showBanner('Saved & replicated to Live Cloud (Vercel ↔ Preview)!');
+    } else {
+      showBanner(
+        synced
+          ? 'Saved & synced to Preview source bundle! Open Cloud Sync to replicate to live Vercel.'
+          : canWriteToSourceRef.current
+          ? 'Saved locally (deploy source sync failed — click Retry Bundle Save).'
+          : 'Saved in browser. Open Cloud Sync in Owner Bar to replicate to Preview & other devices!'
+      );
+    }
   };
 
   const handleLogout = () => {
@@ -647,8 +936,12 @@ export default function App() {
 
   const handleSaveAndCloseOwnerMode = () => {
     const action = pendingOwnerCloseAction || 'logout';
-    saveOwnerSessionSnapshot(currentOwnerSnapshot);
+    const ts = Date.now();
+    saveOwnerSessionSnapshot(currentOwnerSnapshot, ts);
     void flushPublishToServer(currentOwnerSnapshot);
+    if (getStoredCloudSyncCredentials()?.githubToken || serverCloudSyncRef.current.configured) {
+      void pushToCloudNow(currentOwnerSnapshot, ts);
+    }
     executeCloseOwnerMode(
       action,
       action === 'forgetDevice'
@@ -772,6 +1065,9 @@ export default function App() {
           deploySyncState={deploySyncState}
           onDownloadPublishedModule={handleDownloadPublishedModule}
           onSyncNow={handleSyncNowForVercel}
+          cloudSyncState={cloudSyncState}
+          cloudGistId={resolveEffectiveCloudGistId(siteContent) || serverCloudSyncRef.current.gistId}
+          onOpenCloudSync={() => setIsCloudSyncOpen(true)}
         />
       )}
 
@@ -928,7 +1224,7 @@ export default function App() {
                     </h1>
 
                     {/* Lead copy */}
-                    <p className="text-base sm:text-lg text-zinc-300 leading-relaxed mt-6 max-w-2xl font-light">
+                    <p className="text-base sm:text-lg text-zinc-300 leading-relaxed mt-6 max-w-2xl font-light text-justify">
                       <EditableText
                         value={siteContent.heroLeadCopy}
                         onChange={(v) => handleUpdateSiteLine('heroLeadCopy', v)}
@@ -1108,7 +1404,7 @@ export default function App() {
                       as="span"
                     />
                   </h2>
-                  <p className="text-sm text-zinc-400 max-w-xl mt-2">
+                  <p className="text-sm text-zinc-400 max-w-xl mt-2 leading-relaxed text-justify">
                     <EditableText
                       value={siteContent.studioDescription}
                       onChange={(v) => handleUpdateSiteLine('studioDescription', v)}
@@ -1213,8 +1509,8 @@ export default function App() {
               <div className="flex flex-wrap items-center gap-2 mb-10 p-1.5 bg-zinc-900/60 border border-zinc-800 rounded-2xl w-fit">
                 {[
                   { id: 'all', label: 'All Works' },
-                  { id: 'game-design', label: 'Game Design & Mechanics' },
-                  { id: 'lighting', label: 'Lighting Art (Passion)' },
+                  { id: 'game-design', label: 'Game Designs' },
+                  { id: 'lighting', label: 'Lighting' },
                   { id: 'unreal', label: 'Unreal Engine 5' },
                 ].map((tab) => (
                   <button
@@ -1278,7 +1574,7 @@ export default function App() {
                       as="span"
                     />
                   </h2>
-                  <p className="text-sm text-zinc-400 mt-2">
+                  <p className="text-sm text-zinc-400 mt-2 leading-relaxed text-justify">
                     <EditableText
                       value={siteContent.reelsDescription}
                       onChange={(v) => handleUpdateSiteLine('reelsDescription', v)}
@@ -1373,7 +1669,7 @@ export default function App() {
                   autoPlay={false}
                   videoUrl={siteContent.customReelVideoUrl}
                 />
-                <p className="text-xs text-zinc-500 leading-relaxed">
+                <p className="text-xs text-zinc-500 leading-relaxed text-justify">
                   <EditableText
                     value={siteContent.reelPlayerCaption}
                     onChange={(v) => handleUpdateSiteLine('reelPlayerCaption', v)}
@@ -1458,7 +1754,7 @@ export default function App() {
                   leftImageUrl={siteContent.customAbSliderLeftUrl}
                   rightImageUrl={siteContent.customAbSliderRightUrl}
                 />
-                <p className="text-xs text-zinc-500 leading-relaxed">
+                <p className="text-xs text-zinc-500 leading-relaxed text-justify">
                   <EditableText
                     value={siteContent.abSliderCaption}
                     onChange={(v) => handleUpdateSiteLine('abSliderCaption', v)}
@@ -1498,7 +1794,7 @@ export default function App() {
                       as="span"
                     />
                   </h2>
-                  <p className="text-sm text-zinc-400 mt-2">
+                  <p className="text-sm text-zinc-400 mt-2 leading-relaxed text-justify">
                     <EditableText
                       value={siteContent.levelDescription}
                       onChange={(v) => handleUpdateSiteLine('levelDescription', v)}
@@ -1590,7 +1886,7 @@ export default function App() {
                             as="span"
                           />
                         </h3>
-                        <p className="text-xs text-zinc-400 leading-relaxed">
+                        <p className="text-xs text-zinc-400 leading-relaxed text-justify">
                           <EditableText
                             value={card.description}
                             onChange={(v) =>
@@ -1895,6 +2191,51 @@ export default function App() {
           isOpen={isSecurityModalOpen}
           onClose={() => setIsSecurityModalOpen(false)}
           onStatusMessage={showBanner}
+        />
+      )}
+
+      {/* Owner-Only Live Cross-Site Cloud Sync & Instant Transfer Modal */}
+      {isOwner && (
+        <CloudSyncModal
+          isOpen={isCloudSyncOpen}
+          onClose={() => setIsCloudSyncOpen(false)}
+          cloudSyncState={cloudSyncState}
+          effectiveGistId={resolveEffectiveCloudGistId(siteContent) || serverCloudSyncRef.current.gistId || ''}
+          storedCredentials={getStoredCloudSyncCredentials()}
+          serverEnvConfigured={serverCloudEnvConfigured}
+          lastSyncedAt={lastCloudSyncedAt}
+          currentSnapshot={currentOwnerSnapshot}
+          onConnectAndPush={async (gistId, token) => {
+            saveStoredCloudSyncCredentials({ gistId, githubToken: token });
+            const ts = Date.now();
+            return pushToCloudNow(currentOwnerSnapshotRef.current, ts, {
+              gistId,
+              githubToken: token,
+            });
+          }}
+          onPullNow={async (gistIdOverride) =>
+            pullFromCloudIfNewer({
+              force: true,
+              gistIdOverride,
+              showNoChangesBanner: true,
+            })
+          }
+          onDisconnect={() => {
+            clearStoredCloudSyncCredentials();
+            setCloudSyncState(
+              resolveEffectiveCloudGistId(siteContent) || serverCloudSyncRef.current.configured
+                ? 'synced'
+                : 'disconnected'
+            );
+          }}
+          onApplyTransferPackage={async (snapshot, ts) => {
+            await applyCloudSnapshot(
+              snapshot,
+              ts,
+              resolveEffectiveCloudGistId(snapshot.siteContent),
+              'Transfer Package applied & saved to this site!'
+            );
+          }}
         />
       )}
     </div>

@@ -322,7 +322,7 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({
               )}
             </div>
 
-            <p className="text-sm sm:text-base text-zinc-300 print:text-zinc-800 font-light leading-relaxed">
+            <p className="text-sm sm:text-base text-zinc-300 print:text-zinc-800 font-light leading-relaxed text-justify">
               <EditableText
                 value={
                   siteContent?.resumeExecutiveText ||
@@ -427,7 +427,7 @@ export const ResumeSection: React.FC<ResumeSectionProps> = ({
                         as="span"
                       />
                     </div>
-                    <div className="text-zinc-400 print:text-zinc-700 font-light leading-relaxed">
+                    <div className="text-zinc-400 print:text-zinc-700 font-light leading-relaxed text-justify">
                       <EditableText
                         value={skill.items}
                         onChange={(v) => handleUpdateSkill(skill.id, { items: v })}

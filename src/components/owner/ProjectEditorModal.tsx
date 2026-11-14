@@ -19,9 +19,9 @@ export const ProjectEditorModal: React.FC<ProjectEditorModalProps> = ({
   const [formData, setFormData] = useState<Partial<ProjectItem>>({
     title: '',
     subtitle: '',
-    category: 'both',
+    category: 'game-design',
     engine: 'Unreal Engine 5.4 · Lumen & Nanite',
-    role: 'Lead Lighting Artist & Level Designer',
+    role: 'Lead Game Designer',
     year: '2025',
     duration: '6 Months',
     featured: true,
@@ -67,9 +67,9 @@ export const ProjectEditorModal: React.FC<ProjectEditorModalProps> = ({
         id: `project-${Date.now()}`,
         title: '',
         subtitle: '',
-        category: 'both',
+        category: 'game-design',
         engine: 'Unreal Engine 5.4 · Lumen',
-        role: 'Lead Lighting Artist & Level Designer',
+        role: 'Lead Game Designer',
         year: '2025',
         duration: '5 Months',
         featured: true,
@@ -251,13 +251,12 @@ export const ProjectEditorModal: React.FC<ProjectEditorModalProps> = ({
               <div>
                 <label className="block font-mono text-zinc-400 mb-1">Category</label>
                 <select
-                  value={formData.category}
+                  value={formData.category === 'lighting' ? 'lighting' : 'game-design'}
                   onChange={(e) => setFormData({ ...formData, category: e.target.value as ProjectCategory })}
                   className="w-full px-2.5 py-2 bg-zinc-900 border border-zinc-800 rounded-lg text-xs text-zinc-200 focus:outline-none focus:border-red-500"
                 >
-                  <option value="both">Lighting & Level Design</option>
-                  <option value="lighting">Lighting Art Only</option>
-                  <option value="game-design">Game / Level Design Only</option>
+                  <option value="game-design">Game Designs</option>
+                  <option value="lighting">Lighting</option>
                 </select>
               </div>
 

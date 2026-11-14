@@ -138,7 +138,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
               />
             </h3>
             {sec.description && (
-              <p className="text-sm text-zinc-400 print:text-zinc-700 leading-relaxed mt-2.5">
+              <p className="text-sm text-zinc-400 print:text-zinc-700 leading-relaxed mt-2.5 text-justify">
                 <EditableText
                   value={sec.description}
                   onChange={(val) => onUpdateSection?.(sec.id, { description: val })}
@@ -219,7 +219,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                       </div>
                     )}
 
-                    <p className="text-xs text-zinc-400 print:text-zinc-700 leading-relaxed pt-1">
+                    <p className="text-xs text-zinc-400 print:text-zinc-700 leading-relaxed pt-1 text-justify">
                       <EditableText
                         value={item.description}
                         onChange={(v) => handleUpdateItem(sec.id, item.id, 'description', v)}
@@ -296,7 +296,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                         />
                       </div>
                     )}
-                    <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
+                    <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed text-justify">
                       <EditableText
                         value={item.description}
                         onChange={(v) => handleUpdateItem(sec.id, item.id, 'description', v)}
@@ -361,7 +361,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                         as="span"
                       />
                     </h4>
-                    <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
+                    <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed text-justify">
                       <EditableText
                         value={item.description}
                         onChange={(v) => handleUpdateItem(sec.id, item.id, 'description', v)}
@@ -462,7 +462,7 @@ export const CustomSectionRenderer: React.FC<CustomSectionRendererProps> = ({
                   label="Callout Kicker"
                 />
               </div>
-              <p className="text-sm sm:text-base text-zinc-300 print:text-zinc-800 font-light leading-relaxed">
+              <p className="text-sm sm:text-base text-zinc-300 print:text-zinc-800 font-light leading-relaxed text-justify">
                 <EditableText
                   value={sec.description || sec.title}
                   onChange={(val) => onUpdateSection?.(sec.id, { description: val })}

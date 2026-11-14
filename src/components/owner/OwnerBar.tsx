@@ -17,7 +17,9 @@ import {
   Check,
   Loader2,
   FileCode2,
+  Cloud,
 } from 'lucide-react';
+import type { CloudSyncState } from './CloudSyncModal';
 
 export type DeploySyncState = 'checking' | 'synced' | 'saving' | 'readonly' | 'error';
 
@@ -43,6 +45,9 @@ interface OwnerBarProps {
   deploySyncState?: DeploySyncState;
   onDownloadPublishedModule?: () => void;
   onSyncNow?: () => void;
+  cloudSyncState?: CloudSyncState;
+  cloudGistId?: string;
+  onOpenCloudSync?: () => void;
 }
 
 export const OwnerBar: React.FC<OwnerBarProps> = ({
@@ -67,6 +72,9 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
   deploySyncState = 'checking',
   onDownloadPublishedModule,
   onSyncNow,
+  cloudSyncState = 'disconnected',
+  cloudGistId,
+  onOpenCloudSync,
 }) => {
   return (
     <div className="print:hidden bg-zinc-950/95 border-b border-red-950/80 text-zinc-200 py-2 text-xs font-mono sticky top-0 z-50 backdrop-blur-md">
@@ -88,7 +96,7 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
               title="Writing edits to source bundle for Vercel / production deployments..."
             >
               <Loader2 className="w-3 h-3 animate-spin" />
-              <span>Syncing for Vercel...</span>
+              <span>Saving Preview...</span>
             </span>
           )}
           {deploySyncState === 'synced' && (
@@ -96,10 +104,10 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
               type="button"
               onClick={onSyncNow}
               className="inline-flex items-center gap-1 text-emerald-400 hover:text-emerald-300 border-l border-zinc-800 pl-2.5 text-[11px] cursor-pointer transition-colors"
-              title="All Owner edits are saved in src/data/publishedPortfolio.ts & public/uploads for your next Vercel deploy. Click to verify/re-sync."
+              title="Saved in src/data/publishedPortfolio.ts & public/uploads. Click to verify."
             >
               <Check className="w-3 h-3" />
-              <span>Synced for Vercel</span>
+              <span>Preview Bundle Saved</span>
             </button>
           )}
           {deploySyncState === 'readonly' && onDownloadPublishedModule && (
@@ -107,10 +115,10 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
               type="button"
               onClick={onDownloadPublishedModule}
               className="inline-flex items-center gap-1.5 text-amber-300 hover:text-white border-l border-zinc-800 pl-2.5 text-[11px] underline decoration-zinc-700 hover:decoration-red-500 underline-offset-2 cursor-pointer transition-colors"
-              title="Live static Vercel host cannot commit to Git automatically. Make permanent edits in AI Studio Preview or click here to export publishedPortfolio.ts for src/data/."
+              title="Static Vercel build — use Cloud Sync to replicate changes everywhere automatically, or click here to export publishedPortfolio.ts."
             >
               <FileCode2 className="w-3 h-3 text-red-400" />
-              <span>Static Vercel Host · Export Deploy File</span>
+              <span>Vercel Host · Export Bundle</span>
             </button>
           )}
           {deploySyncState === 'error' && (
@@ -118,11 +126,50 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
               type="button"
               onClick={onSyncNow}
               className="inline-flex items-center gap-1 text-red-400 hover:text-red-300 border-l border-zinc-800 pl-2.5 text-[11px] underline cursor-pointer"
-              title="Deploy source sync failed or payload too large; click to retry syncing to src/data/publishedPortfolio.ts."
+              title="Deploy source sync failed or payload too large; click to retry."
             >
-              <span>Retry Vercel Sync</span>
+              <span>Retry Bundle Save</span>
             </button>
           )}
+
+          {onOpenCloudSync && (
+            <button
+              type="button"
+              onClick={onOpenCloudSync}
+              className={`inline-flex items-center gap-1.5 border-l border-zinc-800 pl-2.5 text-[11px] cursor-pointer transition-colors ${
+                cloudSyncState === 'synced'
+                  ? 'text-emerald-400 hover:text-emerald-300'
+                  : cloudSyncState === 'syncing' || cloudSyncState === 'checking'
+                  ? 'text-amber-300'
+                  : cloudSyncState === 'error'
+                  ? 'text-red-400 hover:text-red-300'
+                  : 'text-red-300 hover:text-white'
+              }`}
+              title={
+                cloudGistId
+                  ? `Live Cloud Sync active (Gist: ${cloudGistId}). Edits replicate automatically between Vercel, Preview, and every device.`
+                  : 'Connect Live Cloud Sync so edits made in Vercel or Preview replicate everywhere automatically.'
+              }
+            >
+              {cloudSyncState === 'syncing' || cloudSyncState === 'checking' ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Cloud className="w-3 h-3" />
+              )}
+              <span>
+                {cloudSyncState === 'synced'
+                  ? 'Live Everywhere (Vercel ↔ Preview)'
+                  : cloudSyncState === 'syncing'
+                  ? 'Replicating Everywhere...'
+                  : cloudSyncState === 'checking'
+                  ? 'Checking Live Cloud...'
+                  : cloudSyncState === 'error'
+                  ? 'Cloud Sync Needs Token'
+                  : 'Setup Anywhere Sync'}
+              </span>
+            </button>
+          )}
+
           {isPreviewMode && (
             <span className="px-2 py-0.5 rounded bg-zinc-800 text-white border border-zinc-700 text-[10px]">
               Visitor Preview Active
@@ -207,6 +254,22 @@ export const OwnerBar: React.FC<OwnerBarProps> = ({
             >
               <QrCode className="w-3.5 h-3.5 text-red-400" />
               <span>2FA &amp; Security</span>
+            </button>
+          )}
+
+          {onOpenCloudSync && (
+            <button
+              type="button"
+              onClick={onOpenCloudSync}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-colors cursor-pointer ${
+                cloudSyncState === 'synced'
+                  ? 'bg-emerald-950/35 hover:bg-emerald-900/40 text-emerald-300 border-emerald-800/60'
+                  : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-200 border-red-900/50'
+              }`}
+              title="Sync edits between Vercel, AI Studio Preview, and all devices automatically"
+            >
+              <Cloud className="w-3.5 h-3.5 text-red-400" />
+              <span>Cloud Sync</span>
             </button>
           )}
 

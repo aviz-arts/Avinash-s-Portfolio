@@ -239,7 +239,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
                     </div>
                   </div>
 
-                  <p className="text-xs text-zinc-400 leading-relaxed font-light">
+                  <p className="text-xs text-zinc-400 leading-relaxed font-light text-justify">
                     <EditableText
                       value={
                         siteContent.contactEmailNote ||
@@ -313,7 +313,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({
                     </div>
                   </div>
 
-                  <p className="text-xs text-zinc-400 leading-relaxed font-light">
+                  <p className="text-xs text-zinc-400 leading-relaxed font-light text-justify">
                     <EditableText
                       value={
                         siteContent.contactPhoneNote ||

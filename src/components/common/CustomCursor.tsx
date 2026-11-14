@@ -20,6 +20,7 @@ export const CustomCursor: React.FC = () => {
     if (isTouch) return;
 
     setHasMouse(true);
+    document.documentElement.classList.add('custom-cursor-active');
 
     const onMouseMove = (e: MouseEvent) => {
       mousePos.current = { x: e.clientX, y: e.clientY };
@@ -67,6 +68,7 @@ export const CustomCursor: React.FC = () => {
     animFrameId.current = requestAnimationFrame(render);
 
     return () => {
+      document.documentElement.classList.remove('custom-cursor-active');
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mousedown', onMouseDown);
       window.removeEventListener('mouseup', onMouseUp);
@@ -91,7 +93,7 @@ export const CustomCursor: React.FC = () => {
       >
         <div
           className={`w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.9)] transition-transform duration-150 ${
-            isClicking ? 'scale-75' : isHovered ? 'scale-150 bg-white' : 'scale-100'
+            isClicking ? 'scale-75' : isHovered ? 'scale-150 bg-red-400' : 'scale-100'
           }`}
         />
       </div>

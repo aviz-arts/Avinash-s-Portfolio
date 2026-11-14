@@ -502,7 +502,7 @@ export const CareerTimeline: React.FC<CareerTimelineProps> = ({
                         </div>
 
                         {/* Summary Narrative */}
-                        <p className="text-xs sm:text-sm text-zinc-300 font-light leading-relaxed">
+                        <p className="text-xs sm:text-sm text-zinc-300 font-light leading-relaxed text-justify">
                           <EditableText
                             value={milestone.description}
                             onChange={(v) => onUpdateMilestone(milestone.id, { description: v })}
@@ -526,7 +526,7 @@ export const CareerTimeline: React.FC<CareerTimelineProps> = ({
                                 className="flex items-start gap-2.5 text-xs text-zinc-300 font-light leading-relaxed"
                               >
                                 <span className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" />
-                                <div className="flex-1">
+                                <div className="flex-1 text-justify">
                                   <EditableText
                                     value={ach}
                                     onChange={(v) =>

@@ -43,6 +43,11 @@ body {
   overflow-x: hidden;
 }
 
+html.custom-cursor-active,
+html.custom-cursor-active * {
+  cursor: none !important;
+}
+
 @media print {
   @page {
     size: auto;

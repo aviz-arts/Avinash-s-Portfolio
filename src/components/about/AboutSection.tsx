@@ -212,7 +212,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
             />
           </h2>
 
-          <p className="text-sm sm:text-base text-zinc-400 leading-relaxed mt-3">
+          <p className="text-sm sm:text-base text-zinc-400 leading-relaxed mt-3 text-justify">
             <EditableText
               value={lead}
               onChange={(v) => handleUpdate('aboutLead', v)}
@@ -284,7 +284,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
                       <div className="text-red-400 font-semibold mt-0.5">Lighting Artist</div>
                     </div>
                   </div>
-                  <p className="text-xs text-zinc-400 leading-relaxed">
+                  <p className="text-xs text-zinc-400 leading-relaxed text-justify">
                     Specialized in core gameplay loops, player psychology, and level architecture, elevated by lighting design to intuitively guide player navigation.
                   </p>
                 </div>
@@ -324,7 +324,7 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
                       </h3>
                     </div>
 
-                    <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed">
+                    <p className="text-xs sm:text-sm text-zinc-400 leading-relaxed text-justify">
                       <EditableText
                         value={philosophyText}
                         onChange={(v) => handleUpdate('philosophyCardText', v)}
